@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "../../../../components/AppShell";
@@ -28,7 +28,7 @@ type LibraryDoc = {
   adminInkReady?: boolean;
 };
 
-export default function AdminOnboardingDetailPage() {
+function AdminOnboardingDetailInner() {
   const router = useRouter();
   const params = useParams();
   const runId = String(params.id || "");
@@ -526,5 +526,19 @@ export default function AdminOnboardingDetailPage() {
         />
       ) : null}
     </AppShell>
+  );
+}
+
+export default function AdminOnboardingDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="auth-shell">
+          <p className="lead">Loading onboarding…</p>
+        </main>
+      }
+    >
+      <AdminOnboardingDetailInner />
+    </Suspense>
   );
 }
