@@ -1,0 +1,44 @@
+flowchart TB
+  Admin[DM.HR Admin / HR Team]
+
+  subgraph AdminUC[Admin use cases]
+    direction TB
+    A1[Manage client organisations]
+    A2[Classify Existing vs New]
+    A3[Run new-client onboarding]
+    A4[Send Terms for e-sign]
+    A5[Issue welcome pack and compliance docs]
+    A6[Send DD and payment links]
+    A7[Upload to any document area]
+    A8[Manage cases and internal notes]
+    A9[View admin dashboard]
+    A10[Upload / access My Private Space]
+    A1 ~~~ A2
+    A2 ~~~ A3
+    A3 ~~~ A4
+    A4 ~~~ A5
+    A5 ~~~ A6
+    A6 ~~~ A7
+    A7 ~~~ A8
+    A8 ~~~ A9
+    A9 ~~~ A10
+  end
+
+  Admin --> AdminUC
+
+  Client[Client Organisation User]
+
+  subgraph ClientUC[Client use cases]
+    direction TB
+    C1[Sign in to own organisation only]
+    C2[Download docs from five libraries]
+    C3[Upload to My Private Space]
+    C4[Add a case]
+    C5[Check a case]
+    C1 ~~~ C2
+    C2 ~~~ C3
+    C3 ~~~ C4
+    C4 ~~~ C5
+  end
+
+  Client --> ClientUC

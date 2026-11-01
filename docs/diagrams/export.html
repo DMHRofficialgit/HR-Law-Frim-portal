@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Export DM.HR diagrams</title>
+  <script src="./vendor/mermaid.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #fff; margin: 20px; }
+    .block { margin: 0 0 40px; padding: 20px; border: 1px solid #ddd; page-break-after: always; }
+    h2 { margin: 0 0 12px; font-size: 16px; }
+    .mermaid { background: #fff; }
+  </style>
+</head>
+<body>
+  <div class="block" id="d00"><h2>00-two-sides</h2><pre class="mermaid" id="m00">
+flowchart LR
+  subgraph AdminSide[DM.HR Admin]
+    A1[See all clients]
+    A2[Upload everywhere]
+    A3[Manage cases]
+    A4[Run onboarding]
+  end
+  subgraph ClientSide[Client company]
+    C1[See only itself]
+    C2[Download docs]
+    C3[Add / check cases]
+    C4[Private uploads]
+  end
+  AdminSide <-->|Same portal - different menu| ClientSide
+  </pre></div>
+
+  <div class="block" id="d01"><h2>01-use-cases</h2><pre class="mermaid" id="m01">
+flowchart TB
+  Admin[DM.HR Admin / HR Team]
+  subgraph AdminUC[Admin use cases]
+    direction TB
+    A1[Manage client organisations]
+    A2[Classify Existing vs New]
+    A3[Run new-client onboarding]
+    A4[Send Terms for e-sign]
+    A5[Issue welcome pack and compliance docs]
+    A6[Send DD and payment links]
+    A7[Upload to any document area]
+    A8[Manage cases and internal notes]
+    A9[View admin dashboard]
+    A10[Upload / access My Private Space]
+    A1 ~~~ A2
+    A2 ~~~ A3
+    A3 ~~~ A4
+    A4 ~~~ A5
+    A5 ~~~ A6
+    A6 ~~~ A7
+    A7 ~~~ A8
+    A8 ~~~ A9
+    A9 ~~~ A10
+  end
+  Admin --> AdminUC
+  Client[Client Organisation User]
+  subgraph ClientUC[Client use cases]
+    direction TB
+    C1[Sign in to own organisation only]
+    C2[Download docs from five libraries]
+    C3[Upload to My Private Space]
+    C4[Add a case]
+    C5[Check a case]
+    C1 ~~~ C2
+    C2 ~~~ C3
+    C3 ~~~ C4
+    C4 ~~~ C5
+  end
+  Client --> ClientUC
+  </pre></div>
+
+  <div class="block" id="d02"><h2>02-system-context</h2><pre class="mermaid" id="m02">
+flowchart LR
+  Admin[DM.HR Admin]
+  Client[Client User]
+  subgraph System[DM.HR Portal]
+    App[Web App]
+    API[Backend API]
+    DB[(Database)]
+    Files[File Storage]
+  end
+  Email[Email Service]
+  ESign[E-Sign Provider]
+  Pay[Payment / DD Provider]
+  Xero[Xero - outside scope]
+  Admin --> App
+  Client --> App
+  App --> API
+  API --> DB
+  API --> Files
+  API --> Email
+  API --> ESign
+  API -.->|send links only| Pay
+  Pay -.->|accounting stays here| Xero
+  </pre></div>
+
+  <div class="block" id="d03a"><h2>03a-journey-existing-client</h2><pre class="mermaid">
+flowchart TD
+  A[Admin creates or imports client] --> B[Mark Already Onboarded]
+  B --> C[Send invite / login details]
+  C --> D[Client signs in]
+  D --> E[Dashboard - skip onboarding]
+  E --> F[Docs / Cases / Private Space]
+  </pre></div>
+
+  <div class="block" id="d03b"><h2>03b-journey-new-client</h2><pre class="mermaid">
+flowchart TD
+  A[Admin adds new client] --> B[Send Terms of Business]
+  B --> C[Client signs and returns online]
+  C --> D[Send welcome pack]
+  D --> E[Issue compliance documents]
+  E --> F[Send DD link + initial payment link]
+  F --> G[Admin confirms onboarding complete]
+  G --> H[Client uses normal dashboard]
+  </pre></div>
+
+  <div class="block" id="d03c"><h2>03c-journey-documents</h2><pre class="mermaid">
+flowchart TD
+  A[Admin opens Client X] --> B[Pick document area]
+  B --> C[Upload file]
+  C --> D[File stored against that organisation]
+  D --> E[Client opens same area]
+  E --> F[View / download]
+  G[Client opens Private Space] --> H[Upload own file]
+  H --> I[Admin can also access Private Space]
+  </pre></div>
+
+  <div class="block" id="d03d"><h2>03d-journey-case</h2><pre class="mermaid">
+flowchart TD
+  A[Client: Add a case + optional attachment] --> B[Case saved to organisation]
+  B --> C[Appears in Admin case list]
+  C --> D[Admin updates status / asks for info]
+  D --> E{Update type?}
+  E -->|Client visible| F[Client sees it + optional email]
+  E -->|Internal note| G[Admin only - never emailed to client]
+  F --> H[Client: Check a case]
+  G --> C
+  H --> I[Received / Pending / Closed]
+  </pre></div>
+
+  <div class="block" id="d04"><h2>04-sitemap</h2><pre class="mermaid">
+flowchart TB
+  Login[Login]
+  Login --> AdminSide[Admin side]
+  Login --> ClientSide[Client side]
+  subgraph AdminNav[Admin]
+    A1[Dashboard]
+    A2[Clients and Accounts]
+    A3[New Client Onboarding]
+    A4[Documents]
+    A5[Employees - if required]
+    A6[Cases]
+    A7[Activity / Notifications]
+  end
+  subgraph ClientNav[Client]
+    C1[Dashboard]
+    C2[Add a Case]
+    C3[Check a Case]
+    C4[My Documents]
+    C5[My Policies]
+    C6[My Handbook]
+    C7[My Contracts]
+    C8[My Useful Documents]
+    C9[My Private Space]
+  end
+  AdminSide --> AdminNav
+  ClientSide --> ClientNav
+  </pre></div>
+
+  <div class="block" id="d05"><h2>05-er-diagram</h2><pre class="mermaid">
+erDiagram
+  ORGANISATIONS ||--o{ USERS : has
+  ORGANISATIONS ||--o| ONBOARDINGS : has
+  ORGANISATIONS ||--o{ DOCUMENTS : owns
+  ORGANISATIONS ||--o{ EMPLOYEES : has
+  ORGANISATIONS ||--o{ CASES : owns
+  ONBOARDINGS ||--o{ ONBOARDING_STEPS : contains
+  CASES ||--o{ CASE_UPDATES : has
+  CASES ||--o{ CASE_NOTES : has
+  CASES }o--o| EMPLOYEES : may_relate
+  USERS ||--o{ DOCUMENTS : uploads
+  CASES ||--o{ CASE_ATTACHMENTS : has
+  ORGANISATIONS {
+    id uuid PK
+    name string
+    onboarding_status enum
+    status string
+  }
+  USERS {
+    id uuid PK
+    organisation_id uuid FK
+    role enum
+    email string
+  }
+  DOCUMENTS {
+    id uuid PK
+    organisation_id uuid FK
+    area enum
+    filename string
+  }
+  CASES {
+    id uuid PK
+    organisation_id uuid FK
+    title string
+    status enum
+  }
+  </pre></div>
+
+  <div id="status">Rendering…</div>
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      theme: 'default',
+      flowchart: { htmlLabels: false, curve: 'basis' },
+      er: { useMaxWidth: true },
+    });
+    (async () => {
+      await mermaid.run({ querySelector: '.mermaid' });
+      window.__DIAGRAMS_READY__ = true;
+      document.getElementById('status').textContent = 'READY';
+    })();
+  </script>
+</body>
+</html>

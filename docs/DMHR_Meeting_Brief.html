@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DM.HR Group — Meeting Brief</title>
+  <script src="./diagrams/vendor/mermaid.min.js"></script>
+  <style>
+    :root {
+      --navy: #1c2634;
+      --ink: #17253b;
+      --muted: #5b6b7c;
+      --line: #dfe4eb;
+      --bg: #f7f8fa;
+      --white: #fff;
+      --accent: #2a6fad;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.5;
+      font-size: 15px;
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 28px 22px 60px; }
+    header {
+      background: var(--navy);
+      color: #fff;
+      padding: 28px 26px;
+      border-radius: 8px;
+      margin-bottom: 22px;
+    }
+    header h1 { margin: 0 0 6px; font-size: 28px; font-weight: 700; }
+    header p { margin: 0; opacity: .88; font-family: system-ui, sans-serif; font-size: 13px; }
+    .meta {
+      margin-top: 14px;
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      opacity: .8;
+    }
+    section {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px 24px;
+      margin-bottom: 16px;
+    }
+    h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+      color: var(--navy);
+      border-bottom: 2px solid var(--line);
+      padding-bottom: 8px;
+    }
+    h3 { margin: 18px 0 8px; font-size: 16px; color: var(--navy); }
+    p, li { font-family: system-ui, -apple-system, Segoe UI, sans-serif; color: var(--ink); }
+    ul { padding-left: 20px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+      margin: 10px 0;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #eef2f6; }
+    .note {
+      background: #eef5fb;
+      border-left: 4px solid var(--accent);
+      padding: 10px 12px;
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+      margin: 12px 0 0;
+    }
+    .diagram {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 14px;
+      overflow-x: auto;
+      margin-top: 10px;
+    }
+    .mermaid { display: flex; justify-content: center; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    .sides {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      font-family: system-ui, sans-serif;
+      font-size: 13px;
+    }
+    .side-box {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 14px;
+      background: #fafbfc;
+    }
+    .side-box h4 { margin: 0 0 8px; color: var(--navy); }
+    .side-box ul { margin: 0; }
+    .print-hint {
+      font-family: system-ui, sans-serif;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+    @media print {
+      body { background: #fff; }
+      .print-hint { display: none; }
+      section { break-inside: avoid; box-shadow: none; }
+      header { break-after: avoid; }
+    }
+    @media (max-width: 700px) {
+      .sides { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>DM.HR Group — Meeting Brief</h1>
+      <p>Client Portal &amp; Case Management Platform</p>
+      <div class="meta">Sources: Scope of Work · David’s requirements · HTML mockup (UI reference only)</div>
+    </header>
+
+    <p class="print-hint">Tip for the meeting: open this file in Chrome/Edge → <strong>Ctrl+P</strong> → Save as PDF. Diagrams render on this page.</p>
+
+    <section id="what">
+      <h2>1. What is this portal?</h2>
+      <p>DM.HR Group helps care companies with HR and employment issues.</p>
+      <p>Today that work is messy (email, Dropbox, paperwork). <strong>This portal is one private website</strong> where:</p>
+      <ul>
+        <li><strong>DM.HR</strong> manages their clients</li>
+        <li><strong>Each client company</strong> only sees <strong>their own</strong> stuff</li>
+        <li>Documents live in clear folders</li>
+        <li>Problems become <strong>cases</strong> you can track</li>
+        <li><strong>New</strong> clients get guided online onboarding</li>
+        <li><strong>Old</strong> clients skip that and just use the portal</li>
+      </ul>
+      <p class="note">Think: shared office online between DM.HR and each company — not a public website.</p>
+    </section>
+
+    <section id="actors">
+      <h2>2. Actors (who uses it)</h2>
+      <table>
+        <thead>
+          <tr><th>Actor</th><th>Who</th><th>Simple job</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Admin / HR team</strong></td>
+            <td>People at DM.HR</td>
+            <td>Add clients, upload docs, run onboarding, handle cases</td>
+          </tr>
+          <tr>
+            <td><strong>Client user</strong></td>
+            <td>Person at the care company (manager / contact)</td>
+            <td>Login, get docs, open cases, upload private files</td>
+          </tr>
+          <tr>
+            <td><em>(later) Employee</em></td>
+            <td>Staff of the care company</td>
+            <td>Not a main login in foundation — employees are mostly records</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>For v1 foundation: <strong>2 real sides</strong> — Admin and Client.</p>
+    </section>
+
+    <section id="sides">
+      <h2>3. Two sides of the portal</h2>
+      <div class="sides">
+        <div class="side-box">
+          <h4>DM.HR (Admin)</h4>
+          <ul>
+            <li>See all clients</li>
+            <li>Upload everywhere</li>
+            <li>Manage cases</li>
+            <li>Run onboarding</li>
+          </ul>
+        </div>
+        <div class="side-box">
+          <h4>Client company (e.g. ABC Homecare)</h4>
+          <ul>
+            <li>See only itself</li>
+            <li>Download docs</li>
+            <li>Add / check cases</li>
+            <li>Private uploads</li>
+          </ul>
+        </div>
+      </div>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart LR
+  subgraph AdminSide[DM.HR Admin]
+    A1[See all clients]
+    A2[Upload everywhere]
+    A3[Manage cases]
+    A4[Run onboarding]
+  end
+  subgraph ClientSide[Client company]
+    C1[See only itself]
+    C2[Download docs]
+    C3[Add / check cases]
+    C4[Private uploads]
+  end
+  AdminSide <-->|Same portal - different menu| ClientSide
+        </pre>
+      </div>
+    </section>
+
+    <section id="achieve">
+      <h2>4. What we are achieving</h2>
+      <ol style="font-family:system-ui,sans-serif">
+        <li>Each company has <strong>its own locked room</strong> (no peeking at other companies).</li>
+        <li>Docs are organised (not lost in email).</li>
+        <li>Cases have a clear thread (open → update → close).</li>
+        <li>New clients can onboard online; old ones jump straight in.</li>
+        <li>DM.HR looks professional and organised.</li>
+      </ol>
+      <p class="note"><strong>One line:</strong> Admin = control room for all clients. Client = that company’s private folder + cases. Goal = stop chasing HR work in email.</p>
+    </section>
+
+    <section id="usecases">
+      <h2>5. Actors &amp; use case diagram</h2>
+      <p style="font-family:system-ui,sans-serif;font-size:13px;color:#5b6b7c">Actors connect to their use-case groups (Admin first, then Client). Boxes inside a group are capabilities, not ordered steps.</p>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TB
+  Admin[DM.HR Admin / HR Team]
+  subgraph AdminUC[Admin use cases]
+    direction TB
+    A1[Manage client organisations]
+    A2[Classify Existing vs New]
+    A3[Run new-client onboarding]
+    A4[Send Terms for e-sign]
+    A5[Issue welcome pack and compliance docs]
+    A6[Send DD and payment links]
+    A7[Upload to any document area]
+    A8[Manage cases and internal notes]
+    A9[View admin dashboard]
+    A10[Upload / access My Private Space]
+    A1 ~~~ A2
+    A2 ~~~ A3
+    A3 ~~~ A4
+    A4 ~~~ A5
+    A5 ~~~ A6
+    A6 ~~~ A7
+    A7 ~~~ A8
+    A8 ~~~ A9
+    A9 ~~~ A10
+  end
+  Admin --> AdminUC
+  Client[Client Organisation User]
+  subgraph ClientUC[Client use cases]
+    direction TB
+    C1[Sign in to own organisation only]
+    C2[Download docs from five libraries]
+    C3[Upload to My Private Space]
+    C4[Add a case]
+    C5[Check a case]
+    C1 ~~~ C2
+    C2 ~~~ C3
+    C3 ~~~ C4
+    C4 ~~~ C5
+  end
+  Client --> ClientUC
+        </pre>
+      </div>
+    </section>
+
+    <section id="context">
+      <h2>6. High-level system context</h2>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart LR
+  Admin[DM.HR Admin]
+  Client[Client User]
+  subgraph System[DM.HR Portal]
+    App[Web App]
+    API[Backend API]
+    DB[(Database)]
+    Files[File Storage]
+  end
+  Email[Email Service]
+  ESign[E-Sign Provider]
+  Pay[Payment / DD Provider]
+  Xero[Xero - outside scope]
+  Admin --> App
+  Client --> App
+  App --> API
+  API --> DB
+  API --> Files
+  API --> Email
+  API --> ESign
+  API -.->|send links only| Pay
+  Pay -.->|accounting stays here| Xero
+        </pre>
+      </div>
+      <p class="note"><strong>Rule:</strong> Portal stores payment/DD links + status. It does not process money or replace Xero.</p>
+    </section>
+
+    <section id="journeys">
+      <h2>7. User workflows / journeys</h2>
+
+      <h3>A) Existing client</h3>
+      <ol style="font-family:system-ui,sans-serif">
+        <li>Admin creates/imports company + login</li>
+        <li>Marks them <strong>Already onboarded</strong></li>
+        <li>Client logs in → dashboard (no onboarding)</li>
+        <li>Uses docs + cases + private space</li>
+      </ol>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TD
+  A[Admin creates or imports client] --> B[Mark Already Onboarded]
+  B --> C[Send invite / login details]
+  C --> D[Client signs in]
+  D --> E[Dashboard - skip onboarding]
+  E --> F[Docs / Cases / Private Space]
+        </pre>
+      </div>
+
+      <h3>B) New client</h3>
+      <ol style="font-family:system-ui,sans-serif">
+        <li>Admin adds company</li>
+        <li>Send Terms → client signs online</li>
+        <li>Send welcome pack</li>
+        <li>Issue compliance docs</li>
+        <li>Send Direct Debit + first payment links</li>
+        <li>Admin marks onboarding complete</li>
+        <li>Client uses normal portal</li>
+      </ol>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TD
+  A[Admin adds new client] --> B[Send Terms of Business]
+  B --> C[Client signs and returns online]
+  C --> D[Send welcome pack]
+  D --> E[Issue compliance documents]
+  E --> F[Send DD link + initial payment link]
+  F --> G[Admin confirms onboarding complete]
+  G --> H[Client uses normal dashboard]
+        </pre>
+      </div>
+
+      <h3>C) Documents</h3>
+      <ol style="font-family:system-ui,sans-serif">
+        <li>Admin opens Client X → picks folder</li>
+        <li>Uploads file</li>
+        <li>Client opens same folder → downloads</li>
+        <li>Private Space: client can also upload; admin can access</li>
+      </ol>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TD
+  A[Admin opens Client X] --> B[Pick document area]
+  B --> C[Upload file]
+  C --> D[File stored against that organisation]
+  D --> E[Client opens same area]
+  E --> F[View / download]
+  G[Client opens Private Space] --> H[Upload own file]
+  H --> I[Admin can also access Private Space]
+        </pre>
+      </div>
+
+      <h3>D) Case</h3>
+      <ol style="font-family:system-ui,sans-serif">
+        <li>Client: Add a case (+ optional attachment)</li>
+        <li>DM.HR reviews / replies / updates status</li>
+        <li>Client: Check a case → client-visible updates</li>
+        <li>Email notifies on important updates</li>
+        <li>Internal HR notes stay hidden from client</li>
+      </ol>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TD
+  A[Client: Add a case + optional attachment] --> B[Case saved to organisation]
+  B --> C[Appears in Admin case list]
+  C --> D[Admin updates status / asks for info]
+  D --> E{Update type?}
+  E -->|Client visible| F[Client sees it + optional email]
+  E -->|Internal note| G[Admin only - never emailed to client]
+  F --> H[Client: Check a case]
+  G --> C
+  H --> I[Received / Pending / Closed]
+        </pre>
+      </div>
+    </section>
+
+    <section id="sitemap">
+      <h2>8. Portal sides &amp; navigation map</h2>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart TB
+  Login[Login]
+  Login --> AdminSide[Admin side]
+  Login --> ClientSide[Client side]
+  subgraph AdminNav[Admin]
+    A1[Dashboard]
+    A2[Clients and Accounts]
+    A3[New Client Onboarding]
+    A4[Documents]
+    A5[Employees - if required]
+    A6[Cases]
+    A7[Activity / Notifications]
+  end
+  subgraph ClientNav[Client]
+    C1[Dashboard]
+    C2[Add a Case]
+    C3[Check a Case]
+    C4[My Documents]
+    C5[My Policies]
+    C6[My Handbook]
+    C7[My Contracts]
+    C8[My Useful Documents]
+    C9[My Private Space]
+  end
+  AdminSide --> AdminNav
+  ClientSide --> ClientNav
+        </pre>
+      </div>
+      <p class="note"><strong>Six client document areas:</strong> My Documents · My Policies · My Handbook · My Contracts · My Useful Documents · My Private Space</p>
+    </section>
+
+    <section id="er">
+      <h2>9. Data model (ER diagram)</h2>
+      <div class="diagram">
+        <pre class="mermaid">
+erDiagram
+  ORGANISATIONS ||--o{ USERS : has
+  ORGANISATIONS ||--o| ONBOARDINGS : has
+  ORGANISATIONS ||--o{ DOCUMENTS : owns
+  ORGANISATIONS ||--o{ EMPLOYEES : has
+  ORGANISATIONS ||--o{ CASES : owns
+  ONBOARDINGS ||--o{ ONBOARDING_STEPS : contains
+  CASES ||--o{ CASE_UPDATES : has
+  CASES ||--o{ CASE_NOTES : has
+  CASES }o--o| EMPLOYEES : may_relate
+  USERS ||--o{ DOCUMENTS : uploads
+  CASES ||--o{ CASE_ATTACHMENTS : has
+  ORGANISATIONS {
+    id uuid PK
+    name string
+    onboarding_status enum
+    status string
+  }
+  USERS {
+    id uuid PK
+    organisation_id uuid FK
+    role enum
+    email string
+  }
+  DOCUMENTS {
+    id uuid PK
+    organisation_id uuid FK
+    area enum
+    filename string
+  }
+  CASES {
+    id uuid PK
+    organisation_id uuid FK
+    title string
+    status enum
+  }
+        </pre>
+      </div>
+      <table>
+        <thead><tr><th>Field</th><th>Values</th></tr></thead>
+        <tbody>
+          <tr><td>onboarding_status</td><td>existing_skip · in_progress · completed</td></tr>
+          <tr><td>documents.area</td><td>documents · policies · handbook · contracts · useful · private</td></tr>
+          <tr><td>users.role</td><td>admin · client</td></tr>
+          <tr><td>case updates</td><td>client-visible vs internal notes (never emailed to client)</td></tr>
+        </tbody>
+      </table>
+      <p class="note">Everything hangs off <strong>organisation_id</strong> — Company A never sees Company B.</p>
+    </section>
+
+    <section id="foundation">
+      <h2>10. Finished foundation product — what we will have</h2>
+      <table>
+        <thead><tr><th>You have</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>Login</td><td>Admin and client accounts, secure</td></tr>
+          <tr><td>Clients list</td><td>Add companies; tag Existing vs New</td></tr>
+          <tr><td>Onboarding for new only</td><td>Steps + status; existing skip it</td></tr>
+          <tr><td>6 document areas per client</td><td>Admin upload; client download; Private Space both ways</td></tr>
+          <tr><td>Cases</td><td>Create, track, update, close; emails for updates</td></tr>
+          <tr><td>Separation</td><td>Company A never sees Company B</td></tr>
+          <tr><td>Admin dashboard</td><td>Who needs attention (onboarding / cases)</td></tr>
+        </tbody>
+      </table>
+      <p class="note"><strong>Not in foundation unless agreed later:</strong> full payments system, payroll, bulk Dropbox migration, employee self-login filling 30 forms.</p>
+    </section>
+
+    <section id="alignment">
+      <h2>11. Source alignment</h2>
+      <table>
+        <thead><tr><th>Source</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>SOW + David’s message</td><td><strong>Truth</strong> for build</td></tr>
+          <tr><td>HTML mockup</td><td>UI feel (older: 3 folders; product uses 6)</td></tr>
+          <tr><td>Early call understanding</td><td>Rough — right on clients/docs; overstated “30 employees fill forms”</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      securityLevel: 'loose',
+      theme: 'default',
+      flowchart: { curve: 'basis', htmlLabels: false },
+      er: { useMaxWidth: true },
+    });
+  </script>
+</body>
+</html>

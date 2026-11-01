@@ -1,0 +1,10 @@
+flowchart TD
+  A[Client: Add a case + optional attachment] --> B[Case saved to organisation]
+  B --> C[Appears in Admin case list]
+  C --> D[Admin updates status / asks for info]
+  D --> E{Update type?}
+  E -->|Client visible| F[Client sees it + optional email]
+  E -->|Internal note| G[Admin only - never emailed to client]
+  F --> H[Client: Check a case]
+  G --> C
+  H --> I[Received / Pending / Closed]

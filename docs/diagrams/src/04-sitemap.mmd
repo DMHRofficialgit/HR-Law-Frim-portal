@@ -1,0 +1,30 @@
+flowchart TB
+  Login[Login]
+
+  Login --> AdminSide[Admin side]
+  Login --> ClientSide[Client side]
+
+  subgraph AdminNav[Admin]
+    A1[Dashboard]
+    A2[Clients and Accounts]
+    A3[New Client Onboarding]
+    A4[Documents]
+    A5[Employees - if required]
+    A6[Cases]
+    A7[Activity / Notifications]
+  end
+
+  subgraph ClientNav[Client]
+    C1[Dashboard]
+    C2[Add a Case]
+    C3[Check a Case]
+    C4[My Documents]
+    C5[My Policies]
+    C6[My Handbook]
+    C7[My Contracts]
+    C8[My Useful Documents]
+    C9[My Private Space]
+  end
+
+  AdminSide --> AdminNav
+  ClientSide --> ClientNav

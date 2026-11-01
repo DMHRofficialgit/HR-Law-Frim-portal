@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Env / secrets (keep *.example tracked)
+.env
+.env.*
+!.env.example
+
+# Next.js
+frontend/.next/
+frontend/out/
+frontend/build/
+*.tsbuildinfo
+
+# Backend build / runtime data
+backend/dist/
+backend/storage/**
+!backend/storage/.gitkeep
+
+# Logs & debug
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Cursor local (keep shared skills/rules)
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**
+!.cursor/rules/
+!.cursor/rules/**
+
+# Vercel / deploy
+.vercel
+
+# Misc
+*.pem
+*.key
+*.p12
+*.pfx
+.turbo/
+.cache/
+*.local

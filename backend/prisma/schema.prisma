@@ -1,0 +1,583 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  client
+}
+
+enum UserStatus {
+  active
+  disabled
+}
+
+enum OnboardingStatus {
+  existing_skip
+  in_progress
+  completed
+}
+
+enum FolderKey {
+  my_documents
+  my_policies
+  my_handbook
+  my_contracts
+  my_useful_documents
+  my_private_space
+  my_onboarding
+}
+
+enum OnboardingRunStatus {
+  in_progress
+  completed
+}
+
+enum OnboardingPackItemStatus {
+  issued
+  awaiting_signature
+  signed
+  reviewed
+  done
+}
+
+enum OnboardingPaymentKind {
+  direct_debit
+  initial_payment
+}
+
+enum CaseStatus {
+  submitted
+  allocated
+  in_progress
+  information_required
+  final_stages
+  closed
+}
+
+enum MessageVisibility {
+  client_visible
+  admin_only
+}
+
+enum SignatureStatus {
+  draft
+  ready_for_send
+  awaiting_signature
+  signed_returned
+  reviewed
+  revision_requested
+  sent // legacy Part 4 — treat as awaiting_signature
+}
+
+enum SignatureFieldType {
+  signature
+  initials
+  text
+  date
+  name
+}
+
+/// Who fills a Firm Library template field when issued to a client pack.
+enum FirmLibraryFieldRole {
+  client
+  admin
+}
+
+model Organisation {
+  id               String           @id @default(uuid())
+  name             String
+  ref              String?
+  contactName      String?          @map("contact_name")
+  email            String?
+  phone            String?
+  type             String?
+  onboardingStatus OnboardingStatus @default(in_progress) @map("onboarding_status")
+  status           String           @default("active")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  users               User[]
+  folders             DocumentFolder[]
+  documents           Document[]
+  employees           Employee[]
+  cases               Case[]
+  notifications       Notification[]
+  signatureRequests   SignatureRequest[]
+  onboardingRuns      OnboardingRun[]
+
+  @@index([onboardingStatus])
+  @@map("organisations")
+}
+
+model User {
+  id                 String     @id @default(uuid())
+  organisationId     String?    @map("organisation_id")
+  role               UserRole
+  status             UserStatus @default(active)
+  email              String     @unique
+  name               String
+  passwordHash       String     @map("password_hash")
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  passwordChangedAt  DateTime?  @map("password_changed_at")
+  /// Legacy single-slot default path — kept in sync with default UserSignature
+  signaturePngPath   String?    @map("signature_png_path")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  organisation         Organisation?      @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+  inviteTokens         InviteToken[]
+  loginAudits          LoginAudit[]
+  uploadedDocuments    Document[]         @relation("DocumentUploader")
+  uploadedVersions     DocumentVersion[]  @relation("VersionUploader")
+  createdEmployees     Employee[]         @relation("EmployeeCreator")
+  createdCases         Case[]             @relation("CaseCreator")
+  caseMessages         CaseMessage[]
+  caseAttachments      CaseAttachment[]
+  notifications        Notification[]
+  signatures           UserSignature[]
+  createdSignatureRequests SignatureRequest[] @relation("SignatureCreator")
+  reviewedSignatureRequests SignatureRequest[] @relation("SignatureReviewer")
+  signedSignatureRequests SignatureRequest[] @relation("SignatureSigner")
+  assignedSignatureFields SignatureField[] @relation("FieldAssignee")
+  filledSignatureFields   SignatureField[] @relation("FieldSigner")
+  signatureRequestCcs     SignatureRequestCc[]
+
+  @@index([organisationId])
+  @@map("users")
+}
+
+/// Profile signature PNGs (draw or upload). Cap enforced in service (max 5).
+model UserSignature {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  storagePath String   @map("storage_path")
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_signatures")
+}
+
+model InviteToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("invite_tokens")
+}
+
+model LoginAudit {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  email     String
+  success   Boolean
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([createdAt])
+  @@map("login_audits")
+}
+
+model DocumentFolder {
+  id             String    @id @default(uuid())
+  organisationId String    @map("organisation_id")
+  key            FolderKey
+  name           String
+  sortOrder      Int       @map("sort_order")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  documents    Document[]
+
+  @@unique([organisationId, key])
+  @@index([organisationId])
+  @@map("document_folders")
+}
+
+model Document {
+  id             String    @id @default(uuid())
+  organisationId String    @map("organisation_id")
+  folderId       String    @map("folder_id")
+  title          String
+  currentVersion Int       @default(1) @map("current_version")
+  createdById    String?   @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organisation Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  folder       DocumentFolder    @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  createdBy    User?             @relation("DocumentUploader", fields: [createdById], references: [id], onDelete: SetNull)
+  versions     DocumentVersion[]
+  onboardingPackItems OnboardingPackItem[]
+
+  @@index([organisationId])
+  @@index([folderId])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id            String   @id @default(uuid())
+  documentId    String   @map("document_id")
+  versionNumber Int      @map("version_number")
+  fileName      String   @map("file_name")
+  mimeType      String   @map("mime_type")
+  sizeBytes     Int      @map("size_bytes")
+  storagePath   String   @map("storage_path")
+  uploadedById  String?  @map("uploaded_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  uploadedBy User?    @relation("VersionUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@unique([documentId, versionNumber])
+  @@index([documentId])
+  @@map("document_versions")
+}
+
+model UploadSettings {
+  id                String   @id @default("default")
+  allowedExtensions String[] @map("allowed_extensions")
+  allowedMimeTypes  String[] @map("allowed_mime_types")
+  maxUploadBytes    Int      @map("max_upload_bytes")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("upload_settings")
+}
+
+model Employee {
+  id             String    @id @default(uuid())
+  organisationId String    @map("organisation_id")
+  name           String
+  jobTitle       String?   @map("job_title")
+  department     String?
+  startDate      DateTime? @map("start_date") @db.Date
+  notes          String?
+  status         String    @default("active")
+  createdById    String?   @map("created_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("EmployeeCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  cases        Case[]
+
+  @@index([organisationId])
+  @@map("employees")
+}
+
+model CaseCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isSystem  Boolean  @default(false) @map("is_system")
+  sortOrder Int      @default(100) @map("sort_order")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cases Case[]
+
+  @@map("case_categories")
+}
+
+model Case {
+  id             String     @id @default(uuid())
+  ref            String     @unique
+  organisationId String     @map("organisation_id")
+  title          String
+  description    String
+  status         CaseStatus @default(submitted)
+  categoryId     String     @map("category_id")
+  employeeId     String?    @map("employee_id")
+  createdById    String?    @map("created_by_id")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  organisation Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  category     CaseCategory     @relation(fields: [categoryId], references: [id])
+  employee     Employee?        @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  createdBy    User?            @relation("CaseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  messages     CaseMessage[]
+  attachments  CaseAttachment[]
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([categoryId])
+  @@map("cases")
+}
+
+model CaseMessage {
+  id         String             @id @default(uuid())
+  caseId     String             @map("case_id")
+  authorId   String?            @map("author_id")
+  visibility MessageVisibility  @default(client_visible)
+  body       String
+  createdAt  DateTime           @default(now()) @map("created_at")
+
+  case     Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  author   User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([caseId])
+  @@map("case_messages")
+}
+
+model CaseAttachment {
+  id           String   @id @default(uuid())
+  caseId       String   @map("case_id")
+  messageId    String?  @map("message_id")
+  fileName     String   @map("file_name")
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  storagePath  String   @map("storage_path")
+  uploadedById String?  @map("uploaded_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  case       Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  uploadedBy User? @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([caseId])
+  @@map("case_attachments")
+}
+
+model Notification {
+  id             String    @id @default(uuid())
+  userId         String?   @map("user_id")
+  organisationId String?   @map("organisation_id")
+  title          String
+  body           String
+  href           String?
+  readAt         DateTime? @map("read_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([organisationId])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model SmtpSettings {
+  id             String   @id @default("default")
+  host           String?
+  port           Int?
+  secure         Boolean  @default(true)
+  username       String?
+  password       String?
+  fromAddress    String?  @map("from_address")
+  fromDisplayName String? @map("from_display_name")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("smtp_settings")
+}
+
+model SignatureRequest {
+  id                 String          @id @default(uuid())
+  organisationId     String          @map("organisation_id")
+  title              String
+  status             SignatureStatus @default(draft)
+  sourceDocumentId   String?         @map("source_document_id")
+  sourceFileName     String          @map("source_file_name")
+  sourceMimeType     String          @map("source_mime_type")
+  sourceStoragePath  String          @map("source_storage_path")
+  sourceSizeBytes    Int             @map("source_size_bytes")
+  signedStoragePath  String?         @map("signed_storage_path")
+  signatureImagePath String?         @map("signature_image_path")
+  auditStoragePath   String?         @map("audit_storage_path")
+  typedName          String?         @map("typed_name")
+  agreedAt           DateTime?       @map("agreed_at")
+  signedAt           DateTime?       @map("signed_at")
+  signerIp           String?         @map("signer_ip")
+  revisionNote       String?         @map("revision_note")
+  sentAt             DateTime?       @map("sent_at")
+  reviewedAt         DateTime?       @map("reviewed_at")
+  createdById        String?         @map("created_by_id")
+  signedById         String?         @map("signed_by_id")
+  reviewedById       String?         @map("reviewed_by_id")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+
+  organisation Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  createdBy    User?           @relation("SignatureCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  signedBy     User?           @relation("SignatureSigner", fields: [signedById], references: [id], onDelete: SetNull)
+  reviewedBy   User?           @relation("SignatureReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  fields       SignatureField[]
+  ccRecipients SignatureRequestCc[]
+  onboardingPackItems OnboardingPackItem[]
+
+  @@index([organisationId])
+  @@index([status])
+  @@index([sourceDocumentId])
+  @@map("signature_requests")
+}
+
+model SignatureRequestCc {
+  id        String   @id @default(uuid())
+  requestId String   @map("request_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  request SignatureRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, userId])
+  @@index([requestId])
+  @@index([userId])
+  @@map("signature_request_ccs")
+}
+
+model SignatureField {
+  id              String             @id @default(uuid())
+  requestId       String             @map("request_id")
+  type            SignatureFieldType @default(signature)
+  page            Int                @default(1)
+  /// Normalized 0–1 relative to page width/height
+  x               Float
+  y               Float
+  width           Float
+  height          Float
+  label           String             @default("Signature")
+  required        Boolean            @default(true)
+  sortOrder       Int                @default(0) @map("sort_order")
+  assigneeUserId  String?            @map("assignee_user_id")
+  signedByUserId  String?            @map("signed_by_user_id")
+  valueText       String?            @map("value_text")
+  signedImagePath String?            @map("signed_image_path")
+  signedAt        DateTime?          @map("signed_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  request  SignatureRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  assignee User?            @relation("FieldAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  signedBy User?            @relation("FieldSigner", fields: [signedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([requestId])
+  @@index([assigneeUserId])
+  @@map("signature_fields")
+}
+
+/// Admin-only firm templates (onboarding pack source). Not tied to a client org.
+model FirmLibraryDocument {
+  id                String   @id @default(uuid())
+  title             String
+  fileName          String   @map("file_name")
+  mimeType          String   @map("mime_type")
+  sizeBytes         Int      @map("size_bytes")
+  storagePath       String   @map("storage_path")
+  requiresSignature Boolean  @default(true) @map("requires_signature")
+  sortOrder         Int      @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  fields    FirmLibraryField[]
+  packItems OnboardingPackItem[]
+
+  @@index([sortOrder])
+  @@map("firm_library_documents")
+}
+
+/// Signature layout on a Firm Library PDF — cloned onto each client pack issue.
+model FirmLibraryField {
+  id                String               @id @default(uuid())
+  libraryDocumentId String               @map("library_document_id")
+  type              SignatureFieldType   @default(signature)
+  page              Int                  @default(1)
+  x                 Float
+  y                 Float
+  width             Float
+  height            Float
+  label             String               @default("Signature")
+  required          Boolean              @default(true)
+  sortOrder         Int                  @default(0) @map("sort_order")
+  role              FirmLibraryFieldRole @default(client)
+  /// Admin role only: firm ink saved once, applied on every pack issue.
+  signedImagePath   String?              @map("signed_image_path")
+  valueText         String?              @map("value_text")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  libraryDocument FirmLibraryDocument @relation(fields: [libraryDocumentId], references: [id], onDelete: Cascade)
+
+  @@index([libraryDocumentId])
+  @@map("firm_library_fields")
+}
+
+model OnboardingRun {
+  id                   String               @id @default(uuid())
+  organisationId       String               @map("organisation_id")
+  status               OnboardingRunStatus  @default(in_progress)
+  welcomeEmailSentAt   DateTime?            @map("welcome_email_sent_at")
+  welcomeEmailSubject  String?              @map("welcome_email_subject")
+  welcomeEmailBody     String?              @map("welcome_email_body") @db.Text
+  startedAt            DateTime             @default(now()) @map("started_at")
+  completedAt          DateTime?            @map("completed_at")
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  organisation Organisation            @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  packItems    OnboardingPackItem[]
+  paymentLinks OnboardingPaymentLink[]
+
+  @@index([organisationId])
+  @@index([status])
+  @@map("onboarding_runs")
+}
+
+model OnboardingPackItem {
+  id                 String                   @id @default(uuid())
+  runId              String                   @map("run_id")
+  libraryDocumentId  String?                  @map("library_document_id")
+  clientDocumentId   String                   @map("client_document_id")
+  title              String
+  requiresSignature  Boolean                  @default(true) @map("requires_signature")
+  status             OnboardingPackItemStatus @default(issued)
+  signatureRequestId String?                  @map("signature_request_id")
+  sortOrder          Int                      @default(0) @map("sort_order")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  updatedAt          DateTime                 @updatedAt @map("updated_at")
+
+  run              OnboardingRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  libraryDocument  FirmLibraryDocument?   @relation(fields: [libraryDocumentId], references: [id], onDelete: SetNull)
+  clientDocument   Document               @relation(fields: [clientDocumentId], references: [id], onDelete: Cascade)
+  signatureRequest SignatureRequest?      @relation(fields: [signatureRequestId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([clientDocumentId])
+  @@index([signatureRequestId])
+  @@map("onboarding_pack_items")
+}
+
+model OnboardingPaymentLink {
+  id        String                @id @default(uuid())
+  runId     String                @map("run_id")
+  kind      OnboardingPaymentKind
+  url       String
+  doneAt    DateTime?             @map("done_at")
+  createdAt DateTime              @default(now()) @map("created_at")
+  updatedAt DateTime              @updatedAt @map("updated_at")
+
+  run OnboardingRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, kind])
+  @@index([runId])
+  @@map("onboarding_payment_links")
+}

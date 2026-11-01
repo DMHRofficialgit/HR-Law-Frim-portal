@@ -1,0 +1,96 @@
+erDiagram
+  ORGANISATIONS ||--o{ USERS : has
+  ORGANISATIONS ||--o| ONBOARDINGS : has
+  ORGANISATIONS ||--o{ DOCUMENTS : owns
+  ORGANISATIONS ||--o{ EMPLOYEES : has
+  ORGANISATIONS ||--o{ CASES : owns
+  ONBOARDINGS ||--o{ ONBOARDING_STEPS : contains
+  CASES ||--o{ CASE_UPDATES : has
+  CASES ||--o{ CASE_NOTES : has
+  CASES }o--o| EMPLOYEES : may_relate
+  USERS ||--o{ DOCUMENTS : uploads
+  CASES ||--o{ CASE_ATTACHMENTS : has
+
+  ORGANISATIONS {
+    id uuid PK
+    name string
+    client_type enum
+    onboarding_status enum
+    status string
+    created_at datetime
+  }
+
+  USERS {
+    id uuid PK
+    organisation_id uuid FK
+    role enum
+    email string
+    name string
+    password_hash string
+  }
+
+  ONBOARDINGS {
+    id uuid PK
+    organisation_id uuid FK
+    status enum
+    terms_status enum
+    completed_at datetime
+  }
+
+  ONBOARDING_STEPS {
+    id uuid PK
+    onboarding_id uuid FK
+    step_key string
+    status enum
+    completed_at datetime
+  }
+
+  DOCUMENTS {
+    id uuid PK
+    organisation_id uuid FK
+    area enum
+    filename string
+    storage_path string
+    uploaded_by uuid FK
+    created_at datetime
+  }
+
+  EMPLOYEES {
+    id uuid PK
+    organisation_id uuid FK
+    name string
+    job_title string
+    status string
+  }
+
+  CASES {
+    id uuid PK
+    organisation_id uuid FK
+    employee_id uuid FK
+    title string
+    category string
+    status enum
+    created_at datetime
+  }
+
+  CASE_UPDATES {
+    id uuid PK
+    case_id uuid FK
+    message text
+    visibility enum
+    created_at datetime
+  }
+
+  CASE_NOTES {
+    id uuid PK
+    case_id uuid FK
+    note text
+    created_by uuid FK
+  }
+
+  CASE_ATTACHMENTS {
+    id uuid PK
+    case_id uuid FK
+    filename string
+    storage_path string
+  }

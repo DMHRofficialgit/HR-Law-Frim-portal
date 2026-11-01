@@ -1,0 +1,25 @@
+flowchart LR
+  Admin[DM.HR Admin]
+  Client[Client User]
+
+  subgraph System[DM.HR Portal]
+    App[Web App]
+    API[Backend API]
+    DB[(Database)]
+    Files[File Storage]
+  end
+
+  Email[Email Service]
+  ESign[E-Sign Provider]
+  Pay[Payment / DD Provider]
+  Xero[Xero - outside scope]
+
+  Admin --> App
+  Client --> App
+  App --> API
+  API --> DB
+  API --> Files
+  API --> Email
+  API --> ESign
+  API -.->|send links only| Pay
+  Pay -.->|accounting stays here| Xero

@@ -1,0 +1,16 @@
+flowchart LR
+  subgraph AdminSide[DM.HR Admin]
+    A1[See all clients]
+    A2[Upload everywhere]
+    A3[Manage cases]
+    A4[Run onboarding]
+  end
+
+  subgraph ClientSide[Client company e.g. ABC Homecare]
+    C1[See only itself]
+    C2[Download docs]
+    C3[Add / check cases]
+    C4[Private uploads]
+  end
+
+  AdminSide <-->|Same portal - different menu| ClientSide
