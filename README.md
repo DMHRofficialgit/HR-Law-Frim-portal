@@ -8,9 +8,13 @@ Multi-tenant HR client portal (Admin + Client organisations).
 
 ## Publish with GitHub Desktop
 
-1. Open **GitHub Desktop** → **File → Add Local Repository** → choose this folder.  
-2. Confirm the first commit only includes source (no `.env`, `node_modules`, or `backend/storage` uploads).  
-3. **Publish repository** to GitHub (private recommended).
+Local git is ready with **no remote** — use Desktop to create the new GitHub repo:
+
+1. Delete the old repo on github.com (if you still have one).  
+2. Open **GitHub Desktop** → sign in to the account you want.  
+3. **File → Add Local Repository** → choose this folder (`HR Law Frim portal`).  
+4. Click **Publish repository** (keep it **private** if you want).  
+5. Confirm the commit list does **not** include `.env`, `node_modules`, or `backend/storage` uploads.
 
 Never commit real secrets. Copy env templates instead:
 
