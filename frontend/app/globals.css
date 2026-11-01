@@ -2839,7 +2839,7 @@ textarea {
 .org-list li,
 .file-list li {
   padding: 14px 0;
-  border-top: 1px solid #f0f0f2;
+  border-top: 1px solid var(--line);
   display: flex;
   justify-content: space-between;
   gap: 16px;
@@ -2867,9 +2867,68 @@ textarea {
 
 .docs-layout {
   display: grid;
-  grid-template-columns: 240px 1fr;
-  gap: 16px;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
   align-items: start;
+}
+
+.docs-page-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+}
+
+.docs-page-toolbar-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: min(100%, 280px);
+}
+
+.docs-page-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.docs-org-select {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 11px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13.5px;
+  min-width: 220px;
+}
+
+.docs-page-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 360px;
+}
+
+.docs-hub .docs-folders {
+  padding: 12px;
+}
+
+.docs-folders-head {
+  margin-bottom: 8px;
+}
+
+.docs-folders-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.docs-folders-org {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .folder-btn {
@@ -2879,16 +2938,16 @@ textarea {
   align-items: center;
   border: none;
   background: transparent;
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 7px 10px;
+  border-radius: 10px;
   cursor: pointer;
   text-align: left;
-  font-size: 14px;
+  font-size: 12.5px;
   color: var(--ink);
 }
 
 .folder-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
 }
 
 .folder-btn.active {
@@ -2898,32 +2957,159 @@ textarea {
 }
 
 .folder-count {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
-  background: #f0f0f2;
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
   border-radius: 980px;
-  padding: 2px 8px;
+  padding: 1px 7px;
+}
+
+.docs-files {
+  padding: 12px 14px;
 }
 
 .docs-files-head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 8px;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
-.file-actions {
+.docs-files-titles h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.docs-files-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.docs-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.docs-search {
+  flex: 1;
+  min-width: 160px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 11px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.docs-type-filter {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 7px 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.docs-file-list li {
+  padding: 9px 0;
+  gap: 10px;
+}
+
+.docs-file-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.docs-file-text {
+  min-width: 0;
+}
+
+.docs-file-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.docs-hub .file-title {
+  font-size: 13px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.docs-file-title-row .status-pill {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  padding: 2px 7px;
+}
+
+.docs-hub .file-meta {
+  margin-top: 1px;
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docs-kind {
+  flex-shrink: 0;
+  width: 40px;
+  height: 28px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
+  color: var(--muted);
+}
+
+.docs-kind-pdf {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 28%, transparent);
+}
+
+.docs-kind-docx,
+.docs-kind-doc {
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-color: color-mix(in srgb, var(--blue) 28%, transparent);
+}
+
+.file-actions,
+.docs-file-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
   justify-content: flex-end;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .empty-state {
   padding: 36px 12px;
   text-align: center;
   color: var(--muted);
+}
+
+.docs-empty {
+  padding: 24px 12px;
 }
 
 .empty-state p {
@@ -2933,13 +3119,27 @@ textarea {
 }
 
 .versions-panel {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f2;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.versions-panel h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .upload-btn {
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.upload-btn.disabled {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 .signature-tile-grid {

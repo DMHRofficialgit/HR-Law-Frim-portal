@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Eye } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
+import { Eye, Upload } from "lucide-react";
 import {
   API_URL,
   apiDownload,
@@ -11,8 +11,17 @@ import {
   type FolderRow,
 } from "../lib/api";
 import { getToken } from "../lib/auth";
+import {
+  docFileKind,
+  docFileKindLabel,
+  isSignedLibraryDocument,
+  matchesDocTypeFilter,
+  type DocTypeFilter,
+} from "../lib/documents";
 import { isPdfDocument } from "../lib/signatures";
+import { useToast } from "../context/ToastContext";
 import { FilePreviewSheet, type FilePreviewTarget } from "./FilePreviewSheet";
+import { RowActionsMenu, type RowActionItem } from "./RowActionsMenu";
 
 type DocumentsPanelProps = {
   mode: "client" | "admin";
@@ -23,56 +32,42 @@ type DocumentsPanelProps = {
   onRequestSignature?: (documentId: string, title: string, mimeType: string | null) => void;
 };
 
-type VersionRow = {
-  id: string;
-  versionNumber: number;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  createdAt: string;
-};
-
-function formatBytes(n: number) {
+const formatBytes = (n: number): string => {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
+};
 
-export function DocumentsPanel({
+export const DocumentsPanel = ({
   mode,
   organisationId,
   organisationName,
   preferredFolderKey,
   onRequestSignature,
-}: DocumentsPanelProps) {
+}: DocumentsPanelProps): ReactElement => {
+  const toast = useToast();
   const [folders, setFolders] = useState<FolderRow[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [folderName, setFolderName] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [preview, setPreview] = useState<FilePreviewTarget | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [versionsFor, setVersionsFor] = useState<{
-    title: string;
-    documentId: string;
-    versions: VersionRow[];
-  } | null>(null);
+  const [query, setQuery] = useState("");
+  const [typeFilter, setTypeFilter] = useState<DocTypeFilter>("all");
 
   const base =
-    mode === "client"
-      ? "/client"
-      : `/admin/organisations/${organisationId}`;
+    mode === "client" ? "/client" : `/admin/organisations/${organisationId}`;
 
   const resetDocArea = useCallback(() => {
     setFolders([]);
     setActiveFolderId(null);
     setDocuments([]);
     setFolderName("");
-    setVersionsFor(null);
     setError("");
-    setNotice("");
+    setQuery("");
+    setTypeFilter("all");
   }, []);
 
   const loadFolders = useCallback(async () => {
@@ -89,7 +84,6 @@ export function DocumentsPanel({
         return;
       }
       setFolders(result.data.folders);
-      // Keep folder only if it belongs to this org's folder list; else preferred key; else first
       setActiveFolderId((prev) => {
         if (prev && result.data.folders.some((f) => f.id === prev)) return prev;
         if (preferredFolderKey) {
@@ -117,7 +111,6 @@ export function DocumentsPanel({
         if (!result.success) {
           setDocuments([]);
           setFolderName("");
-          setVersionsFor(null);
           setError(result.error.message);
           return;
         }
@@ -126,14 +119,12 @@ export function DocumentsPanel({
       } catch {
         setDocuments([]);
         setFolderName("");
-        setVersionsFor(null);
         setError("Unable to load documents.");
       }
     },
     [base]
   );
 
-  // Admin org switch — clear stale folders/files before refetch
   useEffect(() => {
     if (mode !== "admin") return;
     resetDocArea();
@@ -146,18 +137,32 @@ export function DocumentsPanel({
   useEffect(() => {
     if (activeFolderId) {
       loadDocuments(activeFolderId);
+      setQuery("");
+      setTypeFilter("all");
     } else {
       setDocuments([]);
       setFolderName("");
-      setVersionsFor(null);
     }
   }, [activeFolderId, loadDocuments]);
+
+  const filteredDocs = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return documents.filter((doc) => {
+      const mime = doc.latestVersion?.mimeType || null;
+      const fileName = doc.latestVersion?.fileName || doc.title;
+      if (!matchesDocTypeFilter(typeFilter, mime, fileName)) return false;
+      if (!q) return true;
+      return (
+        doc.title.toLowerCase().includes(q) ||
+        (doc.latestVersion?.fileName || "").toLowerCase().includes(q)
+      );
+    });
+  }, [documents, query, typeFilter]);
 
   async function onUpload(file: File | null) {
     if (!file || !activeFolderId) return;
     setUploading(true);
     setError("");
-    setNotice("");
     try {
       const form = new FormData();
       form.append("file", file);
@@ -168,24 +173,25 @@ export function DocumentsPanel({
       );
       if (!result.success) {
         setError(result.error.message);
+        toast.error(result.error.message);
         return;
       }
-      setNotice(`Uploaded ${result.data.document.title}`);
+      toast.success(`Uploaded ${result.data.document.title}`);
       await loadDocuments(activeFolderId);
       await loadFolders();
     } catch {
       setError("Upload failed.");
+      toast.error("Upload failed.");
     } finally {
       setUploading(false);
     }
   }
 
-  async function onDownload(documentId: string, version?: number) {
+  async function onDownload(documentId: string) {
     setError("");
     try {
-      const q = version ? `?version=${version}` : "";
       const { blob, fileName } = await apiDownload(
-        `${base}/documents/${documentId}/download${q}`,
+        `${base}/documents/${documentId}/download`,
         getToken()
       );
       const url = URL.createObjectURL(blob);
@@ -195,14 +201,15 @@ export function DocumentsPanel({
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Download failed");
+      const msg = e instanceof Error ? e.message : "Download failed";
+      setError(msg);
+      toast.error(msg);
     }
   }
 
   async function onDelete(documentId: string, title: string) {
-    if (!window.confirm(`Delete “${title}” and all versions? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete “${title}”? This cannot be undone.`)) return;
     setError("");
-    setNotice("");
     try {
       const result = await apiFetch<{ id: string }>(`${base}/documents/${documentId}`, {
         method: "DELETE",
@@ -210,39 +217,33 @@ export function DocumentsPanel({
       });
       if (!result.success) {
         setError(result.error.message);
+        toast.error(result.error.message);
         return;
       }
-      setNotice(`Deleted ${title}`);
-      setVersionsFor(null);
+      toast.success(`Deleted ${title}`);
       if (activeFolderId) {
         await loadDocuments(activeFolderId);
         await loadFolders();
       }
     } catch {
       setError("Delete failed.");
+      toast.error("Delete failed.");
     }
   }
 
-  async function openVersions(doc: DocumentRow) {
-    setError("");
-    try {
-      const result = await apiFetch<{
-        document: { id: string; title: string };
-        versions: VersionRow[];
-      }>(`${base}/documents/${doc.id}/versions`, { token: getToken() });
-      if (!result.success) {
-        setError(result.error.message);
-        return;
-      }
-      setVersionsFor({
-        documentId: result.data.document.id,
-        title: result.data.document.title,
-        versions: result.data.versions,
-      });
-    } catch {
-      setError("Unable to load versions.");
-    }
-  }
+  const openPreview = (
+    title: string,
+    documentId: string,
+    fileName: string,
+    mimeType: string | null
+  ) => {
+    setPreview({
+      title,
+      url: `${API_URL}${base}/documents/${documentId}/download`,
+      fileName,
+      mimeType,
+    });
+  };
 
   if (mode === "admin" && !organisationId) {
     return (
@@ -254,10 +255,14 @@ export function DocumentsPanel({
   }
 
   return (
-    <div className="docs-layout">
+    <div className="docs-layout docs-hub">
       <aside className="docs-folders panel">
-        <h2>Folders</h2>
-        {organisationName ? <p className="lead">{organisationName}</p> : null}
+        <div className="docs-folders-head">
+          <h2>Folders</h2>
+          {organisationName ? (
+            <p className="docs-folders-org">{organisationName}</p>
+          ) : null}
+        </div>
         {loading ? <p className="lead">Loading…</p> : null}
         <ul className="folder-list">
           {folders.map((folder) => (
@@ -277,11 +282,19 @@ export function DocumentsPanel({
 
       <section className="panel docs-files">
         <div className="docs-files-head">
-          <div>
+          <div className="docs-files-titles">
             <h2>{folderName || "Documents"}</h2>
-            <p className="lead">Word and PDF by default. Versions are kept until deleted.</p>
+            <p className="docs-files-sub">
+              {documents.length} {documents.length === 1 ? "file" : "files"}
+              {filteredDocs.length !== documents.length
+                ? ` · showing ${filteredDocs.length}`
+                : ""}
+            </p>
           </div>
-          <label className={`btn btn-primary btn-sm upload-btn${uploading ? " disabled" : ""}`}>
+          <label
+            className={`btn btn-primary btn-sm upload-btn${uploading || !activeFolderId ? " disabled" : ""}`}
+          >
+            <Upload size={14} strokeWidth={1.75} aria-hidden />
             {uploading ? "Uploading…" : "Upload"}
             <input
               type="file"
@@ -297,133 +310,121 @@ export function DocumentsPanel({
           </label>
         </div>
 
+        <div className="docs-toolbar">
+          <input
+            type="search"
+            className="docs-search"
+            placeholder="Search this folder…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Search documents in this folder"
+          />
+          <select
+            className="docs-type-filter"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as DocTypeFilter)}
+            aria-label="Filter by file type"
+          >
+            <option value="all">All types</option>
+            <option value="pdf">PDF</option>
+            <option value="word">Word</option>
+          </select>
+        </div>
+
         {error ? <div className="error-banner">{error}</div> : null}
-        {notice ? <div className="success-banner">{notice}</div> : null}
 
         {documents.length === 0 ? (
-          <div className="empty-state">
+          <div className="empty-state docs-empty">
             <p>No files in this folder yet.</p>
             <p className="lead">Upload a PDF or Word document to get started.</p>
           </div>
+        ) : filteredDocs.length === 0 ? (
+          <div className="empty-state docs-empty">
+            <p>No matches</p>
+            <p className="lead">Try a different search or type filter.</p>
+          </div>
         ) : (
-          <ul className="file-list">
-            {documents.map((doc) => (
-              <li key={doc.id}>
-                <div>
-                  <div className="file-title">{doc.title}</div>
-                  <div className="file-meta">
-                    v{doc.currentVersion}
-                    {doc.latestVersion
-                      ? ` · ${doc.latestVersion.fileName} · ${formatBytes(doc.latestVersion.sizeBytes)}`
-                      : ""}
-                  </div>
-                </div>
-                <div className="file-actions">
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    title="Preview"
-                    aria-label={`Preview ${doc.title}`}
-                    onClick={() =>
-                      setPreview({
-                        title: doc.title,
-                        url: `${API_URL}${base}/documents/${doc.id}/download`,
-                        fileName: doc.latestVersion?.fileName || doc.title,
-                        mimeType: doc.latestVersion?.mimeType || null,
-                      })
-                    }
-                  >
-                    <Eye size={15} strokeWidth={1.75} aria-hidden />
-                    Preview
-                  </button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => onDownload(doc.id)}>
-                    Download
-                  </button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => openVersions(doc)}>
-                    Versions
-                  </button>
-                  {mode === "admin" &&
-                  onRequestSignature &&
-                  isPdfDocument(
-                    doc.latestVersion?.mimeType,
-                    doc.latestVersion?.fileName || doc.title
-                  ) ? (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() =>
-                        onRequestSignature(
-                          doc.id,
-                          doc.title,
-                          doc.latestVersion?.mimeType || null
-                        )
-                      }
-                    >
-                      Request signature
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm danger"
-                    onClick={() => onDelete(doc.id, doc.title)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+          <ul className="file-list docs-file-list">
+            {filteredDocs.map((doc) => {
+              const mime = doc.latestVersion?.mimeType || null;
+              const fileName = doc.latestVersion?.fileName || doc.title;
+              const kind = docFileKind(mime, fileName);
+              const isSignedCopy = isSignedLibraryDocument({
+                title: doc.title,
+                isSignedCopy: doc.isSignedCopy,
+              });
+              const canEsign =
+                mode === "admin" &&
+                Boolean(onRequestSignature) &&
+                isPdfDocument(mime, fileName) &&
+                !isSignedCopy;
 
-        {versionsFor ? (
-          <div className="versions-panel">
-            <div className="docs-files-head">
-              <h3>Versions — {versionsFor.title}</h3>
-              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setVersionsFor(null)}>
-                Close
-              </button>
-            </div>
-            <ul className="file-list">
-              {versionsFor.versions.map((v) => (
-                <li key={v.id}>
-                  <div>
-                    <div className="file-title">Version {v.versionNumber}</div>
-                    <div className="file-meta">
-                      {v.fileName} · {formatBytes(v.sizeBytes)} ·{" "}
-                      {new Date(v.createdAt).toLocaleString()}
+              return (
+                <li key={doc.id}>
+                  <div className="docs-file-main">
+                    <span className={`docs-kind docs-kind-${kind}`} aria-hidden>
+                      {docFileKindLabel(kind)}
+                    </span>
+                    <div className="docs-file-text">
+                      <div className="docs-file-title-row">
+                        <div className="file-title">{doc.title}</div>
+                        {isSignedCopy ? (
+                          <span className="status-pill status-pill-ok">Signed</span>
+                        ) : null}
+                      </div>
+                      <div className="file-meta">
+                        {doc.latestVersion
+                          ? `${doc.latestVersion.fileName} · ${formatBytes(doc.latestVersion.sizeBytes)}`
+                          : "—"}
+                      </div>
                     </div>
                   </div>
-                  <div className="file-actions">
+                  <div className="file-actions docs-file-actions">
                     <button
                       type="button"
-                      className="btn btn-ghost btn-sm"
+                      className="shell-icon-btn"
                       title="Preview"
-                      aria-label={`Preview version ${v.versionNumber}`}
+                      aria-label={`Preview ${doc.title}`}
                       onClick={() =>
-                        setPreview({
-                          title: `${versionsFor.title} (v${v.versionNumber})`,
-                          url: `${API_URL}${base}/documents/${versionsFor.documentId}/download?version=${v.versionNumber}`,
-                          fileName: v.fileName,
-                          mimeType: v.mimeType,
-                        })
+                        openPreview(doc.title, doc.id, fileName, mime)
                       }
                     >
-                      <Eye size={15} strokeWidth={1.75} aria-hidden />
-                      Preview
+                      <Eye size={15} strokeWidth={1.75} />
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => onDownload(versionsFor.documentId, v.versionNumber)}
-                    >
-                      Download
-                    </button>
+                    <RowActionsMenu
+                      label={`Actions for ${doc.title}`}
+                      items={(() => {
+                        const items: RowActionItem[] = [
+                          {
+                            id: "download",
+                            label: "Download",
+                            onSelect: () => onDownload(doc.id),
+                          },
+                        ];
+                        if (canEsign && onRequestSignature) {
+                          items.push({
+                            id: "esign",
+                            label: "Request signature",
+                            onSelect: () =>
+                              onRequestSignature(doc.id, doc.title, mime),
+                          });
+                        }
+                        items.push({
+                          id: "delete",
+                          label: "Delete",
+                          tone: "danger",
+                          separatorBefore: true,
+                          onSelect: () => onDelete(doc.id, doc.title),
+                        });
+                        return items;
+                      })()}
+                    />
                   </div>
                 </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       <FilePreviewSheet
@@ -435,13 +436,11 @@ export function DocumentsPanel({
                 const match = /\/documents\/([^/?]+)\/download/.exec(preview.url);
                 const id = match?.[1];
                 if (!id) return;
-                const versionMatch = /[?&]version=(\d+)/.exec(preview.url);
-                const version = versionMatch ? Number(versionMatch[1]) : undefined;
-                onDownload(id, version);
+                onDownload(id);
               }
             : undefined
         }
       />
     </div>
   );
-}
+};

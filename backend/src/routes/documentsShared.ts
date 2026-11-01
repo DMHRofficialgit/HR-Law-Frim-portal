@@ -55,6 +55,8 @@ export async function handleListDocuments(
         id: doc.id,
         title: doc.title,
         currentVersion: doc.currentVersion,
+        isSignedCopy: doc.isSignedCopy,
+        signatureRequestId: doc.signatureRequestId,
         updatedAt: doc.updatedAt,
         createdBy: doc.createdBy,
         latestVersion: doc.versions[0]

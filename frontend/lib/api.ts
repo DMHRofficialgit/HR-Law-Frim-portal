@@ -33,6 +33,8 @@ export type DocumentRow = {
   id: string;
   title: string;
   currentVersion: number;
+  isSignedCopy?: boolean;
+  signatureRequestId?: string | null;
   updatedAt: string;
   createdBy: { id: string; name: string; email: string } | null;
   latestVersion: {

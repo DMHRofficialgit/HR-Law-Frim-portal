@@ -124,7 +124,7 @@ export function PortalSearch({
 
   useEffect(() => {
     if (isInline) return;
-    function onKey(e: KeyboardEvent) {
+    function onKey(e: globalThis.KeyboardEvent) {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === "k") {
         e.preventDefault();

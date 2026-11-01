@@ -4,6 +4,7 @@ import { UserRole, UserStatus } from "@prisma/client";
 import { env } from "../config/env";
 import {
   sendAccessCredentialsMail,
+  type AccessMailPurpose,
   type AccessMailStatus,
 } from "../lib/access-mail";
 import { prisma } from "../lib/prisma";
@@ -206,7 +207,7 @@ export async function resendUserInvite(params: {
     }
   }
 
-  const purpose = target.passwordChangedAt ? "reset" : "invite";
+  const purpose: AccessMailPurpose = target.passwordChangedAt ? "reset" : "invite";
   const raw = await issueInviteForUser(target.id);
   const inviteUrl = `${env.FRONTEND_URL}/set-password?token=${raw}`;
   const org =

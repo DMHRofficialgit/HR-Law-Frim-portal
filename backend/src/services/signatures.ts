@@ -934,6 +934,9 @@ async function publishSignedPdfToDocuments(params: {
     organisationId: params.request.organisationId,
     folderId,
     userId: params.reviewedById,
+    title: libraryTitle,
+    isSignedCopy: true,
+    signatureRequestId: params.request.id,
     file: {
       originalName: fileName,
       mimeType: "application/pdf",

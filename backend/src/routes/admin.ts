@@ -137,6 +137,7 @@ router.get("/organisations/:id", async (req, res) => {
         id: true,
         title: true,
         currentVersion: true,
+        isSignedCopy: true,
         updatedAt: true,
         folder: { select: { id: true, name: true, key: true } },
         versions: {
@@ -164,6 +165,7 @@ router.get("/organisations/:id", async (req, res) => {
           id: d.id,
           title: d.title,
           currentVersion: d.currentVersion,
+          isSignedCopy: d.isSignedCopy,
           updatedAt: d.updatedAt,
           folder: d.folder,
           latestVersion: d.versions[0] || null,

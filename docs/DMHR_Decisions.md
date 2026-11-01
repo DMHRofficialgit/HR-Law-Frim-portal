@@ -218,6 +218,8 @@
 - **Sidebar groups:** Admin `home` (Overview) → `Clients` (Organisations) → `Workspace` (Documents, Firm Library, Employees, Cases, Onboarding, Signatures) → `System` (Users, Notifications, Settings, Payments). Client: Overview → Workspace → System. Collapsed rail shows thin dividers between groups.
 - **Organisations journey:** Directory (search/filters/table + **Open profile**) → **Client profile hub** `/admin/organisations/[id]`. Mock = journey ideas; we own data flow + components (Apple shell). No fake “view as client”.
 - **Client profile hub (locked 2026-11-02):** Compact density — icon **Back** + org name as page title + status pill + **Start/Open onboarding** CTA + **⋮** (Edit / Resend invite|password reset / Open documents / Deactivate|Activate). Identity row: avatar + icon meta (contact, email, phone, login) + pencil edit. Four metric tiles (docs / employees / open cases / onboarding + pack bar) deep-link. Scrollable **Documents** + **Recent cases** panels (`ProfileActivityPanel` + Eye preview). Compact **Company users** list. Shared tokens `.profile-hub-*`.
+- **Documents hub (locked 2026-11-02):** Keep **folder IA** (org select → fixed folders → files). Compact company toolbar (Admin). Dense file rows: type chip + title/meta + **Eye** preview; **⋮** for Download / Request signature (Admin PDF) / Delete. In-folder search + type filter (All/PDF/Word). Shared `DocumentsPanel` Admin+Client. No flat cross-org mock library. **No Versions UI** — history stays in DB quietly; do not surface a versions panel/menu.
+- **Signed library copies (locked 2026-11-02):** DB flags on `documents`: `isSignedCopy` + optional `signatureRequestId`, set when e-sign **Reviewed** publishes the stamped PDF. List APIs expose `isSignedCopy`. UI shows compact **Signed** badge and **hides Request signature** on those rows. Title patterns (` — Signed — ` / sanitized variants) are fallback for older rows only.
 - **Org directory table (locked 2026-11-01):** Dense containerized table (avatar + company/ref, contact, type, **regulatory**, onboarding **progress bar + short text**, open cases, status pill). Filters: search + status + type + **regulatory context**. Row **⋮** menu (portal + flip up when near bottom): Open / Edit / Resend invite|password reset / Deactivate|Activate. No hard delete — soft inactive only.
 - **Org chrome rule:** Sidebar + top bar = general only. Section CTAs (Add organisation, Open documents, Start/Open onboarding) sit **inside the page** beside that section’s heading — never in shell `actions` for org-specific work.
 - **Add organisation:** Modal/dialog (not a form buried under the directory). Create = folders + client login only; does **not** auto-start onboarding or issue pack.
@@ -241,7 +243,7 @@ Before calling a section done, check what this product needs (not generic SaaS c
 | Delete / archive / disable | With confirm; prefer `active`/`inactive` for orgs/users where hard delete is risky |
 | **Preview (eye)** | Files/PDFs/images — docs, Firm Library, attachments, pack/signed PDFs — shared component |
 | Download | Same file surfaces (always, even if preview N/A for Word etc.) |
-| Versions | Documents |
+| Versions | Backend keep quietly — **no Documents UI** (locked 2026-11-02) |
 | Status badges | Onboarding, cases, signatures, org, user |
 | Empty states | Every list + one clear CTA |
 | Confirm destructive | Delete, Complete onboarding, void/cancel where added |
@@ -364,3 +366,7 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-01 | **Org directory polish:** separate Regulatory column; status/type/context filters; ⋮ menu portals + flips up on last rows. |
 | 2026-11-02 | **Client profile hub redesign:** compact header (icon back, org title, ⋮ + onboarding CTA); icon identity meta; metric tiles; scrollable docs/cases panels; compact company users; `.profile-hub-*` + `ProfileActivityPanel`. |
 | 2026-11-02 | **Status colours:** Active = green, Inactive = red (table pills + `StatusLiquidToggle` from 21st liquid-toggle). Binary non-status fields still use `ChoiceToggle`. |
+| 2026-11-02 | **Documents hub polish:** compact org toolbar; dense folder/file rows; Eye + ⋮ CRUD; in-folder search + type filter; toasts on upload/delete. |
+| 2026-11-02 | **Signed doc rows:** Signed badge on published `— Signed —` copies; hide Request signature on those files. |
+| 2026-11-02 | **Document.isSignedCopy:** DB flag + `signatureRequestId` on publish; API + UI prefer flag; title heuristic fallback + backfill. |
+| 2026-11-02 | **Documents Versions UI removed:** no ⋮ Versions / history panel; backend version rows remain for storage only. |

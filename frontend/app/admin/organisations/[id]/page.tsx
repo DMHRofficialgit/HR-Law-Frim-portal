@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -36,6 +36,7 @@ import { API_URL, apiFetch, type PublicUser } from "../../../../lib/api";
 import { clearSession, getStoredUser, getToken, homeForUser } from "../../../../lib/auth";
 import { statusLabel } from "../../../../lib/cases";
 import { adminNav } from "../../../../lib/nav";
+import { isSignedLibraryDocument } from "../../../../lib/documents";
 import {
   onboardingOrgLabel,
   onboardingRunLabel,
@@ -80,7 +81,7 @@ const caseBadgeTone = (
   return "progress";
 };
 
-export default function AdminOrganisationProfilePage() {
+const AdminOrganisationProfilePage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
@@ -395,6 +396,13 @@ export default function AdminOrganisationProfilePage() {
       id: doc.id,
       title: doc.title,
       meta: [doc.folder?.name, doc.latestVersion?.fileName].filter(Boolean).join(" · ") || "—",
+      badge: isSignedLibraryDocument({
+        title: doc.title,
+        isSignedCopy: doc.isSignedCopy,
+      })
+        ? "Signed"
+        : undefined,
+      badgeTone: "ok",
       actions: (
         <div className="profile-activity-actions">
           {doc.latestVersion ? (
@@ -818,5 +826,19 @@ export default function AdminOrganisationProfilePage() {
 
       <FilePreviewSheet target={preview} onClose={() => setPreview(null)} />
     </AppShell>
+  );
+};
+
+export default function AdminOrganisationProfileRoute() {
+  return (
+    <Suspense
+      fallback={
+        <main className="auth-shell">
+          <p className="lead">Loading…</p>
+        </main>
+      }
+    >
+      <AdminOrganisationProfilePage />
+    </Suspense>
   );
 }

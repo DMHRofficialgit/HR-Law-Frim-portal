@@ -83,6 +83,7 @@ export type OrgRecentDocument = {
   id: string;
   title: string;
   currentVersion: number;
+  isSignedCopy?: boolean;
   updatedAt: string;
   folder: { id: string; name: string; key: string } | null;
   latestVersion: {

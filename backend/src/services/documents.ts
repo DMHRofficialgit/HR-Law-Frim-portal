@@ -109,6 +109,10 @@ export async function uploadDocument(params: {
   userId: string;
   file: UploadedFileInput;
   documentId?: string;
+  /** Override display title (e.g. signed library name with em dashes). */
+  title?: string;
+  isSignedCopy?: boolean;
+  signatureRequestId?: string | null;
 }) {
   const folder = await assertFolderAccess(params.organisationId, params.folderId);
   if (!folder) {
@@ -123,7 +127,12 @@ export async function uploadDocument(params: {
   }
 
   const safeName = sanitizeBaseName(params.file.originalName);
-  const title = safeName.replace(/\.[^.]+$/, "") || safeName;
+  const title =
+    (params.title || "").trim() ||
+    safeName.replace(/\.[^.]+$/, "") ||
+    safeName;
+  const isSignedCopy = Boolean(params.isSignedCopy);
+  const signatureRequestId = params.signatureRequestId || null;
 
   let document = params.documentId
     ? await prisma.document.findFirst({
@@ -153,6 +162,8 @@ export async function uploadDocument(params: {
         title,
         currentVersion: 0,
         createdById: params.userId,
+        isSignedCopy,
+        signatureRequestId,
       },
     });
   }
@@ -179,7 +190,13 @@ export async function uploadDocument(params: {
     }),
     prisma.document.update({
       where: { id: document.id },
-      data: { currentVersion: nextVersion, title },
+      data: {
+        currentVersion: nextVersion,
+        title,
+        ...(isSignedCopy
+          ? { isSignedCopy: true, signatureRequestId }
+          : {}),
+      },
     }),
   ]);
 

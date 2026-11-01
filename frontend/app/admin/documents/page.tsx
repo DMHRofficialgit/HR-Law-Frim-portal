@@ -9,17 +9,18 @@ import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
 import { isPdfDocument } from "../../../lib/signatures";
+import { useToast } from "../../../context/ToastContext";
 
 type OrgOption = { id: string; name: string };
 
 function AdminDocumentsInner() {
   const router = useRouter();
   const search = useSearchParams();
+  const toast = useToast();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
   const [orgId, setOrgId] = useState("");
   const [esignId, setEsignId] = useState<string | null>(null);
-  const [esignError, setEsignError] = useState("");
 
   useEffect(() => {
     const token = getToken();
@@ -61,9 +62,8 @@ function AdminDocumentsInner() {
   );
 
   async function startEsign(documentId: string, title: string, mimeType: string | null) {
-    setEsignError("");
     if (!isPdfDocument(mimeType, title)) {
-      setEsignError("E-sign requires a PDF document.");
+      toast.error("E-sign requires a PDF document.");
       return;
     }
     if (!orgId) return;
@@ -80,11 +80,8 @@ function AdminDocumentsInner() {
       }
     );
     if (!result.success) {
-      setEsignError(result.error.message);
+      toast.error(result.error.message);
       return;
-    }
-    if (result.data.reused) {
-      setEsignError("");
     }
     setEsignId(result.data.request.id);
   }
@@ -93,14 +90,14 @@ function AdminDocumentsInner() {
 
   return (
     <AppShell user={user} nav={adminNav} title="Documents">
-      {esignError ? <div className="error-banner">{esignError}</div> : null}
-      <section className="panel" style={{ marginBottom: 16 }}>
-        <h2>Organisation</h2>
-        <p className="lead">Browse folders for any client, including Private Space. Use Request signature on a PDF to place boxes and send.</p>
-        <div className="field" style={{ maxWidth: 420, marginBottom: 0 }}>
-          <label htmlFor="org">Select company</label>
+      <div className="docs-page-toolbar">
+        <div className="docs-page-toolbar-main">
+          <label htmlFor="docs-org" className="docs-page-label">
+            Company
+          </label>
           <select
-            id="org"
+            id="docs-org"
+            className="docs-org-select"
             value={orgId}
             onChange={(e) => {
               setOrgId(e.target.value);
@@ -114,7 +111,10 @@ function AdminDocumentsInner() {
             ))}
           </select>
         </div>
-      </section>
+        <p className="docs-page-hint">
+          Browse folders · Request signature on PDFs from the row menu
+        </p>
+      </div>
 
       <DocumentsPanel
         key={orgId || "none"}

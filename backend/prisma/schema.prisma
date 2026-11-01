@@ -216,23 +216,29 @@ model DocumentFolder {
 }
 
 model Document {
-  id             String    @id @default(uuid())
-  organisationId String    @map("organisation_id")
-  folderId       String    @map("folder_id")
-  title          String
-  currentVersion Int       @default(1) @map("current_version")
-  createdById    String?   @map("created_by_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id                 String    @id @default(uuid())
+  organisationId     String    @map("organisation_id")
+  folderId           String    @map("folder_id")
+  title              String
+  currentVersion     Int       @default(1) @map("current_version")
+  /// True when this file is the stamped PDF published after e-sign Reviewed
+  isSignedCopy       Boolean   @default(false) @map("is_signed_copy")
+  signatureRequestId String?   @map("signature_request_id")
+  createdById        String?   @map("created_by_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  organisation Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  folder       DocumentFolder    @relation(fields: [folderId], references: [id], onDelete: Cascade)
-  createdBy    User?             @relation("DocumentUploader", fields: [createdById], references: [id], onDelete: SetNull)
-  versions     DocumentVersion[]
+  organisation     Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  folder           DocumentFolder    @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  createdBy        User?             @relation("DocumentUploader", fields: [createdById], references: [id], onDelete: SetNull)
+  signatureRequest SignatureRequest? @relation(fields: [signatureRequestId], references: [id], onDelete: SetNull)
+  versions         DocumentVersion[]
   onboardingPackItems OnboardingPackItem[]
 
   @@index([organisationId])
   @@index([folderId])
+  @@index([signatureRequestId])
+  @@index([isSignedCopy])
   @@map("documents")
 }
 
@@ -422,9 +428,10 @@ model SignatureRequest {
   createdBy    User?           @relation("SignatureCreator", fields: [createdById], references: [id], onDelete: SetNull)
   signedBy     User?           @relation("SignatureSigner", fields: [signedById], references: [id], onDelete: SetNull)
   reviewedBy   User?           @relation("SignatureReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  fields       SignatureField[]
-  ccRecipients SignatureRequestCc[]
+  fields              SignatureField[]
+  ccRecipients        SignatureRequestCc[]
   onboardingPackItems OnboardingPackItem[]
+  publishedDocuments  Document[]
 
   @@index([organisationId])
   @@index([status])
