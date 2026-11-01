@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Eye } from "lucide-react";
 import {
+  API_URL,
   apiDownload,
   apiFetch,
   apiUpload,
@@ -10,6 +12,7 @@ import {
 } from "../lib/api";
 import { getToken } from "../lib/auth";
 import { isPdfDocument } from "../lib/signatures";
+import { FilePreviewSheet, type FilePreviewTarget } from "./FilePreviewSheet";
 
 type DocumentsPanelProps = {
   mode: "client" | "admin";
@@ -48,6 +51,7 @@ export function DocumentsPanel({
   const [folderName, setFolderName] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [preview, setPreview] = useState<FilePreviewTarget | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [versionsFor, setVersionsFor] = useState<{
@@ -315,6 +319,23 @@ export function DocumentsPanel({
                   </div>
                 </div>
                 <div className="file-actions">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    title="Preview"
+                    aria-label={`Preview ${doc.title}`}
+                    onClick={() =>
+                      setPreview({
+                        title: doc.title,
+                        url: `${API_URL}${base}/documents/${doc.id}/download`,
+                        fileName: doc.latestVersion?.fileName || doc.title,
+                        mimeType: doc.latestVersion?.mimeType || null,
+                      })
+                    }
+                  >
+                    <Eye size={15} strokeWidth={1.75} aria-hidden />
+                    Preview
+                  </button>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={() => onDownload(doc.id)}>
                     Download
                   </button>
@@ -372,19 +393,55 @@ export function DocumentsPanel({
                       {new Date(v.createdAt).toLocaleString()}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => onDownload(versionsFor.documentId, v.versionNumber)}
-                  >
-                    Download
-                  </button>
+                  <div className="file-actions">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      title="Preview"
+                      aria-label={`Preview version ${v.versionNumber}`}
+                      onClick={() =>
+                        setPreview({
+                          title: `${versionsFor.title} (v${v.versionNumber})`,
+                          url: `${API_URL}${base}/documents/${versionsFor.documentId}/download?version=${v.versionNumber}`,
+                          fileName: v.fileName,
+                          mimeType: v.mimeType,
+                        })
+                      }
+                    >
+                      <Eye size={15} strokeWidth={1.75} aria-hidden />
+                      Preview
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => onDownload(versionsFor.documentId, v.versionNumber)}
+                    >
+                      Download
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           </div>
         ) : null}
       </section>
+
+      <FilePreviewSheet
+        target={preview}
+        onClose={() => setPreview(null)}
+        onDownload={
+          preview
+            ? () => {
+                const match = /\/documents\/([^/?]+)\/download/.exec(preview.url);
+                const id = match?.[1];
+                if (!id) return;
+                const versionMatch = /[?&]version=(\d+)/.exec(preview.url);
+                const version = versionMatch ? Number(versionMatch[1]) : undefined;
+                onDownload(id, version);
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }

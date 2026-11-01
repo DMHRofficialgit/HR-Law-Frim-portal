@@ -32,5 +32,5 @@ export function clearSession() {
 export function homeForUser(user: PublicUser) {
   if (user.mustChangePassword) return "/change-password";
   if (user.role === "admin") return "/admin";
-  return "/portal/documents";
+  return "/portal";
 }

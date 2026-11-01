@@ -2,6 +2,10 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { UserRole, UserStatus } from "@prisma/client";
 import { env } from "../config/env";
+import {
+  sendAccessCredentialsMail,
+  type AccessMailStatus,
+} from "../lib/access-mail";
 import { prisma } from "../lib/prisma";
 import { publicUser } from "../lib/tokens";
 import { issueInviteForUser } from "../routes/auth";
@@ -18,6 +22,7 @@ const userSelect = {
   status: true,
   organisationId: true,
   mustChangePassword: true,
+  passwordChangedAt: true,
   createdAt: true,
   updatedAt: true,
   organisation: { select: { id: true, name: true } },
@@ -124,7 +129,17 @@ export async function createPortalUser(params: {
     temporaryPassword = passwordPlain;
   }
 
-  return { user, inviteUrl, temporaryPassword, authMode: params.authMode };
+  const mailStatus: AccessMailStatus = await sendAccessCredentialsMail({
+    to: user.email,
+    recipientName: user.name,
+    organisationName: user.organisation?.name || null,
+    authMode: params.authMode,
+    inviteUrl,
+    temporaryPassword,
+    loginUrl: `${env.FRONTEND_URL}/login`,
+  });
+
+  return { user, inviteUrl, temporaryPassword, authMode: params.authMode, mailStatus };
 }
 
 export async function setUserStatus(params: {
@@ -191,9 +206,32 @@ export async function resendUserInvite(params: {
     }
   }
 
+  const purpose = target.passwordChangedAt ? "reset" : "invite";
   const raw = await issueInviteForUser(target.id);
+  const inviteUrl = `${env.FRONTEND_URL}/set-password?token=${raw}`;
+  const org =
+    target.organisationId
+      ? await prisma.organisation.findUnique({
+          where: { id: target.organisationId },
+          select: { name: true },
+        })
+      : null;
+
+  const mailStatus: AccessMailStatus = await sendAccessCredentialsMail({
+    to: target.email,
+    recipientName: target.name,
+    organisationName: org?.name || null,
+    authMode: "invite",
+    purpose,
+    inviteUrl,
+    loginUrl: `${env.FRONTEND_URL}/login`,
+  });
+
   return {
     user: publicUser(target),
-    inviteUrl: `${env.FRONTEND_URL}/set-password?token=${raw}`,
+    inviteUrl,
+    mailStatus,
+    purpose,
+    passwordSet: Boolean(target.passwordChangedAt),
   };
 }

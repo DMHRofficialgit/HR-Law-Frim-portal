@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
@@ -22,11 +22,13 @@ type CaseRow = {
 
 type OrgOption = { id: string; name: string };
 
-export default function AdminCasesPage() {
+function AdminCasesInner() {
   const router = useRouter();
+  const search = useSearchParams();
+  const orgFromUrl = search.get("org") || "";
   const [user, setUser] = useState<PublicUser | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
-  const [orgId, setOrgId] = useState("");
+  const [orgId, setOrgId] = useState(orgFromUrl);
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [error, setError] = useState("");
 
@@ -42,9 +44,12 @@ export default function AdminCasesPage() {
       const orgsRes = await apiFetch<{ organisations: OrgOption[] }>("/admin/organisations", {
         token,
       });
-      if (orgsRes.success) setOrgs(orgsRes.data.organisations);
+      if (orgsRes.success) {
+        setOrgs(orgsRes.data.organisations);
+        if (orgFromUrl) setOrgId(orgFromUrl);
+      }
     })();
-  }, [router]);
+  }, [router, orgFromUrl]);
 
   useEffect(() => {
     const token = getToken();
@@ -93,13 +98,21 @@ export default function AdminCasesPage() {
                   {c.employee ? ` · ${c.employee.name}` : ""}
                 </div>
               </div>
-              <Link href={`/admin/cases/${c.id}`} className="btn btn-secondary btn-sm">
-                View
+              <Link href={`/admin/cases/${c.id}`} className="btn btn-primary btn-sm">
+                Open
               </Link>
             </li>
           ))}
         </ul>
       </section>
     </AppShell>
+  );
+}
+
+export default function AdminCasesPage() {
+  return (
+    <Suspense fallback={<main className="auth-shell">Loading…</main>}>
+      <AdminCasesInner />
+    </Suspense>
   );
 }

@@ -17,6 +17,7 @@ type PortalUser = {
   status: string;
   organisationId: string | null;
   mustChangePassword: boolean;
+  passwordChangedAt?: string | null;
   organisation: { id: string; name: string } | null;
 };
 
@@ -137,7 +138,17 @@ export default function AdminUsersPage() {
   async function resendInvite(u: PortalUser) {
     setError("");
     setNotice("");
-    const result = await apiFetch<{ inviteUrl: string }>(`/admin/users/${u.id}/invite`, {
+    const isReset = Boolean(u.passwordChangedAt);
+    if (isReset) {
+      const ok = window.confirm(
+        `Send a password reset link to ${u.email}? They can choose a new password.`
+      );
+      if (!ok) return;
+    }
+    const result = await apiFetch<{
+      inviteUrl: string;
+      purpose?: "invite" | "reset";
+    }>(`/admin/users/${u.id}/invite`, {
       method: "POST",
       token: getToken(),
     });
@@ -145,7 +156,12 @@ export default function AdminUsersPage() {
       setError(result.error.message);
       return;
     }
-    setNotice(`Invite for ${u.email}: ${result.data.inviteUrl}`);
+    const purpose = result.data.purpose || (isReset ? "reset" : "invite");
+    setNotice(
+      purpose === "reset"
+        ? `Password reset for ${u.email}: ${result.data.inviteUrl}`
+        : `Invite for ${u.email}: ${result.data.inviteUrl}`
+    );
   }
 
   if (!user) return null;
@@ -259,7 +275,7 @@ export default function AdminUsersPage() {
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => resendInvite(u)}>
-                  Invite link
+                  {u.passwordChangedAt ? "Password reset" : "Invite link"}
                 </button>
                 <button
                   type="button"
@@ -288,7 +304,7 @@ export default function AdminUsersPage() {
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => resendInvite(u)}>
-                  Invite link
+                  {u.passwordChangedAt ? "Password reset" : "Invite link"}
                 </button>
                 <button
                   type="button"

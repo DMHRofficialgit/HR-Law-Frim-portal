@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { AppProviders } from "../components/AppProviders";
+import { THEME_BOOT_SCRIPT } from "../lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +15,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body style={{ margin: 0 }}>{children}</body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
+      <body style={{ margin: 0 }}>
+        <AppProviders>{children}</AppProviders>
+      </body>
     </html>
   );
 }

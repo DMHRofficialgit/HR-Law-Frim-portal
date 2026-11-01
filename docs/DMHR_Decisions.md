@@ -70,6 +70,8 @@
 
 ### Password / invite flow
 - Support **both**: email invite link to set password, **and** DM.HR temporary passwords.
+- **Auto email (locked 2026-11-01):** On create client / create user / resend invite, send credentials via **SMTP Settings** when configured (`sent` / `skipped` / `failed`). Always also surface a **copyable invite link or temp password** panel for Admin (session banner on org profile after create). SMTP mailbox is dynamic — test with any provider (e.g. Gmail), later swap to client mailbox in Settings.
+- **Org profile access link (locked 2026-11-01):** Admin directory ⋮ + profile button for primary active client login. If password **not** set yet (`passwordChangedAt` null) → **Resend invite**. If password **already set** → **Send password reset** (confirm) — same set-password link machinery, reset email copy. Shows copyable Client access banner + toast.
 
 ### Onboarding access
 - Clients can use the portal **as soon as Admin adds the company** — no lock until onboarding is finished.
@@ -183,7 +185,7 @@
 - **Internal / personal Admin notes:** Admin-only — never shown on client screens or in client emails.
 
 ### Email / mail sending
-- **Product (locked):** Provider-agnostic **SMTP Settings** in Admin — host, port, TLS/SSL, username, password/app password, from address, from display name. Compatible with Outlook/M365, Google, or any SMTP. **Do not hard-code a provider or mailbox in code.**
+- **Product (locked):** Provider-agnostic **SMTP Settings** in Admin — host, port, TLS/SSL, username, password/app password, from address, from display name. Compatible with Outlook/M365, Google, Hostinger, or any SMTP. **Do not hard-code a provider or mailbox in code.** Stored in DB. Settings UI: **Save**, **Test form** (current fields + verify + send), **Test saved** (DB). Test recipient field required for product verification.
 - **David’s current preference (defaults / docs only):** Outlook; portal/case mail from **`case@dmhrgroup.com`**. Prefill or document as suggested defaults; Admin can change anytime in Settings.
 - Source: David Matthews direct answers (2026-10-30), reconciled with build preference to keep SMTP generalised.
 
@@ -212,6 +214,44 @@
 ### Client / Admin IA to mirror (from HTML — functional)
 - **Client:** Overview/home with document-space tiles (**6 operational + My Onboarding** for new clients); strong **Add / Check a Case** path; Employees; Onboarding journey; Signatures queue; Notifications; Account/settings as needed.
 - **Admin:** Overview metrics + attention lists; Clients/Organisations with **client profile hub**; Documents; Firm Library; Employees; Cases; Onboarding journey; Signatures queue; Notifications; Settings (incl. SMTP).
+- **Routes (locked 2026-11-01):** Admin **Overview** = `/admin` (dashboard only). **Organisations / clients directory + add** = `/admin/organisations` — never conflate the two. Client home = `/portal`.
+- **Sidebar groups:** Admin `home` (Overview) → `Clients` (Organisations) → `Workspace` (Documents, Firm Library, Employees, Cases, Onboarding, Signatures) → `System` (Users, Notifications, Settings, Payments). Client: Overview → Workspace → System. Collapsed rail shows thin dividers between groups.
+- **Organisations journey:** Directory (search/filters/table + **Open profile**) → **Client profile hub** `/admin/organisations/[id]`. Mock = journey ideas; we own data flow + components (Apple shell). No fake “view as client”.
+- **Client profile hub (locked 2026-11-02):** Compact density — icon **Back** + org name as page title + status pill + **Start/Open onboarding** CTA + **⋮** (Edit / Resend invite|password reset / Open documents / Deactivate|Activate). Identity row: avatar + icon meta (contact, email, phone, login) + pencil edit. Four metric tiles (docs / employees / open cases / onboarding + pack bar) deep-link. Scrollable **Documents** + **Recent cases** panels (`ProfileActivityPanel` + Eye preview). Compact **Company users** list. Shared tokens `.profile-hub-*`.
+- **Org directory table (locked 2026-11-01):** Dense containerized table (avatar + company/ref, contact, type, **regulatory**, onboarding **progress bar + short text**, open cases, status pill). Filters: search + status + type + **regulatory context**. Row **⋮** menu (portal + flip up when near bottom): Open / Edit / Resend invite|password reset / Deactivate|Activate. No hard delete — soft inactive only.
+- **Org chrome rule:** Sidebar + top bar = general only. Section CTAs (Add organisation, Open documents, Start/Open onboarding) sit **inside the page** beside that section’s heading — never in shell `actions` for org-specific work.
+- **Add organisation:** Modal/dialog (not a form buried under the directory). Create = folders + client login only; does **not** auto-start onboarding or issue pack.
+- **Onboarding CTA:** Needs onboarding + no run → **Start onboarding** (creates run). Active run → **Open onboarding**. Pack docs only after Admin issues from Firm Library on the run page.
+- **Org fields:** name, ref, contact, email, phone, type, optional **regulatoryContext** (CQC/Ofsted…), status, onboardingStatus.
+- **Form control rules (locked 2026-11-01):** Exactly **2** mutually exclusive options → **segmented toggle** (`ChoiceToggle`), not a dropdown (e.g. Client type New/Existing, Access method Invite/Temp password, Active/Inactive). **3+** options → **select**. No datalist for category fields (avoids browser autofill menus).
+- **Other → specify (portal-wide):** If a select includes **Other** / **Other…**, choosing it reveals an inline text field; store the typed value. Apply on org type, regulatory, and later case categories etc.
+- **Org select lists (mock-aligned):** Type = Adult Social Care / Children's Residential Care / Other Care Provider / Other Business. Regulatory = To Be Confirmed / CQC / Ofsted / Both / Not Applicable / Other.
+- **Form density:** Dialogs and admin edit forms use compact field tokens (`.form-compact`) — tighter than auth screens.
+- **Portal toasts (locked 2026-11-01):** Shared bottom-right toast (`useToast` / `ToastProvider`) for success / error / info across Admin + Client — SMTP, create client, saves, and any future action. Not email-only. Page banners may remain for form context; toast is default quick feedback.
+
+### Portal section standards (apply as each area is built)
+Before calling a section done, check what this product needs (not generic SaaS clutter):
+
+| Standard | Apply when |
+|----------|------------|
+| List + search/filters | Directories (orgs, docs, cases, employees, signatures, users) |
+| Detail / hub | Entities with related activity (org profile, case, employee, onboarding run) |
+| Create | Admin/Client must add records |
+| Edit / update | Fields that change after create (org contact, employee, case status…) |
+| Delete / archive / disable | With confirm; prefer `active`/`inactive` for orgs/users where hard delete is risky |
+| **Preview (eye)** | Files/PDFs/images — docs, Firm Library, attachments, pack/signed PDFs — shared component |
+| Download | Same file surfaces (always, even if preview N/A for Word etc.) |
+| Versions | Documents |
+| Status badges | Onboarding, cases, signatures, org, user |
+| Empty states | Every list + one clear CTA |
+| Confirm destructive | Delete, Complete onboarding, void/cancel where added |
+| Deep links from hubs | Profile → docs / employees / cases / onboarding |
+| Permissions | Admin vs client; Private Space; admin-only notes |
+| Notify | Creates/updates clients or admins should hear about |
+| Loading / errors | No silent failures |
+| Shell fit | Tokens, btn primary/secondary, PortalSearch where lists grow |
+
+**Project-specific:** e-sign + onboarding are **workflows** (not only CRUD forms). Payments = paste links only. Folders = fixed set. GDPR audit/export later. Impersonation out of scope.
 
 ### Recommended defaults (locked for build unless David objects)
 - **Key doc placeholders:** Terms of Business, Welcome Pack, Compliance pack — Admin uploads when ready.
@@ -306,3 +346,21 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-10-31 | **Functional onboarding shipped:** Firm Library + Onboarding runs (welcome email, dynamic pack issue → My Onboarding, e-sign sync, DD/payment links, gated Complete); create-org Needs vs Already onboarded; client journey matches HTML IA. |
 | 2026-10-31 | **Firm Library template fields:** place boxes once with Client/Admin roles; issue pack auto-clones layout, assigns primary client + issuing admin, Mark Ready + Send. |
 | 2026-10-31 | **Firm Library Admin ink:** sign Admin boxes once on template (Draw/Saved/Type); issue pack auto-applies that ink so Admin does not re-sign every client. |
+| 2026-11-01 | **Shared portal shell (UI phase):** compact Apple-like chrome; lucide icons + short labels; icon notify/account; mobile drawer; Admin/Client same theme; HTML IA for nav. |
+| 2026-11-01 | **Shell v2:** icon rail (hover expand + pin); top breadcrumbs page map; light/dark theme (`data-theme`) with blue highlights; refs 21st andrewlu0 rail + arunjdass mature header. |
+| 2026-11-01 | **Shell polish:** portal-wide translucent/blur scrollbar (blue hover highlight); delayed hover-open rail (~160ms in / ~220ms out) + cubic expand; nav tab hover motion; pin + avatar foot stacked cleanly (no overlap). |
+| 2026-11-01 | **IA fix:** `/admin` = real Overview dashboard; organisations list/add moved to `/admin/organisations`; sidebar separator headings (Clients / Workspace / System); client `/portal` Overview hub. |
+| 2026-11-01 | **Buttons + search:** `btn-primary` = brand blue + white text (both themes); `btn-secondary` = theme surface + blue accent (no hardcoded light gray). Shared `PortalSearch` in shell header (⌘/Ctrl+K palette) reusable as `mode="inline"` in section filters. |
+| 2026-11-01 | **Portal section standards locked:** list/detail/CRUD-where-needed, eye preview, download, badges, empty states, confirms, hub deep-links — apply section-by-section. Orgs = directory + profile hub (mock structure). |
+| 2026-11-01 | **Organisations hub shipped:** directory table + filters + Open profile; `/admin/organisations/[id]` profile (edit, metrics, recent docs/cases); GET/PATCH org APIs; shared `FilePreviewSheet` + Eye on Documents. |
+| 2026-11-01 | **Org rebuild:** Add client modal; page-local CTAs (not shell actions); regulatoryContext; Start≠issue pack clarified; table + profile polish. |
+| 2026-11-01 | **Org form UX:** compact density; ChoiceToggle for binary fields; real selects (mock lists); Other→specify; no datalist. |
+| 2026-11-01 | **Access email:** auto-send invite/temp-password via SMTP on org/user create + resend; copyable credentials banner on profile. |
+| 2026-11-01 | **SMTP Settings UX:** Mitiesoft-style form; test-to field; Test form vs Test saved; verify+send with clearer errors. |
+| 2026-11-01 | **Portal toasts:** shared `useToast` success/error/info; wired Settings + Organisations create/edit. |
+| 2026-11-01 | **Org profile Resend invite:** primary client login; SMTP + credentials banner + toast. |
+| 2026-11-01 | **Org directory sleek table:** dense rows, onboarding progress, status pills, ⋮ menu (Open/Edit/Resend/Deactivate). |
+| 2026-11-01 | **Invite vs reset:** Resend invite only before password set; after set → Send password reset (confirm + reset email). |
+| 2026-11-01 | **Org directory polish:** separate Regulatory column; status/type/context filters; ⋮ menu portals + flips up on last rows. |
+| 2026-11-02 | **Client profile hub redesign:** compact header (icon back, org title, ⋮ + onboarding CTA); icon identity meta; metric tiles; scrollable docs/cases panels; compact company users; `.profile-hub-*` + `ProfileActivityPanel`. |
+| 2026-11-02 | **Status colours:** Active = green, Inactive = red (table pills + `StatusLiquidToggle` from 21st liquid-toggle). Binary non-status fields still use `ChoiceToggle`. |

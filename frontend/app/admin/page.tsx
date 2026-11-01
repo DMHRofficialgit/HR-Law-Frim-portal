@@ -1,11 +1,22 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../components/AppShell";
 import { apiFetch, type PublicUser } from "../../lib/api";
 import { clearSession, getStoredUser, getToken, homeForUser } from "../../lib/auth";
+import { statusLabel } from "../../lib/cases";
 import { adminNav } from "../../lib/nav";
+import {
+  onboardingRunLabel,
+  packProgress,
+  type OnboardingRun,
+} from "../../lib/onboarding";
+import {
+  isActiveSignatureStatus,
+  type SignatureRequestRow,
+} from "../../lib/signatures";
 
 type OrgRow = {
   id: string;
@@ -13,76 +24,26 @@ type OrgRow = {
   ref: string | null;
   onboardingStatus: string;
   status: string;
-  users: Array<{
-    id: string;
-    email: string;
-    name: string;
-    status: string;
-    mustChangePassword: boolean;
-  }>;
 };
 
-type CreateResult = {
+type CaseRow = {
+  id: string;
+  ref: string;
+  title: string;
+  status: string;
+  updatedAt: string;
   organisation: { id: string; name: string };
-  clientUser: PublicUser;
-  authMode: string;
-  inviteUrl: string | null;
-  temporaryPassword: string | null;
 };
 
-const emptyForm = {
-  name: "",
-  ref: "",
-  contactName: "",
-  email: "",
-  phone: "",
-  type: "",
-  clientName: "",
-  clientEmail: "",
-  authMode: "invite" as "invite" | "temporary_password",
-  temporaryPassword: "",
-  onboardingStatus: "in_progress" as "in_progress" | "existing_skip",
-};
-
-export default function AdminOrganisationsPage() {
+export default function AdminOverviewPage() {
   const router = useRouter();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
-  const [form, setForm] = useState(emptyForm);
+  const [cases, setCases] = useState<CaseRow[]>([]);
+  const [runs, setRuns] = useState<OnboardingRun[]>([]);
+  const [signatures, setSignatures] = useState<SignatureRequestRow[]>([]);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
-
-  const loadOrgs = useCallback(async () => {
-    const token = getToken();
-    if (!token) return;
-    setLoading(true);
-    setError("");
-    try {
-      const result = await apiFetch<{ organisations: OrgRow[] }>("/admin/organisations", {
-        token,
-      });
-      if (!result.success) {
-        if (result.error.code === "PASSWORD_CHANGE_REQUIRED") {
-          router.replace("/change-password");
-          return;
-        }
-        if (result.error.code === "UNAUTHORIZED" || result.error.code === "FORBIDDEN") {
-          clearSession();
-          router.replace("/login");
-          return;
-        }
-        setError(result.error.message);
-        return;
-      }
-      setOrgs(result.data.organisations);
-    } catch {
-      setError("Unable to load organisations.");
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = getToken();
@@ -100,236 +61,232 @@ export default function AdminOrganisationsPage() {
       return;
     }
     setUser(stored);
-    loadOrgs();
-  }, [router, loadOrgs]);
 
-  async function onCreate(e: FormEvent) {
-    e.preventDefault();
-    setError("");
-    setNotice("");
-    setCreating(true);
+    async function load() {
+      setLoading(true);
+      setError("");
+      try {
+        const [orgsRes, casesRes, runsRes, sigRes] = await Promise.all([
+          apiFetch<{ organisations: OrgRow[] }>("/admin/organisations", { token }),
+          apiFetch<{ cases: CaseRow[] }>("/admin/cases", { token }),
+          apiFetch<{ runs: OnboardingRun[] }>("/admin/onboarding/runs", { token }),
+          apiFetch<{ requests: SignatureRequestRow[] }>("/admin/signature-requests", {
+            token,
+          }),
+        ]);
 
-    try {
-      const payload = {
-        name: form.name,
-        ref: form.ref || undefined,
-        contactName: form.contactName || undefined,
-        email: form.email || undefined,
-        phone: form.phone || undefined,
-        type: form.type || undefined,
-        clientName: form.clientName,
-        clientEmail: form.clientEmail,
-        authMode: form.authMode,
-        temporaryPassword:
-          form.authMode === "temporary_password" ? form.temporaryPassword : undefined,
-        onboardingStatus: form.onboardingStatus,
-      };
+        if (!orgsRes.success) {
+          if (orgsRes.error.code === "PASSWORD_CHANGE_REQUIRED") {
+            router.replace("/change-password");
+            return;
+          }
+          if (orgsRes.error.code === "UNAUTHORIZED" || orgsRes.error.code === "FORBIDDEN") {
+            clearSession();
+            router.replace("/login");
+            return;
+          }
+          setError(orgsRes.error.message);
+        } else {
+          setOrgs(orgsRes.data.organisations);
+        }
 
-      const result = await apiFetch<CreateResult>("/admin/organisations", {
-        method: "POST",
-        token: getToken(),
-        body: JSON.stringify(payload),
-      });
-
-      if (!result.success) {
-        setError(result.error.message);
-        return;
+        if (casesRes.success) setCases(casesRes.data.cases);
+        if (runsRes.success) setRuns(runsRes.data.runs);
+        if (sigRes.success) setSignatures(sigRes.data.requests);
+      } catch {
+        setError("Unable to load overview.");
+      } finally {
+        setLoading(false);
       }
-
-      const bits = [`Created ${result.data.organisation.name}.`];
-      if (result.data.inviteUrl) bits.push(`Invite link: ${result.data.inviteUrl}`);
-      if (result.data.temporaryPassword)
-        bits.push(`Temporary password: ${result.data.temporaryPassword}`);
-      setNotice(bits.join(" "));
-      setForm(emptyForm);
-      await loadOrgs();
-    } catch {
-      setError("Unable to create organisation.");
-    } finally {
-      setCreating(false);
     }
-  }
+
+    load();
+  }, [router]);
+
+  const openCases = useMemo(
+    () => cases.filter((c) => c.status !== "closed"),
+    [cases]
+  );
+
+  const attentionCases = useMemo(
+    () =>
+      openCases
+        .filter((c) =>
+          ["submitted", "information_required", "allocated"].includes(c.status)
+        )
+        .slice(0, 5),
+    [openCases]
+  );
+
+  const activeOnboarding = useMemo(
+    () => runs.filter((r) => r.status === "in_progress").slice(0, 5),
+    [runs]
+  );
+
+  const awaitingSignatures = useMemo(
+    () =>
+      signatures.filter(
+        (s) =>
+          isActiveSignatureStatus(s.status) &&
+          (s.status === "awaiting_signature" || s.status === "revision_requested")
+      ).length,
+    [signatures]
+  );
+
+  const metrics = useMemo(() => {
+    const clientsCount = orgs.filter((o) => o.status.toLowerCase() === "active").length;
+    const onboardingInProgress =
+      runs.filter((r) => r.status === "in_progress").length ||
+      orgs.filter((o) => o.onboardingStatus === "in_progress").length;
+    const awaitingClient =
+      openCases.filter((c) => c.status === "information_required").length +
+      awaitingSignatures;
+
+    return {
+      clientsCount,
+      openCases: openCases.length,
+      onboardingInProgress,
+      awaitingClient,
+    };
+  }, [orgs, openCases, runs, awaitingSignatures]);
 
   if (!user) return null;
 
   return (
-    <AppShell user={user} nav={adminNav} title="Organisations">
+    <AppShell user={user} nav={adminNav} title="Overview">
       {error ? <div className="error-banner">{error}</div> : null}
-      {notice ? <div className="success-banner">{notice}</div> : null}
 
-      <section className="panel" style={{ marginBottom: 20 }}>
-        <h2>Add organisation</h2>
-        <p className="lead">
-          Creates the company, client login, and seven document folders (including My Onboarding).
-          Choose whether this is a new client (needs onboarding) or already onboarded.
-        </p>
+      <p className="lead overview-intro" style={{ marginTop: 0, marginBottom: 16 }}>
+        Client activity, onboarding, and employment cases at a glance.
+        {loading ? " Loading…" : ""}{" "}
+        <Link href="/admin/organisations">Manage organisations</Link>
+        {" · "}
+        <Link href="/admin/organisations#add-organisation">Add a client</Link>
+      </p>
 
-        <form onSubmit={onCreate}>
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="orgName">Company name</label>
-              <input
-                id="orgName"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="ref">Reference</label>
-              <input
-                id="ref"
-                value={form.ref}
-                onChange={(e) => setForm({ ...form, ref: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="contactName">Contact name</label>
-              <input
-                id="contactName"
-                value={form.contactName}
-                onChange={(e) => setForm({ ...form, contactName: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="orgEmail">Company email</label>
-              <input
-                id="orgEmail"
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="phone">Phone</label>
-              <input
-                id="phone"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="type">Type</label>
-              <input
-                id="type"
-                value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
-                placeholder="e.g. Adult Social Care"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="clientName">Client login name</label>
-              <input
-                id="clientName"
-                value={form.clientName}
-                onChange={(e) => setForm({ ...form, clientName: e.target.value })}
-                required
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="clientEmail">Client login email</label>
-              <input
-                id="clientEmail"
-                type="email"
-                value={form.clientEmail}
-                onChange={(e) => setForm({ ...form, clientEmail: e.target.value })}
-                required
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="authMode">Access method</label>
-              <select
-                id="authMode"
-                value={form.authMode}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    authMode: e.target.value as "invite" | "temporary_password",
-                  })
-                }
-              >
-                <option value="invite">Email invite link</option>
-                <option value="temporary_password">Temporary password</option>
-              </select>
-            </div>
-            {form.authMode === "temporary_password" ? (
-              <div className="field">
-                <label htmlFor="tempPassword">Temporary password</label>
-                <input
-                  id="tempPassword"
-                  type="text"
-                  value={form.temporaryPassword}
-                  onChange={(e) => setForm({ ...form, temporaryPassword: e.target.value })}
-                  minLength={8}
-                  required
-                />
-              </div>
-            ) : null}
-            <div className="field">
-              <label htmlFor="onboardingStatus">Onboarding</label>
-              <select
-                id="onboardingStatus"
-                value={form.onboardingStatus}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    onboardingStatus: e.target.value as "in_progress" | "existing_skip",
-                  })
-                }
-              >
-                <option value="in_progress">Needs onboarding (new client)</option>
-                <option value="existing_skip">Already onboarded (skip pack)</option>
-              </select>
-            </div>
+      <div className="metrics-row">
+        <div className="metric-card">
+          <div className="metric-value">{metrics.clientsCount}</div>
+          <div className="metric-label">Active clients</div>
+          <p className="metric-hint">Across your client portfolio</p>
+        </div>
+        <div className="metric-card">
+          <div className="metric-value">{metrics.openCases}</div>
+          <div className="metric-label">Open employment cases</div>
+          <p className="metric-hint">Received and in progress</p>
+        </div>
+        <div className="metric-card">
+          <div className="metric-value">{metrics.onboardingInProgress}</div>
+          <div className="metric-label">Onboarding in progress</div>
+          <p className="metric-hint">New-client pack journeys</p>
+        </div>
+        <div className="metric-card">
+          <div className="metric-value">{metrics.awaitingClient}</div>
+          <div className="metric-label">Awaiting client response</div>
+          <p className="metric-hint">Cases and signatures needing follow-up</p>
+        </div>
+      </div>
+
+      <div className="grid-2">
+        <section className="panel">
+          <div className="row-between" style={{ marginBottom: 12 }}>
+            <h2 style={{ margin: 0 }}>Cases requiring attention</h2>
+            <Link href="/admin/cases" className="btn btn-secondary btn-sm">
+              View all
+            </Link>
           </div>
-          <button className="btn btn-primary" type="submit" disabled={creating}>
-            {creating ? "Creating…" : "Create organisation"}
-          </button>
-        </form>
-      </section>
-
-      <section className="panel">
-        <h2>Organisations</h2>
-        <p className="lead">{loading ? "Loading…" : `${orgs.length} company account(s)`}</p>
-        <ul className="org-list">
-          {orgs.map((org) => {
-            const client = org.users[0];
-            return (
-              <li key={org.id}>
-                <div>
-                  <div className="org-name">{org.name}</div>
-                  <div className="org-meta">
-                    {org.ref ? `${org.ref} · ` : ""}
-                    Onboarding: {org.onboardingStatus.replace(/_/g, " ")}
-                    {client
-                      ? ` · ${client.email}${client.mustChangePassword ? " (temp password)" : ""}`
-                      : " · no client user"}
+          {attentionCases.length === 0 ? (
+            <p className="lead" style={{ margin: 0 }}>
+              No cases need attention right now.
+            </p>
+          ) : (
+            <ul className="org-list overview-list">
+              {attentionCases.map((c) => (
+                <li key={c.id}>
+                  <div>
+                    <div className="org-name">{c.ref}</div>
+                    <div className="org-meta">
+                      {c.organisation.name} · {c.title} · {statusLabel(c.status)}
+                    </div>
                   </div>
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() =>
-                      router.push(`/admin/documents?org=${encodeURIComponent(org.id)}`)
-                    }
+                  <Link
+                    href={`/admin/cases/${c.id}`}
+                    className="btn btn-primary btn-sm"
                   >
-                    Documents
-                  </button>
-                  {org.onboardingStatus === "in_progress" ? (
-                    <button
-                      type="button"
+                    Open
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="panel">
+          <div className="row-between" style={{ marginBottom: 12 }}>
+            <h2 style={{ margin: 0 }}>Onboarding in progress</h2>
+            <Link href="/admin/onboarding" className="btn btn-secondary btn-sm">
+              View all
+            </Link>
+          </div>
+          {activeOnboarding.length === 0 ? (
+            <p className="lead" style={{ margin: 0 }}>
+              No active onboarding runs.{" "}
+              <Link href="/admin/organisations#add-organisation">Add a client</Link> or start a
+              run from Onboarding.
+            </p>
+          ) : (
+            <ul className="org-list overview-list">
+              {activeOnboarding.map((run) => {
+                const progress = packProgress(run);
+                return (
+                  <li key={run.id}>
+                    <div>
+                      <div className="org-name">{run.organisation.name}</div>
+                      <div className="org-meta">
+                        {onboardingRunLabel(run.status)} · Pack {progress.done}/{progress.total}
+                      </div>
+                    </div>
+                    <Link
+                      href={`/admin/onboarding/${run.id}`}
                       className="btn btn-primary btn-sm"
-                      onClick={() => router.push("/admin/onboarding")}
                     >
-                      Onboarding
-                    </button>
-                  ) : null}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                      Open
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
+
+      <section className="panel" style={{ marginTop: 16 }}>
+        <div className="row-between" style={{ marginBottom: 12 }}>
+          <div>
+            <h2 style={{ margin: 0 }}>Quick links</h2>
+            <p className="lead" style={{ margin: "6px 0 0" }}>
+              Jump into the most common admin workflows.
+            </p>
+          </div>
+        </div>
+        <div className="overview-quick-grid">
+          <Link href="/admin/organisations" className="overview-quick-tile">
+            <strong>Organisations</strong>
+            <span>Client directory and add company</span>
+          </Link>
+          <Link href="/admin/firm-library" className="overview-quick-tile">
+            <strong>Firm Library</strong>
+            <span>Templates and onboarding pack</span>
+          </Link>
+          <Link href="/admin/signatures" className="overview-quick-tile">
+            <strong>Signatures</strong>
+            <span>Queue awaiting and revisions</span>
+          </Link>
+          <Link href="/admin/documents" className="overview-quick-tile">
+            <strong>Documents</strong>
+            <span>Client folders and Private Space</span>
+          </Link>
+        </div>
       </section>
     </AppShell>
   );

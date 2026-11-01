@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
+import { useToast } from "../../../context/ToastContext";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
@@ -23,6 +24,7 @@ type Category = {
 
 export default function AdminSettingsPage() {
   const router = useRouter();
+  const toast = useToast();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [extensions, setExtensions] = useState("pdf, doc, docx");
   const [mimes, setMimes] = useState("");
@@ -37,10 +39,12 @@ export default function AdminSettingsPage() {
   const [smtpFrom, setSmtpFrom] = useState("");
   const [smtpFromName, setSmtpFromName] = useState("DM.HR Group");
   const [smtpHasPassword, setSmtpHasPassword] = useState(false);
+  const [smtpTestTo, setSmtpTestTo] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [savingSmtp, setSavingSmtp] = useState(false);
+  const [testingSmtp, setTestingSmtp] = useState<"form" | "saved" | null>(null);
 
   async function loadCategories(token: string | null) {
     const result = await apiFetch<{ categories: Category[] }>("/admin/case-categories", {
@@ -93,6 +97,7 @@ export default function AdminSettingsPage() {
         setSmtpFromName(s.fromDisplayName || "DM.HR Group");
         setSmtpHasPassword(s.hasPassword);
       }
+      if (stored) setSmtpTestTo(stored.email || "");
     }
     load();
   }, [router]);
@@ -120,11 +125,14 @@ export default function AdminSettingsPage() {
       });
       if (!result.success) {
         setError(result.error.message);
+        toast.error(result.error.message);
         return;
       }
       setNotice("Upload settings saved.");
+      toast.success("Upload settings saved.");
     } catch {
       setError("Unable to save settings.");
+      toast.error("Unable to save settings.");
     } finally {
       setSaving(false);
     }
@@ -141,10 +149,12 @@ export default function AdminSettingsPage() {
     });
     if (!result.success) {
       setError(result.error.message);
+      toast.error(result.error.message);
       return;
     }
     setNewCategory("");
     setNotice("Category added.");
+    toast.success("Category added.");
     await loadCategories(getToken());
   }
 
@@ -218,12 +228,14 @@ export default function AdminSettingsPage() {
       </section>
 
       <section className="panel">
-        <h2>Email (SMTP)</h2>
+        <h2>Email / SMTP</h2>
         <p className="lead">
-          Provider-agnostic SMTP. Suggested defaults: Outlook / case@dmhrgroup.com — change anytime.
-          Leave blank to keep in-app notifications only.
+          Product mail for invites, welcome, e-sign and case notifies. Saved in the database —
+          swap Hostinger / Outlook / Gmail anytime. Hostinger example:{" "}
+          <code>smtp.hostinger.com</code>, port <code>465</code>, SSL on.
         </p>
         <form
+          className="form-compact smtp-settings-form"
           onSubmit={async (e) => {
             e.preventDefault();
             setSavingSmtp(true);
@@ -247,90 +259,195 @@ export default function AdminSettingsPage() {
               });
               if (!result.success) {
                 setError(result.error.message);
+                toast.error(result.error.message);
                 return;
               }
               setSmtpPassword("");
               setSmtpHasPassword(result.data.settings.hasPassword);
-              setNotice("SMTP settings saved.");
+              setNotice("SMTP settings saved to database.");
+              toast.success("SMTP settings saved.");
             } catch {
               setError("Unable to save SMTP settings.");
+              toast.error("Unable to save SMTP settings.");
             } finally {
               setSavingSmtp(false);
             }
           }}
         >
-          <div className="field">
-            <label>Host</label>
+          <div className="field field-full">
+            <label htmlFor="smtp-host">SMTP host</label>
             <input
+              id="smtp-host"
               value={smtpHost}
               onChange={(e) => setSmtpHost(e.target.value)}
-              placeholder="smtp.office365.com"
+              placeholder="smtp.hostinger.com"
+              autoComplete="off"
             />
           </div>
-          <div className="field">
-            <label>Port</label>
-            <input
-              type="number"
-              value={smtpPort}
-              onChange={(e) => setSmtpPort(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label>
+
+          <div className="form-grid">
+            <div className="field">
+              <label htmlFor="smtp-port">Port</label>
               <input
-                type="checkbox"
-                checked={smtpSecure}
-                onChange={(e) => setSmtpSecure(e.target.checked)}
-              />{" "}
-              TLS/SSL (secure)
-            </label>
+                id="smtp-port"
+                type="number"
+                value={smtpPort}
+                onChange={(e) => setSmtpPort(e.target.value)}
+                placeholder="465"
+              />
+            </div>
+            <div className="field">
+              <span className="field-label">Encryption</span>
+              <label className="smtp-secure-check">
+                <input
+                  type="checkbox"
+                  checked={smtpSecure}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setSmtpSecure(on);
+                    if (on && smtpPort === "587") setSmtpPort("465");
+                    if (!on && smtpPort === "465") setSmtpPort("587");
+                  }}
+                />
+                TLS/SSL (implicit, e.g. port 465)
+              </label>
+            </div>
+            <div className="field">
+              <label htmlFor="smtp-user">Username</label>
+              <input
+                id="smtp-user"
+                value={smtpUser}
+                onChange={(e) => setSmtpUser(e.target.value)}
+                placeholder="info@yourdomain.com"
+                autoComplete="off"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="smtp-pass">
+                Password {smtpHasPassword ? "(saved — leave blank to keep)" : ""}
+              </label>
+              <input
+                id="smtp-pass"
+                type="password"
+                value={smtpPassword}
+                onChange={(e) => setSmtpPassword(e.target.value)}
+                placeholder="Leave blank to keep saved password"
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="smtp-from">From email</label>
+              <input
+                id="smtp-from"
+                type="email"
+                value={smtpFrom}
+                onChange={(e) => setSmtpFrom(e.target.value)}
+                placeholder="info@yourdomain.com"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="smtp-from-name">From name</label>
+              <input
+                id="smtp-from-name"
+                value={smtpFromName}
+                onChange={(e) => setSmtpFromName(e.target.value)}
+                placeholder="DM.HR Group"
+              />
+            </div>
           </div>
-          <div className="field">
-            <label>Username</label>
-            <input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>Password / app password {smtpHasPassword ? "(saved — leave blank to keep)" : ""}</label>
+
+          <div className="field field-full" style={{ marginTop: 8 }}>
+            <label htmlFor="smtp-test-to">Send test email to</label>
             <input
-              type="password"
-              value={smtpPassword}
-              onChange={(e) => setSmtpPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-          </div>
-          <div className="field">
-            <label>From address</label>
-            <input
+              id="smtp-test-to"
               type="email"
-              value={smtpFrom}
-              onChange={(e) => setSmtpFrom(e.target.value)}
-              placeholder="case@dmhrgroup.com"
+              value={smtpTestTo}
+              onChange={(e) => setSmtpTestTo(e.target.value)}
+              placeholder="you@gmail.com"
             />
+            <p className="lead" style={{ margin: "6px 0 0", fontSize: 12.5 }}>
+              Connection is verified, then a short product test email is sent to this address.
+            </p>
           </div>
-          <div className="field">
-            <label>From display name</label>
-            <input value={smtpFromName} onChange={(e) => setSmtpFromName(e.target.value)} />
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button className="btn btn-primary" type="submit" disabled={savingSmtp}>
-              {savingSmtp ? "Saving…" : "Save SMTP settings"}
+
+          <div className="smtp-actions">
+            <button className="btn btn-primary btn-sm" type="submit" disabled={savingSmtp}>
+              {savingSmtp ? "Saving…" : "Save settings"}
             </button>
             <button
-              className="btn btn-secondary"
+              className="btn btn-secondary btn-sm"
               type="button"
+              disabled={testingSmtp !== null}
               onClick={async () => {
                 setError("");
                 setNotice("");
-                const result = await apiFetch("/admin/smtp-settings/test", {
-                  method: "POST",
-                  token: getToken(),
-                  body: JSON.stringify({}),
-                });
-                if (!result.success) setError(result.error.message);
-                else setNotice(result.message || "Test email sent.");
+                setTestingSmtp("form");
+                try {
+                  const result = await apiFetch("/admin/smtp-settings/test", {
+                    method: "POST",
+                    token: getToken(),
+                    body: JSON.stringify({
+                      source: "form",
+                      to: smtpTestTo || undefined,
+                      host: smtpHost,
+                      port: Number(smtpPort) || undefined,
+                      secure: smtpSecure,
+                      username: smtpUser,
+                      password: smtpPassword || undefined,
+                      fromAddress: smtpFrom,
+                      fromDisplayName: smtpFromName,
+                    }),
+                  });
+                  if (!result.success) {
+                    setError(result.error.message);
+                    toast.error(result.error.message);
+                  } else {
+                    setNotice(result.message || "Test email sent.");
+                    toast.success(result.message || "Test email sent.");
+                  }
+                } catch {
+                  setError("Unable to send test email.");
+                  toast.error("Unable to send test email.");
+                } finally {
+                  setTestingSmtp(null);
+                }
               }}
             >
-              Send test email
+              {testingSmtp === "form" ? "Testing…" : "Test & send email (form)"}
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              disabled={testingSmtp !== null}
+              onClick={async () => {
+                setError("");
+                setNotice("");
+                setTestingSmtp("saved");
+                try {
+                  const result = await apiFetch("/admin/smtp-settings/test", {
+                    method: "POST",
+                    token: getToken(),
+                    body: JSON.stringify({
+                      source: "saved",
+                      to: smtpTestTo || undefined,
+                    }),
+                  });
+                  if (!result.success) {
+                    setError(result.error.message);
+                    toast.error(result.error.message);
+                  } else {
+                    setNotice(result.message || "Test email sent.");
+                    toast.success(result.message || "Test email sent.");
+                  }
+                } catch {
+                  setError("Unable to send test email.");
+                  toast.error("Unable to send test email.");
+                } finally {
+                  setTestingSmtp(null);
+                }
+              }}
+            >
+              {testingSmtp === "saved" ? "Testing…" : "Test saved & send email"}
             </button>
           </div>
         </form>

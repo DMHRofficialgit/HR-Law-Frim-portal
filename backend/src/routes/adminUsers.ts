@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { UserRole, UserStatus } from "@prisma/client";
 import { z } from "zod";
+import { accessMailMessage } from "../lib/access-mail";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
 import {
   createPortalUser,
@@ -65,10 +66,7 @@ router.post("/users", async (req, res) => {
     return res.status(201).json({
       success: true,
       data: result,
-      message:
-        result.authMode === "invite"
-          ? "User created — share the invite link"
-          : "User created — share the temporary password",
+      message: `User created — ${accessMailMessage(result.mailStatus, result.authMode)}`,
     });
   } catch (err) {
     return serviceError(err, res);
@@ -109,7 +107,7 @@ router.post("/users/:id/invite", async (req, res) => {
     return res.status(200).json({
       success: true,
       data: result,
-      message: "Invite link created",
+      message: `${result.purpose === "reset" ? "Password reset" : "Invite refreshed"} — ${accessMailMessage(result.mailStatus, "invite", result.purpose)}`,
     });
   } catch (err) {
     return serviceError(err, res);

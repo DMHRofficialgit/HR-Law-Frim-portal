@@ -90,17 +90,19 @@ enum FirmLibraryFieldRole {
 }
 
 model Organisation {
-  id               String           @id @default(uuid())
-  name             String
-  ref              String?
-  contactName      String?          @map("contact_name")
-  email            String?
-  phone            String?
-  type             String?
-  onboardingStatus OnboardingStatus @default(in_progress) @map("onboarding_status")
-  status           String           @default("active")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
+  id                 String           @id @default(uuid())
+  name               String
+  ref                String?
+  contactName        String?          @map("contact_name")
+  email              String?
+  phone              String?
+  type               String?
+  /// e.g. CQC, Ofsted — optional regulatory context
+  regulatoryContext  String?          @map("regulatory_context")
+  onboardingStatus   OnboardingStatus @default(in_progress) @map("onboarding_status")
+  status             String           @default("active")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
 
   users               User[]
   folders             DocumentFolder[]

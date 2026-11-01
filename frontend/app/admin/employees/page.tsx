@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
@@ -19,8 +19,10 @@ type Employee = {
 
 const empty = { name: "", jobTitle: "", department: "", startDate: "", notes: "" };
 
-export default function AdminEmployeesPage() {
+function AdminEmployeesInner() {
   const router = useRouter();
+  const search = useSearchParams();
+  const orgFromUrl = search.get("org") || "";
   const [user, setUser] = useState<PublicUser | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
   const [orgId, setOrgId] = useState("");
@@ -52,12 +54,15 @@ export default function AdminEmployeesPage() {
       });
       if (result.success) {
         setOrgs(result.data.organisations);
-        const first = result.data.organisations[0]?.id || "";
-        setOrgId(first);
-        if (first) await loadEmployees(first);
+        const preferred =
+          orgFromUrl && result.data.organisations.some((o) => o.id === orgFromUrl)
+            ? orgFromUrl
+            : result.data.organisations[0]?.id || "";
+        setOrgId(preferred);
+        if (preferred) await loadEmployees(preferred);
       }
     })();
-  }, [router, loadEmployees]);
+  }, [router, loadEmployees, orgFromUrl]);
 
   useEffect(() => {
     if (orgId) loadEmployees(orgId);
@@ -163,5 +168,13 @@ export default function AdminEmployeesPage() {
         </ul>
       </section>
     </AppShell>
+  );
+}
+
+export default function AdminEmployeesPage() {
+  return (
+    <Suspense fallback={<main className="auth-shell">Loading…</main>}>
+      <AdminEmployeesInner />
+    </Suspense>
   );
 }

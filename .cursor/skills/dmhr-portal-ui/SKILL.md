@@ -47,7 +47,15 @@ Do not install every library blindly. Add a dependency only when a concrete comp
 - Admin and Client share the same design language; role differs by nav items and data, not by a different theme
 - Auth screens (login / set-password / change-password): centered composition, logo hero-level, one job
 - Authenticated app: sticky or fixed header / sidebar, content max-width readable, no dense enterprise clutter
-- Empty states for future sections (cases, onboarding, payments, employees) until that part ships
+- **Shell v2 (locked 2026-11-01):** icon rail default (expand on hover, pin to lock open); top breadcrumbs page map + theme toggle + notify + avatar; mobile drawer; optional `actions` slot
+- **Shell motion / chrome:** delayed hover expand; soft cubic width transition; nav item hover scale/slide; pin row + avatar stacked in foot (collapsed = centered icons only)
+- **Scrollbars (portal-wide):** thin translucent thumb with blue hover highlight via global webkit + `scrollbar-color` — reuse on page/body and overflowing panels (`.shell-nav`, sheets, lists)
+- **IA / nav groups:** Overview ≠ Organisations. Admin `/admin` = metrics hub; `/admin/organisations` = client directory + add. Sidebar headings: Clients / Workspace / System (from `lib/nav.ts` `NAV_GROUP_*`) — visible whenever rail is expanded
+- **Buttons:** Primary = blue bg + white text (both themes). Secondary = `var(--surface)` + blue text/border — never hardcoded `#f0f0f2`
+- **Portal search:** `components/PortalSearch.tsx` — shell header trigger + ⌘/Ctrl+K palette (pages / orgs / cases); use `mode="inline"` for section filters. Inspired by 21st command-palette patterns; no extra deps
+- **Themes:** light + dark via `data-theme` / `lib/theme.ts`; dark uses charcoal + blue highlights (`--blue` / `--blue-soft`) — not purple, not navy-gold
+- Empty states for future sections until that part ships
+- 21st.dev refs: hover rail + mature dashboard header patterns; adapt into `AppShell` — do not require full shadcn install for chrome
 
 ## Build habit per section
 
@@ -55,6 +63,12 @@ Do not install every library blindly. Add a dependency only when a concrete comp
 2. Pull UI blocks via 21st (or prompt-kit) before hand-rolling
 3. Wire real APIs; keep org isolation (`organisation_id` from token only)
 4. Match existing tokens / CSS variables — do not invent a second palette mid-repo
+5. **Section standards** (see `docs/DMHR_Decisions.md` — Portal section standards): for each area, add what this product needs — list/filter, detail hub, create/edit/archive, **Eye preview** + download for files, badges, empty states, confirms, deep links, permissions, notify, loading/errors. Workflows (e-sign, onboarding) stay action/status-led, not form-only CRUD.
+6. Prefer shared primitives (`PortalSearch`, `FilePreviewSheet`, btn tokens) over one-off UI per page
+7. **Organisations:** dense directory table (avatar, onboarding progress bar, status pills, `RowActionsMenu` ⋮) → compact **client profile hub** `/admin/organisations/[id]` (icon back, org title, ⋮ + onboarding CTA, icon identity meta, metric tiles, `ProfileActivityPanel` docs/cases, company users). **Add client = modal**. Soft deactivate only (no hard delete). Start onboarding ≠ issue pack. Optional `regulatoryContext`. Eye preview via `FilePreviewSheet`. Reuse `.profile-hub-*` tokens — do not reintroduce large spaced hero layouts.
+8. **Form controls:** 2 options → `ChoiceToggle` (segmented); 3+ → `<select>` (mock-aligned lists). Never datalist for categories. **Other** / **Other…** → reveal specify input; reuse helpers in `lib/organisations.ts`. Dialogs/edit forms use `.form-compact` density. **Org/user Active↔Inactive** → `StatusLiquidToggle` (green Active / red Inactive, 21st liquid-toggle). Inactive status pills use `--danger` red, not muted gray.
+9. **Access credentials:** After Add client, show `AccessCredentialsBanner` on the org profile (sessionStorage). Invite/temp password auto-email via SMTP when configured. Primary client access action: **Resend invite** if no `passwordChangedAt`; **Send password reset** (confirm) after password set — same banner + toast.
+10. **Toasts:** Use `useToast()` (`success` / `error` / `info`) for action outcomes portal-wide. Provider lives in root `AppProviders`. Do not invent one-off toast systems per page.
 
 ## Anti-patterns
 
