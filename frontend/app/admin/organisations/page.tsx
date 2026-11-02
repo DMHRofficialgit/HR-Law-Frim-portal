@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Ban, CircleCheck, Eye, KeyRound, Pencil } from "lucide-react";
 import { AppShell } from "../../../components/AppShell";
 import { AddOrganisationDialog } from "../../../components/AddOrganisationDialog";
 import { PortalSearch } from "../../../components/PortalSearch";
 import { PortalSelect } from "../../../components/PortalSelect";
 import { RowActionsMenu } from "../../../components/RowActionsMenu";
+import { TableSkeleton } from "../../../components/Skeleton";
 import { useToast } from "../../../context/ToastContext";
 import {
   mailStatusLabel,
@@ -32,7 +34,7 @@ export default function AdminOrganisationsPage() {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [orgs, setOrgs] = useState<OrgListRow[]>([]);
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -288,7 +290,9 @@ export default function AdminOrganisationsPage() {
           />
         </div>
 
-        {filtered.length === 0 && !loading ? (
+        {loading ? (
+          <TableSkeleton rows={7} cols={8} />
+        ) : filtered.length === 0 ? (
           <div className="empty-state">
             <p>No organisations match these filters.</p>
             <p className="lead">Add your first client to start the directory.</p>
@@ -386,11 +390,13 @@ export default function AdminOrganisationsPage() {
                             {
                               id: "open",
                               label: "Open",
+                              icon: <Eye size={14} strokeWidth={1.75} />,
                               onSelect: () => router.push(`/admin/organisations/${org.id}`),
                             },
                             {
                               id: "edit",
                               label: "Edit",
+                              icon: <Pencil size={14} strokeWidth={1.75} />,
                               onSelect: () =>
                                 router.push(`/admin/organisations/${org.id}?edit=1`),
                             },
@@ -400,6 +406,7 @@ export default function AdminOrganisationsPage() {
                                 busyId === org.id
                                   ? "Working…"
                                   : clientAccessActionLabel(clientAccessAction(client)),
+                              icon: <KeyRound size={14} strokeWidth={1.75} />,
                               disabled: busyId === org.id || !client || client.status !== "active",
                               onSelect: () => sendClientAccessLink(org),
                             },
@@ -407,6 +414,12 @@ export default function AdminOrganisationsPage() {
                               id: "toggle",
                               label:
                                 org.status === "active" ? "Deactivate" : "Activate",
+                              icon:
+                                org.status === "active" ? (
+                                  <Ban size={14} strokeWidth={1.75} />
+                                ) : (
+                                  <CircleCheck size={14} strokeWidth={1.75} />
+                                ),
                               tone: org.status === "active" ? "danger" : "default",
                               separatorBefore: true,
                               disabled: busyId === org.id,

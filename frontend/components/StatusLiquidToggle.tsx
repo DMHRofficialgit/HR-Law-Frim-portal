@@ -7,6 +7,8 @@ type StatusLiquidToggleProps = {
   value: "active" | "inactive";
   onChange: (value: "active" | "inactive") => void;
   name?: string;
+  /** When true, spans full form-grid row (default false for compact dialogs). */
+  fullWidth?: boolean;
 };
 
 /** 21st liquid-toggle adapted: Active = green, Inactive = red. */
@@ -15,6 +17,7 @@ export const StatusLiquidToggle = ({
   value,
   onChange,
   name,
+  fullWidth = false,
 }: StatusLiquidToggleProps): ReactElement => {
   const reactId = useId();
   const filterId = `status-goo-${reactId.replace(/:/g, "")}`;
@@ -22,7 +25,7 @@ export const StatusLiquidToggle = ({
   const checked = value === "active";
 
   return (
-    <div className="field field-full">
+    <div className={`field${fullWidth ? " field-full" : ""}`}>
       <span className="field-label" id={name ? `${name}-label` : undefined}>
         {label}
       </span>

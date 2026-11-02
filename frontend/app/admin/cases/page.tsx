@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { PortalSelect } from "../../../components/PortalSelect";
+import { ListSkeleton } from "../../../components/Skeleton";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { statusLabel } from "../../../lib/cases";
@@ -32,6 +33,7 @@ function AdminCasesInner() {
   const [orgId, setOrgId] = useState(orgFromUrl);
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = getToken();
@@ -56,10 +58,12 @@ function AdminCasesInner() {
     const token = getToken();
     if (!token) return;
     (async () => {
+      setLoading(true);
       const q = orgId ? `?organisationId=${encodeURIComponent(orgId)}` : "";
       const result = await apiFetch<{ cases: CaseRow[] }>(`/admin/cases${q}`, { token });
       if (result.success) setCases(result.data.cases);
       else setError(result.error.message);
+      setLoading(false);
     })();
   }, [orgId]);
 
@@ -88,25 +92,29 @@ function AdminCasesInner() {
 
       <section className="panel">
         <h2>Cases</h2>
-        <p className="lead">{cases.length} case(s)</p>
-        <ul className="org-list">
-          {cases.map((c) => (
-            <li key={c.id}>
-              <div>
-                <div className="org-name">
-                  {c.ref} · {c.title}
+        <p className="lead">{loading ? "…" : `${cases.length} case(s)`}</p>
+        {loading ? (
+          <ListSkeleton rows={5} showAvatar={false} />
+        ) : (
+          <ul className="org-list">
+            {cases.map((c) => (
+              <li key={c.id}>
+                <div>
+                  <div className="org-name">
+                    {c.ref} · {c.title}
+                  </div>
+                  <div className="org-meta">
+                    {c.organisation.name} · {c.category.name} · {statusLabel(c.status)}
+                    {c.employee ? ` · ${c.employee.name}` : ""}
+                  </div>
                 </div>
-                <div className="org-meta">
-                  {c.organisation.name} · {c.category.name} · {statusLabel(c.status)}
-                  {c.employee ? ` · ${c.employee.name}` : ""}
-                </div>
-              </div>
-              <Link href={`/admin/cases/${c.id}`} className="btn btn-primary btn-sm">
-                Open
-              </Link>
-            </li>
-          ))}
-        </ul>
+                <Link href={`/admin/cases/${c.id}`} className="btn btn-primary btn-sm">
+                  Open
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </AppShell>
   );

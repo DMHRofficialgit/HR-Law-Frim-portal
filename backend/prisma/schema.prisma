@@ -275,9 +275,11 @@ model Employee {
   id             String    @id @default(uuid())
   organisationId String    @map("organisation_id")
   name           String
+  ref            String?
   jobTitle       String?   @map("job_title")
   department     String?
   startDate      DateTime? @map("start_date") @db.Date
+  workEmail      String?   @map("work_email")
   notes          String?
   status         String    @default("active")
   createdById    String?   @map("created_by_id")
@@ -288,6 +290,7 @@ model Employee {
   createdBy    User?        @relation("EmployeeCreator", fields: [createdById], references: [id], onDelete: SetNull)
   cases        Case[]
 
+  @@unique([organisationId, ref])
   @@index([organisationId])
   @@map("employees")
 }

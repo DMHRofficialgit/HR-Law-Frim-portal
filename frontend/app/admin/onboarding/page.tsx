@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { PortalSelect } from "../../../components/PortalSelect";
+import { MetricSkeleton, TableSkeleton } from "../../../components/Skeleton";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
@@ -32,8 +33,10 @@ export default function AdminOnboardingPage() {
   const [notice, setNotice] = useState("");
   const [startOrgId, setStartOrgId] = useState("");
   const [starting, setStarting] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   async function load(token: string | null) {
+    setLoading(true);
     const [runsRes, orgsRes] = await Promise.all([
       apiFetch<{ runs: OnboardingRun[] }>("/admin/onboarding/runs", { token }),
       apiFetch<{ organisations: OrgRow[] }>("/admin/organisations", { token }),
@@ -41,6 +44,7 @@ export default function AdminOnboardingPage() {
     if (runsRes.success) setRuns(runsRes.data.runs);
     else setError(runsRes.error.message);
     if (orgsRes.success) setOrgs(orgsRes.data.organisations);
+    setLoading(false);
   }
 
   useEffect(() => {
@@ -114,24 +118,28 @@ export default function AdminOnboardingPage() {
       {error ? <div className="error-banner">{error}</div> : null}
       {notice ? <div className="success-banner">{notice}</div> : null}
 
-      <div className="metrics-row">
-        <div className="metric-card">
-          <div className="metric-value">{metrics.notStarted}</div>
-          <div className="metric-label">Not started</div>
+      {loading ? (
+        <MetricSkeleton count={4} />
+      ) : (
+        <div className="metrics-row">
+          <div className="metric-card">
+            <div className="metric-value">{metrics.notStarted}</div>
+            <div className="metric-label">Not started</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-value">{metrics.inProgress}</div>
+            <div className="metric-label">In progress</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-value">{metrics.awaiting}</div>
+            <div className="metric-label">Awaiting client</div>
+          </div>
+          <div className="metric-card">
+            <div className="metric-value">{metrics.completed}</div>
+            <div className="metric-label">Completed</div>
+          </div>
         </div>
-        <div className="metric-card">
-          <div className="metric-value">{metrics.inProgress}</div>
-          <div className="metric-label">In progress</div>
-        </div>
-        <div className="metric-card">
-          <div className="metric-value">{metrics.awaiting}</div>
-          <div className="metric-label">Awaiting client</div>
-        </div>
-        <div className="metric-card">
-          <div className="metric-value">{metrics.completed}</div>
-          <div className="metric-label">Completed</div>
-        </div>
-      </div>
+      )}
 
       <section className="panel" style={{ marginBottom: 20 }}>
         <h2>Start onboarding</h2>
@@ -180,7 +188,9 @@ export default function AdminOnboardingPage() {
         <p className="lead">
           Track Terms of Business, pack progress, payment links, and Admin Complete.
         </p>
-        {runs.length === 0 ? (
+        {loading ? (
+          <TableSkeleton rows={5} cols={7} />
+        ) : runs.length === 0 ? (
           <p className="org-meta">No onboarding runs yet.</p>
         ) : (
           <div className="table-scroll">

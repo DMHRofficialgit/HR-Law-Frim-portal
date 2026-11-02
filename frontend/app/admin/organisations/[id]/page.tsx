@@ -5,10 +5,13 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
+  Ban,
   Briefcase,
+  CircleCheck,
   ClipboardList,
   Eye,
   FileText,
+  FolderOpen,
   KeyRound,
   Mail,
   Pencil,
@@ -27,6 +30,7 @@ import {
   type ProfileActivityRow,
 } from "../../../../components/ProfileActivityPanel";
 import { RowActionsMenu } from "../../../../components/RowActionsMenu";
+import { PanelSkeleton } from "../../../../components/Skeleton";
 import { useToast } from "../../../../context/ToastContext";
 import {
   mailStatusLabel,
@@ -463,7 +467,11 @@ const AdminOrganisationProfilePage = () => {
         />
       ) : null}
 
-      {loading ? <p className="lead">Loading…</p> : null}
+      {loading ? (
+        <div className="panel">
+          <PanelSkeleton lines={6} />
+        </div>
+      ) : null}
 
       {org && !loading ? (
         <>
@@ -504,6 +512,7 @@ const AdminOrganisationProfilePage = () => {
                   {
                     id: "edit",
                     label: editing ? "Editing…" : "Edit",
+                    icon: <Pencil size={14} strokeWidth={1.75} />,
                     disabled: editing,
                     onSelect: () => setEditing(true),
                   },
@@ -512,6 +521,7 @@ const AdminOrganisationProfilePage = () => {
                     label: resendingInvite
                       ? "Sending…"
                       : clientAccessActionLabel(clientAccessAction(primary)),
+                    icon: <KeyRound size={14} strokeWidth={1.75} />,
                     disabled:
                       resendingInvite || !primary || primary.status !== "active",
                     onSelect: () => sendPrimaryAccessLink(),
@@ -519,12 +529,19 @@ const AdminOrganisationProfilePage = () => {
                   {
                     id: "docs",
                     label: "Open documents",
+                    icon: <FolderOpen size={14} strokeWidth={1.75} />,
                     onSelect: () =>
                       router.push(`/admin/documents?org=${encodeURIComponent(org.id)}`),
                   },
                   {
                     id: "toggle",
                     label: org.status === "active" ? "Deactivate" : "Activate",
+                    icon:
+                      org.status === "active" ? (
+                        <Ban size={14} strokeWidth={1.75} />
+                      ) : (
+                        <CircleCheck size={14} strokeWidth={1.75} />
+                      ),
                     tone: org.status === "active" ? "danger" : "default",
                     separatorBefore: true,
                     disabled: busyStatus,

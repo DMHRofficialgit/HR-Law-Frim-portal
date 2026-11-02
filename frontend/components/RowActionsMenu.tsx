@@ -8,6 +8,7 @@ import {
   useState,
   type CSSProperties,
   type ReactElement,
+  type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
@@ -17,6 +18,7 @@ export type RowActionItem = {
   id: string;
   label: string;
   onSelect: () => void;
+  icon?: ReactNode;
   tone?: "default" | "danger";
   disabled?: boolean;
   separatorBefore?: boolean;
@@ -47,7 +49,7 @@ export const RowActionsMenu = ({ label, items }: RowActionsMenuProps): ReactElem
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
     const panelHeight = panel?.offsetHeight || items.length * 36 + 16;
-    const panelWidth = panel?.offsetWidth || 168;
+    const panelWidth = panel?.offsetWidth || 180;
     const gap = 4;
     const spaceBelow = window.innerHeight - rect.bottom - gap;
     const openUp = spaceBelow < panelHeight && rect.top > spaceBelow;
@@ -145,7 +147,12 @@ export const RowActionsMenu = ({ label, items }: RowActionsMenuProps): ReactElem
                       item.onSelect();
                     }}
                   >
-                    {item.label}
+                    {item.icon ? (
+                      <span className="row-menu-item-icon" aria-hidden>
+                        {item.icon}
+                      </span>
+                    ) : null}
+                    <span className="row-menu-item-label">{item.label}</span>
                   </button>
                 </div>
               ))}

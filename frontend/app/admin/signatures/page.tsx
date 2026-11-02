@@ -6,6 +6,7 @@ import { AppShell } from "../../../components/AppShell";
 import { EsignSheet } from "../../../components/EsignSheet";
 import { PortalSelect } from "../../../components/PortalSelect";
 import { ProfileSignaturePanel } from "../../../components/ProfileSignaturePanel";
+import { ListSkeleton } from "../../../components/Skeleton";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
@@ -30,8 +31,10 @@ function AdminSignaturesInner() {
   const [requests, setRequests] = useState<SignatureRequestRow[]>([]);
   const [error, setError] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   async function loadRequests(token: string | null, filterOrg: string) {
+    setLoading(true);
     const q = filterOrg ? `?organisationId=${encodeURIComponent(filterOrg)}` : "";
     const result = await apiFetch<{ requests: SignatureRequestRow[] }>(
       `/admin/signature-requests${q}`,
@@ -39,6 +42,7 @@ function AdminSignaturesInner() {
     );
     if (result.success) setRequests(result.data.requests);
     else setError(result.error.message);
+    setLoading(false);
   }
 
   useEffect(() => {
@@ -104,57 +108,62 @@ function AdminSignaturesInner() {
             onChange={(v) => setQueueFilter(v as QueueFilter)}
           />
         </div>
-        <ul className="org-list">
-          {requests
-            .filter((r) => {
-              if (queueFilter === "active") return isActiveSignatureStatus(r.status);
-              if (queueFilter === "completed") return r.status === "reviewed";
-              return true;
-            })
-            .map((r) => {
-              const p = signatureProgress(r.fields || []);
-              const qa = esignQueueAction({
-                status: r.status,
-                role: "admin",
-                userId: user.id,
-                fields: r.fields || [],
-              });
-              const wait =
-                p.waitingNames.length &&
-                (r.status === "awaiting_signature" ||
-                  r.status === "revision_requested" ||
-                  r.status === "sent")
-                  ? ` · waiting on ${p.waitingNames.join(", ")}`
-                  : "";
-              return (
-            <li key={r.id}>
-              <div>
-                <div className="org-name">
-                  {r.title}
-                  {qa.action === "sign" ? (
-                    <span className="esign-queue-badge needs-you">Needs you</span>
-                  ) : null}
-                </div>
-                <div className="org-meta">
-                  {r.organisation.name} · {signatureStatusLabel(r.status)} · {r.sourceFileName}
-                  {p.total ? ` · ${p.done}/${p.total}${wait}` : ""}
-                </div>
-              </div>
-              <button
-                type="button"
-                className={`btn btn-sm ${
-                  qa.action === "sign" || qa.action === "send" || qa.action === "review"
-                    ? "btn-primary"
-                    : "btn-secondary"
-                }`}
-                onClick={() => setOpenId(r.id)}
-              >
-                {qa.label}
-              </button>
-            </li>
-              );
-          })}
-        </ul>
+        {loading ? (
+          <ListSkeleton rows={5} showAvatar={false} />
+        ) : (
+          <ul className="org-list">
+            {requests
+              .filter((r) => {
+                if (queueFilter === "active") return isActiveSignatureStatus(r.status);
+                if (queueFilter === "completed") return r.status === "reviewed";
+                return true;
+              })
+              .map((r) => {
+                const p = signatureProgress(r.fields || []);
+                const qa = esignQueueAction({
+                  status: r.status,
+                  role: "admin",
+                  userId: user.id,
+                  fields: r.fields || [],
+                });
+                const wait =
+                  p.waitingNames.length &&
+                  (r.status === "awaiting_signature" ||
+                    r.status === "revision_requested" ||
+                    r.status === "sent")
+                    ? ` · waiting on ${p.waitingNames.join(", ")}`
+                    : "";
+                return (
+                  <li key={r.id}>
+                    <div>
+                      <div className="org-name">
+                        {r.title}
+                        {qa.action === "sign" ? (
+                          <span className="esign-queue-badge needs-you">Needs you</span>
+                        ) : null}
+                      </div>
+                      <div className="org-meta">
+                        {r.organisation.name} · {signatureStatusLabel(r.status)} ·{" "}
+                        {r.sourceFileName}
+                        {p.total ? ` · ${p.done}/${p.total}${wait}` : ""}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`btn btn-sm ${
+                        qa.action === "sign" || qa.action === "send" || qa.action === "review"
+                          ? "btn-primary"
+                          : "btn-secondary"
+                      }`}
+                      onClick={() => setOpenId(r.id)}
+                    >
+                      {qa.label}
+                    </button>
+                  </li>
+                );
+              })}
+          </ul>
+        )}
       </section>
 
       {openId ? (

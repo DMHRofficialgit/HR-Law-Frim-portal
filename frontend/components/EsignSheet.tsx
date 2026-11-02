@@ -18,6 +18,7 @@ import {
   type SignatureRequestRow,
 } from "../lib/signatures";
 import { EsignPdfViewer, type LocalField } from "./EsignPdfViewer";
+import { PortalMultiSelect } from "./PortalMultiSelect";
 import { PortalSelect } from "./PortalSelect";
 import { SignaturePad } from "./SignaturePad";
 
@@ -97,7 +98,6 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
   const [fields, setFields] = useState<LocalField[]>([]);
   const [assignees, setAssignees] = useState<AssigneeOption[]>([]);
   const [ccUserIds, setCcUserIds] = useState<string[]>([]);
-  const [ccOpen, setCcOpen] = useState(false);
   const [activeRecipientId, setActiveRecipientId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -987,36 +987,22 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
                 </section>
 
                 <section className="esign-rail-block">
-                  <button
-                    type="button"
-                    className="esign-cc-toggle"
-                    onClick={() => setCcOpen((o) => !o)}
-                    aria-expanded={ccOpen}
-                  >
-                    CC (notify only){ccUserIds.length ? ` · ${ccUserIds.length}` : ""}
-                  </button>
-                  {ccOpen ? (
-                    <>
-                      <select
-                        className="esign-cc-list"
-                        multiple
-                        value={ccUserIds}
-                        aria-label="CC recipients"
-                        onChange={(e) => {
-                          setCcUserIds(
-                            Array.from(e.target.selectedOptions).map((o) => o.value)
-                          );
-                        }}
-                      >
-                        {assignees.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name} ({u.role}) — {u.email}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="org-meta">Ctrl/Cmd+click. CC cannot fill boxes.</p>
-                    </>
-                  ) : null}
+                  <label className="esign-cc-label" htmlFor="esign-cc-multi">
+                    CC (notify only)
+                  </label>
+                  <PortalMultiSelect
+                    id="esign-cc-multi"
+                    className="esign-cc-multi"
+                    aria-label="CC recipients"
+                    placeholder="Add CC recipients…"
+                    value={ccUserIds}
+                    options={assignees.map((u) => ({
+                      value: u.id,
+                      label: `${u.name} (${u.role}) — ${u.email}`,
+                    }))}
+                    onChange={setCcUserIds}
+                  />
+                  <p className="org-meta">CC is notified only and cannot fill boxes.</p>
                 </section>
 
                 <div className="esign-actions">

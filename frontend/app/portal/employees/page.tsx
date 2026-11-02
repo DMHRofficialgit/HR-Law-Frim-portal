@@ -1,39 +1,56 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Ban, CircleCheck, Eye, Pencil } from "lucide-react";
 import { AppShell } from "../../../components/AppShell";
+import { EmployeeFormDialog } from "../../../components/EmployeeFormDialog";
+import { PortalSearch } from "../../../components/PortalSearch";
+import { PortalSelect } from "../../../components/PortalSelect";
+import { RowActionsMenu } from "../../../components/RowActionsMenu";
+import { TableSkeleton } from "../../../components/Skeleton";
+import { useToast } from "../../../context/ToastContext";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
+import {
+  employeeInitials,
+  employeeStatusLabel,
+  formatEmployeeStartDate,
+  type EmployeeRow,
+} from "../../../lib/employees";
 import { clientNav } from "../../../lib/nav";
-
-type Employee = {
-  id: string;
-  name: string;
-  jobTitle: string | null;
-  department: string | null;
-  startDate: string | null;
-  notes: string | null;
-  status: string;
-};
-
-const empty = { name: "", jobTitle: "", department: "", startDate: "", notes: "" };
 
 export default function PortalEmployeesPage() {
   const router = useRouter();
+  const toast = useToast();
+
   const [user, setUser] = useState<PublicUser | null>(null);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [form, setForm] = useState(empty);
+  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [filter, setFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editEmployee, setEditEmployee] = useState<EmployeeRow | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const result = await apiFetch<{ employees: Employee[] }>("/client/employees", {
+    setLoading(true);
+    const params = new URLSearchParams();
+    if (statusFilter) params.set("status", statusFilter);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const result = await apiFetch<{ employees: EmployeeRow[] }>(`/client/employees${qs}`, {
       token: getToken(),
     });
-    if (result.success) setEmployees(result.data.employees);
-    else setError(result.error.message);
-  }, []);
+    if (result.success) {
+      setEmployees(result.data.employees);
+      setError("");
+    } else {
+      setError(result.error.message);
+      toast.error(result.error.message);
+    }
+    setLoading(false);
+  }, [statusFilter, toast]);
 
   useEffect(() => {
     const token = getToken();
@@ -43,43 +60,40 @@ export default function PortalEmployeesPage() {
       return;
     }
     setUser(stored);
+  }, [router]);
+
+  useEffect(() => {
+    if (!user) return;
     load();
-  }, [router, load]);
+  }, [user, load]);
 
-  async function onCreate(e: FormEvent) {
-    e.preventDefault();
-    setError("");
-    setNotice("");
-    const result = await apiFetch<{ employee: Employee }>("/client/employees", {
-      method: "POST",
-      token: getToken(),
-      body: JSON.stringify({
-        name: form.name,
-        jobTitle: form.jobTitle || undefined,
-        department: form.department || undefined,
-        startDate: form.startDate || null,
-        notes: form.notes || undefined,
-      }),
+  const filtered = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    if (!needle) return employees;
+    return employees.filter((emp) => {
+      const hay = [emp.name, emp.ref, emp.jobTitle, emp.department, emp.workEmail]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(needle);
     });
+  }, [employees, filter]);
+
+  async function setEmployeeStatus(emp: EmployeeRow, status: "active" | "inactive") {
+    const label = status === "inactive" ? "Deactivate" : "Activate";
+    if (!window.confirm(`${label} ${emp.name}?`)) return;
+    setBusyId(emp.id);
+    const result = await apiFetch<{ employee: EmployeeRow }>(`/client/employees/${emp.id}`, {
+      method: "PATCH",
+      token: getToken(),
+      body: JSON.stringify({ status }),
+    });
+    setBusyId(null);
     if (!result.success) {
-      setError(result.error.message);
+      toast.error(result.error.message);
       return;
     }
-    setNotice("Employee added.");
-    setForm(empty);
-    await load();
-  }
-
-  async function onDelete(id: string, name: string) {
-    if (!window.confirm(`Delete employee “${name}”?`)) return;
-    const result = await apiFetch(`/client/employees/${id}`, {
-      method: "DELETE",
-      token: getToken(),
-    });
-    if (!result.success) {
-      setError(result.error.message);
-      return;
-    }
+    toast.success(status === "inactive" ? "Employee deactivated" : "Employee activated");
     await load();
   }
 
@@ -88,81 +102,191 @@ export default function PortalEmployeesPage() {
   return (
     <AppShell user={user} nav={clientNav} title="Employees">
       {error ? <div className="error-banner">{error}</div> : null}
-      {notice ? <div className="success-banner">{notice}</div> : null}
 
-      <section className="panel" style={{ marginBottom: 16 }}>
-        <h2>Add employee</h2>
-        <p className="lead">Records for your organisation (no employee self-login).</p>
-        <form onSubmit={onCreate}>
-          <div className="form-grid">
-            <div className="field">
-              <label>Name</label>
-              <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-            </div>
-            <div className="field">
-              <label>Job title</label>
-              <input
-                value={form.jobTitle}
-                onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label>Department</label>
-              <input
-                value={form.department}
-                onChange={(e) => setForm({ ...form, department: e.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label>Start date</label>
-              <input
-                type="date"
-                value={form.startDate}
-                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-              />
-            </div>
-            <div className="field" style={{ gridColumn: "1 / -1" }}>
-              <label>Notes</label>
-              <textarea
-                rows={2}
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
+      <section className="panel org-directory">
+        <div className="org-directory-head">
+          <div>
+            <h2>Employee directory</h2>
+            <p className="lead">
+              {loading ? "…" : `${filtered.length} records`}
+              {!loading && employees.length !== filtered.length
+                ? ` · ${employees.length} total`
+                : ""}
+            </p>
           </div>
-          <button className="btn btn-primary" type="submit">
-            Save employee
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => {
+              setEditEmployee(null);
+              setDialogOpen(true);
+            }}
+          >
+            Add employee
           </button>
-        </form>
+        </div>
+
+        <div className="org-toolbar org-directory-toolbar">
+          <div className="org-toolbar-search">
+            <PortalSearch
+              mode="inline"
+              nav={clientNav}
+              role="client"
+              value={filter}
+              onQueryChange={setFilter}
+              placeholder="Search employee or role…"
+              aria-label="Filter employees"
+            />
+          </div>
+          <PortalSelect
+            className="org-filter"
+            size="sm"
+            aria-label="Filter by status"
+            value={statusFilter}
+            options={[
+              { value: "", label: "All statuses" },
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+            onChange={setStatusFilter}
+          />
+        </div>
+
+        {loading ? (
+          <TableSkeleton rows={6} cols={7} />
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <p>No employees yet.</p>
+            <p className="lead">Add a record for case and HR context.</p>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                setEditEmployee(null);
+                setDialogOpen(true);
+              }}
+            >
+              Add employee
+            </button>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table org-table">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Job title</th>
+                  <th>Department / service</th>
+                  <th>Start date</th>
+                  <th>Cases</th>
+                  <th>Status</th>
+                  <th className="org-table-actions-col">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((emp) => (
+                  <tr
+                    key={emp.id}
+                    className={emp.status === "inactive" ? "is-inactive" : ""}
+                  >
+                    <td>
+                      <div className="org-table-company">
+                        <span className="org-table-avatar" aria-hidden>
+                          {employeeInitials(emp.name)}
+                        </span>
+                        <div>
+                          <span className="primary-cell">{emp.name}</span>
+                          <span className="secondary-cell">
+                            {[emp.ref, emp.workEmail].filter(Boolean).join(" · ") || "—"}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="org-table-muted">{emp.jobTitle || "—"}</span>
+                    </td>
+                    <td>
+                      <span className="org-table-muted">{emp.department || "—"}</span>
+                    </td>
+                    <td>
+                      <span className="org-table-muted">
+                        {formatEmployeeStartDate(emp.startDate)}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="org-table-cases">{emp._count?.cases ?? 0}</span>
+                    </td>
+                    <td>
+                      <span className={`status-pill status-pill-${emp.status}`}>
+                        {employeeStatusLabel(emp.status)}
+                      </span>
+                    </td>
+                    <td className="org-table-actions-col">
+                      <RowActionsMenu
+                        label={`Actions for ${emp.name}`}
+                        items={[
+                          {
+                            id: "view",
+                            label: "View",
+                            icon: <Eye size={14} strokeWidth={1.75} />,
+                            onSelect: () => router.push(`/portal/employees/${emp.id}`),
+                          },
+                          {
+                            id: "edit",
+                            label: "Edit",
+                            icon: <Pencil size={14} strokeWidth={1.75} />,
+                            onSelect: () => {
+                              setEditEmployee(emp);
+                              setDialogOpen(true);
+                            },
+                          },
+                          {
+                            id: "toggle",
+                            label:
+                              emp.status === "active" ? "Deactivate" : "Activate",
+                            icon:
+                              emp.status === "active" ? (
+                                <Ban size={14} strokeWidth={1.75} />
+                              ) : (
+                                <CircleCheck size={14} strokeWidth={1.75} />
+                              ),
+                            tone: emp.status === "active" ? "danger" : "default",
+                            separatorBefore: true,
+                            disabled: busyId === emp.id,
+                            onSelect: () =>
+                              setEmployeeStatus(
+                                emp,
+                                emp.status === "active" ? "inactive" : "active"
+                              ),
+                          },
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <p className="lead" style={{ marginTop: 12, marginBottom: 0, fontSize: "0.85rem" }}>
+          This is a lightweight employee information register, not a full HRIS.
+        </p>
       </section>
 
-      <section className="panel">
-        <h2>Employee records</h2>
-        <p className="lead">{employees.length} record(s)</p>
-        <ul className="org-list">
-          {employees.map((emp) => (
-            <li key={emp.id}>
-              <div>
-                <div className="org-name">{emp.name}</div>
-                <div className="org-meta">
-                  {[emp.jobTitle, emp.department].filter(Boolean).join(" · ") || "—"}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm danger"
-                onClick={() => onDelete(emp.id, emp.name)}
-              >
-                Delete
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <EmployeeFormDialog
+        open={dialogOpen}
+        mode={editEmployee ? "edit" : "create"}
+        role="client"
+        employee={editEmployee}
+        onClose={() => {
+          setDialogOpen(false);
+          setEditEmployee(null);
+        }}
+        onSaved={() => load()}
+      />
     </AppShell>
   );
 }

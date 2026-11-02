@@ -10,3 +10,9 @@ export const CASE_STATUSES = [
 export function statusLabel(status: string) {
   return CASE_STATUSES.find((s) => s.value === status)?.label || status.replace(/_/g, " ");
 }
+
+export function caseBadgeTone(status: string): "ok" | "progress" | "muted" | "warn" {
+  if (status === "closed") return "muted";
+  if (status === "information_required") return "warn";
+  return "progress";
+}

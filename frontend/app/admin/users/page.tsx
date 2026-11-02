@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { PortalSelect } from "../../../components/PortalSelect";
+import { ListSkeleton } from "../../../components/Skeleton";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
@@ -37,6 +38,7 @@ export default function AdminUsersPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -47,6 +49,7 @@ export default function AdminUsersPage() {
   });
 
   const load = useCallback(async () => {
+    setLoading(true);
     const token = getToken();
     const [usersRes, orgsRes] = await Promise.all([
       apiFetch<{ users: PortalUser[] }>("/admin/users", { token }),
@@ -57,6 +60,7 @@ export default function AdminUsersPage() {
     if (orgsRes.success) {
       setOrgs(orgsRes.data.organisations.map((o) => ({ id: o.id, name: o.name })));
     }
+    setLoading(false);
   }, []);
 
   useEffect(() => {
@@ -269,60 +273,68 @@ export default function AdminUsersPage() {
 
       <section className="panel" style={{ marginBottom: 16 }}>
         <h2>DM.HR admins</h2>
-        <ul className="org-list">
-          {admins.map((u) => (
-            <li key={u.id}>
-              <div>
-                <div className="org-name">{u.name}</div>
-                <div className="org-meta">
-                  {u.email} · {u.status}
-                  {u.mustChangePassword ? " · must change password" : ""}
+        {loading ? (
+          <ListSkeleton rows={3} showAvatar={false} />
+        ) : (
+          <ul className="org-list">
+            {admins.map((u) => (
+              <li key={u.id}>
+                <div>
+                  <div className="org-name">{u.name}</div>
+                  <div className="org-meta">
+                    {u.email} · {u.status}
+                    {u.mustChangePassword ? " · must change password" : ""}
+                  </div>
                 </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => resendInvite(u)}>
-                  {u.passwordChangedAt ? "Password reset" : "Invite link"}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => toggleStatus(u)}
-                  disabled={u.id === user.id}
-                >
-                  {u.status === "active" ? "Disable" : "Enable"}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => resendInvite(u)}>
+                    {u.passwordChangedAt ? "Password reset" : "Invite link"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => toggleStatus(u)}
+                    disabled={u.id === user.id}
+                  >
+                    {u.status === "active" ? "Disable" : "Enable"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="panel">
         <h2>Company users</h2>
-        <ul className="org-list">
-          {companyUsers.map((u) => (
-            <li key={u.id}>
-              <div>
-                <div className="org-name">{u.name}</div>
-                <div className="org-meta">
-                  {u.email} · {u.organisation?.name || "—"} · {u.status}
+        {loading ? (
+          <ListSkeleton rows={4} showAvatar={false} />
+        ) : (
+          <ul className="org-list">
+            {companyUsers.map((u) => (
+              <li key={u.id}>
+                <div>
+                  <div className="org-name">{u.name}</div>
+                  <div className="org-meta">
+                    {u.email} · {u.organisation?.name || "—"} · {u.status}
+                  </div>
                 </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => resendInvite(u)}>
-                  {u.passwordChangedAt ? "Password reset" : "Invite link"}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => toggleStatus(u)}
-                >
-                  {u.status === "active" ? "Disable" : "Enable"}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => resendInvite(u)}>
+                    {u.passwordChangedAt ? "Password reset" : "Invite link"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => toggleStatus(u)}
+                  >
+                    {u.status === "active" ? "Disable" : "Enable"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </AppShell>
   );

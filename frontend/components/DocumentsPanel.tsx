@@ -27,15 +27,15 @@ import {
   docFileKind,
   docFileKindLabel,
   isSignedLibraryDocument,
-  matchesDocTypeFilter,
-  type DocTypeFilter,
 } from "../lib/documents";
 import { isPdfDocument } from "../lib/signatures";
 import { useToast } from "../context/ToastContext";
 import { DocsDropzone } from "./DocsDropzone";
+import { DocsRenameDialog } from "./DocsRenameDialog";
 import { FilePreviewSheet, type FilePreviewTarget } from "./FilePreviewSheet";
 import { IconButton } from "./IconButton";
 import { PortalSelect } from "./PortalSelect";
+import { ListSkeleton, Skeleton } from "./Skeleton";
 
 type DocumentsPanelProps = {
   mode: "client" | "admin";
@@ -81,13 +81,18 @@ export const DocumentsPanel = ({
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<FilePreviewTarget | null>(null);
   const [loading, setLoading] = useState(true);
+  const [docsLoading, setDocsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<DocTypeFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [uploadSettings, setUploadSettings] =
     useState<UploadSettings>(DEFAULT_SETTINGS);
+  const [renameTarget, setRenameTarget] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+  const [renaming, setRenaming] = useState(false);
 
   const base =
     mode === "client" ? "/client" : `/admin/organisations/${organisationId}`;
@@ -113,8 +118,8 @@ export const DocumentsPanel = ({
     setFolderName("");
     setError("");
     setQuery("");
-    setTypeFilter("all");
     setSelectedIds(new Set());
+    setRenameTarget(null);
   }, []);
 
   const loadFolders = useCallback(async () => {
@@ -150,6 +155,7 @@ export const DocumentsPanel = ({
   const loadDocuments = useCallback(
     async (folderId: string) => {
       setError("");
+      setDocsLoading(true);
       try {
         const result = await apiFetch<{
           folder: { id: string; name: string };
@@ -167,6 +173,8 @@ export const DocumentsPanel = ({
         setDocuments([]);
         setFolderName("");
         setError("Unable to load documents.");
+      } finally {
+        setDocsLoading(false);
       }
     },
     [base]
@@ -211,7 +219,6 @@ export const DocumentsPanel = ({
     if (activeFolderId) {
       loadDocuments(activeFolderId);
       setQuery("");
-      setTypeFilter("all");
       setSelectedIds(new Set());
     } else {
       setDocuments([]);
@@ -223,9 +230,6 @@ export const DocumentsPanel = ({
   const visibleDocs = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = documents.filter((doc) => {
-      const mime = doc.latestVersion?.mimeType || null;
-      const fileName = doc.latestVersion?.fileName || doc.title;
-      if (!matchesDocTypeFilter(typeFilter, mime, fileName)) return false;
       if (!q) return true;
       return (
         doc.title.toLowerCase().includes(q) ||
@@ -246,7 +250,7 @@ export const DocumentsPanel = ({
       return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
     });
     return sorted;
-  }, [documents, query, typeFilter, sortKey]);
+  }, [documents, query, sortKey]);
 
   const allVisibleSelected =
     visibleDocs.length > 0 && visibleDocs.every((d) => selectedIds.has(d.id));
@@ -335,23 +339,26 @@ export const DocumentsPanel = ({
     }
   }
 
-  async function onRename(documentId: string, currentTitle: string) {
-    const next = window.prompt("Rename document", currentTitle);
-    if (next === null) return;
-    const title = next.trim();
-    if (!title) {
+  async function submitRename(title: string) {
+    if (!renameTarget) return;
+    const next = title.trim();
+    if (!next) {
       toast.error("Title is required.");
       return;
     }
-    if (title === currentTitle) return;
+    if (next === renameTarget.title) {
+      setRenameTarget(null);
+      return;
+    }
+    setRenaming(true);
     setError("");
     try {
       const result = await apiFetch<{ document: { id: string; title: string } }>(
-        `${base}/documents/${documentId}`,
+        `${base}/documents/${renameTarget.id}`,
         {
           method: "PATCH",
           token: getToken(),
-          body: JSON.stringify({ title }),
+          body: JSON.stringify({ title: next }),
         }
       );
       if (!result.success) {
@@ -360,10 +367,13 @@ export const DocumentsPanel = ({
         return;
       }
       toast.success(`Renamed to “${result.data.document.title}”.`);
+      setRenameTarget(null);
       if (activeFolderId) await loadDocuments(activeFolderId);
     } catch {
       setError("Unable to rename document.");
       toast.error("Unable to rename document.");
+    } finally {
+      setRenaming(false);
     }
   }
 
@@ -494,21 +504,29 @@ export const DocumentsPanel = ({
             <p className="docs-folders-org">{organisationName}</p>
           ) : null}
         </div>
-        {loading ? <p className="lead">Loading…</p> : null}
-        <ul className="folder-list dmhr-scroll">
-          {folders.map((folder) => (
-            <li key={folder.id}>
-              <button
-                type="button"
-                className={`folder-btn${activeFolderId === folder.id ? " active" : ""}`}
-                onClick={() => setActiveFolderId(folder.id)}
-              >
-                <span>{folder.name}</span>
-                <span className="folder-count">{folder.documentCount}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        {loading ? (
+          <div className="skeleton-folder-rail" aria-busy="true">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <Skeleton key={i} className="ui-skeleton-line" height={28} width="100%" radius={10} />
+            ))}
+            <span className="sr-only">Loading folders…</span>
+          </div>
+        ) : (
+          <ul className="folder-list dmhr-scroll">
+            {folders.map((folder) => (
+              <li key={folder.id}>
+                <button
+                  type="button"
+                  className={`folder-btn${activeFolderId === folder.id ? " active" : ""}`}
+                  onClick={() => setActiveFolderId(folder.id)}
+                >
+                  <span>{folder.name}</span>
+                  <span className="folder-count">{folder.documentCount}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </aside>
 
       <section className="panel docs-files">
@@ -537,17 +555,6 @@ export const DocumentsPanel = ({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search documents in this folder"
-          />
-          <PortalSelect
-            className="docs-type-filter"
-            size="sm"
-            aria-label="Filter by file type"
-            value={typeFilter}
-            options={[
-              { value: "all", label: "All types" },
-              { value: "pdf", label: "PDF" },
-            ]}
-            onChange={(v) => setTypeFilter(v as DocTypeFilter)}
           />
           <PortalSelect
             className="docs-type-filter"
@@ -610,7 +617,9 @@ export const DocumentsPanel = ({
         {error ? <div className="error-banner">{error}</div> : null}
 
         <div className="docs-files-body dmhr-scroll">
-          {documents.length === 0 ? (
+          {loading || docsLoading ? (
+            <ListSkeleton rows={6} />
+          ) : documents.length === 0 ? (
             <div className="empty-state docs-empty">
               <p>No files in this folder yet</p>
               <p className="lead">Drop files above or use Select files.</p>
@@ -618,7 +627,7 @@ export const DocumentsPanel = ({
           ) : visibleDocs.length === 0 ? (
             <div className="empty-state docs-empty">
               <p>No matches</p>
-              <p className="lead">Try a different search or type filter.</p>
+              <p className="lead">Try a different search.</p>
             </div>
           ) : (
             <ul className="file-list docs-file-list">
@@ -685,7 +694,9 @@ export const DocumentsPanel = ({
                         <IconButton
                           label="Rename"
                           aria-label={`Rename ${doc.title}`}
-                          onClick={() => onRename(doc.id, doc.title)}
+                          onClick={() =>
+                            setRenameTarget({ id: doc.id, title: doc.title })
+                          }
                         >
                           <Pencil size={15} strokeWidth={1.75} />
                         </IconButton>
@@ -731,6 +742,16 @@ export const DocumentsPanel = ({
               }
             : undefined
         }
+      />
+
+      <DocsRenameDialog
+        open={Boolean(renameTarget)}
+        currentTitle={renameTarget?.title || ""}
+        busy={renaming}
+        onClose={() => {
+          if (!renaming) setRenameTarget(null);
+        }}
+        onSave={submitRename}
       />
     </div>
   );

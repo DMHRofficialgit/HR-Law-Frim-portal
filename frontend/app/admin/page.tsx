@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../components/AppShell";
+import { ListSkeleton, MetricSkeleton } from "../../components/Skeleton";
 import { apiFetch, type PublicUser } from "../../lib/api";
 import { clearSession, getStoredUser, getToken, homeForUser } from "../../lib/auth";
 import { statusLabel } from "../../lib/cases";
@@ -157,35 +158,38 @@ export default function AdminOverviewPage() {
       {error ? <div className="error-banner">{error}</div> : null}
 
       <p className="lead overview-intro" style={{ marginTop: 0, marginBottom: 16 }}>
-        Client activity, onboarding, and employment cases at a glance.
-        {loading ? " Loading…" : ""}{" "}
+        Client activity, onboarding, and employment cases at a glance.{" "}
         <Link href="/admin/organisations">Manage organisations</Link>
         {" · "}
         <Link href="/admin/organisations#add-organisation">Add a client</Link>
       </p>
 
-      <div className="metrics-row">
-        <div className="metric-card">
-          <div className="metric-value">{metrics.clientsCount}</div>
-          <div className="metric-label">Active clients</div>
-          <p className="metric-hint">Across your client portfolio</p>
+      {loading ? (
+        <MetricSkeleton count={4} />
+      ) : (
+        <div className="metrics-row">
+          <div className="metric-card">
+            <div className="metric-value">{metrics.clientsCount}</div>
+            <div className="metric-label">Active clients</div>
+            <p className="metric-hint">Across your client portfolio</p>
+          </div>
+          <div className="metric-card">
+            <div className="metric-value">{metrics.openCases}</div>
+            <div className="metric-label">Open employment cases</div>
+            <p className="metric-hint">Received and in progress</p>
+          </div>
+          <div className="metric-card">
+            <div className="metric-value">{metrics.onboardingInProgress}</div>
+            <div className="metric-label">Onboarding in progress</div>
+            <p className="metric-hint">New-client pack journeys</p>
+          </div>
+          <div className="metric-card">
+            <div className="metric-value">{metrics.awaitingClient}</div>
+            <div className="metric-label">Awaiting client response</div>
+            <p className="metric-hint">Cases and signatures needing follow-up</p>
+          </div>
         </div>
-        <div className="metric-card">
-          <div className="metric-value">{metrics.openCases}</div>
-          <div className="metric-label">Open employment cases</div>
-          <p className="metric-hint">Received and in progress</p>
-        </div>
-        <div className="metric-card">
-          <div className="metric-value">{metrics.onboardingInProgress}</div>
-          <div className="metric-label">Onboarding in progress</div>
-          <p className="metric-hint">New-client pack journeys</p>
-        </div>
-        <div className="metric-card">
-          <div className="metric-value">{metrics.awaitingClient}</div>
-          <div className="metric-label">Awaiting client response</div>
-          <p className="metric-hint">Cases and signatures needing follow-up</p>
-        </div>
-      </div>
+      )}
 
       <div className="grid-2">
         <section className="panel">
@@ -195,7 +199,9 @@ export default function AdminOverviewPage() {
               View all
             </Link>
           </div>
-          {attentionCases.length === 0 ? (
+          {loading ? (
+            <ListSkeleton rows={3} showAvatar={false} />
+          ) : attentionCases.length === 0 ? (
             <p className="lead" style={{ margin: 0 }}>
               No cases need attention right now.
             </p>
@@ -228,7 +234,9 @@ export default function AdminOverviewPage() {
               View all
             </Link>
           </div>
-          {activeOnboarding.length === 0 ? (
+          {loading ? (
+            <ListSkeleton rows={3} showAvatar={false} />
+          ) : activeOnboarding.length === 0 ? (
             <p className="lead" style={{ margin: 0 }}>
               No active onboarding runs.{" "}
               <Link href="/admin/organisations#add-organisation">Add a client</Link> or start a

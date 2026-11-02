@@ -196,8 +196,9 @@
 ### Employee records
 - **Yes in phase 1:** employee record / profile is maintained in the portal.
 - **No employee self-login portal**.
-- **Fields:** name, job title, start date, department, notes (and any other mockup/SOW fields) — **remove NI number** (David).
+- **Fields (locked 2026-11-02):** name*, job title*, optional ref (auto `EMP-####` if blank), department/service, start date, status (`active`/`inactive`), optional work email (contact only — not a login), optional notes. **No NI.**
 - **Who edits:** **both** Admin and Client.
+- **IA (locked 2026-11-02):** Directory table (Admin = cross-client + search/client/status filters; Client = own org) → **Add/Edit modal** → **Employee record hub** with related cases. Soft deactivate preferred; hard delete only when no linked cases. Disclaimer: lightweight register, not a full HRIS.
 
 ### Hosting region
 - No hard preference; client is UK → prefer UK-friendly hosting when easy.
@@ -211,7 +212,7 @@
 - **Look:** **clean Apple-like UI** — do **not** copy navy/gold mockup colours or dense chrome.
 - Prefer **21st.dev MCP** components where useful.
 - **Icon tooltips (locked 2026-11-02):** Icon-only controls show a designed hover/focus tooltip with the action name via shared `IconButton` / `.ui-tooltip`. Keep `aria-label` for accessibility. Do not rely on native `title` as the primary label.
-- **Portal selects (locked 2026-11-02):** Use shared `PortalSelect` (token-styled trigger + portaled menu, keyboard a11y, search when lists are long) instead of native `<select>` open menus. Exception: true multi-select lists (e.g. e-sign CC) may stay native until a multi picker exists.
+- **Portal selects (locked 2026-11-02):** Use shared `PortalSelect` (token-styled trigger + portaled menu, keyboard a11y, search when lists are long) instead of native `<select>` open menus. Multi-value lists use `PortalMultiSelect` (e.g. e-sign CC).
 - Site reference (footer/contact optional): phone `07493 392481`, email `dave@dmhrgroup.com`, Falcon Point, Park Plaza, Heath Hayes, Cannock, WS12 2DE.
 
 ### Client / Admin IA to mirror (from HTML — functional)
@@ -221,8 +222,8 @@
 - **Sidebar groups:** Admin `home` (Overview) → `Clients` (Organisations) → `Workspace` (Documents, Firm Library, Employees, Cases, Onboarding, Signatures) → `System` (Users, Notifications, Settings, Payments). Client: Overview → Workspace → System. Collapsed rail shows thin dividers between groups.
 - **Organisations journey:** Directory (search/filters/table + **Open profile**) → **Client profile hub** `/admin/organisations/[id]`. Mock = journey ideas; we own data flow + components (Apple shell). No fake “view as client”.
 - **Client profile hub (locked 2026-11-02):** Compact density — icon **Back** + org name as page title + status pill + **Start/Open onboarding** CTA + **⋮** (Edit / Resend invite|password reset / Open documents / Deactivate|Activate). Identity row: avatar + icon meta (contact, email, phone, login) + pencil edit. Four metric tiles (docs / employees / open cases / onboarding + pack bar) deep-link. Scrollable **Documents** + **Recent cases** panels (`ProfileActivityPanel` + Eye preview). Compact **Company users** list. Shared tokens `.profile-hub-*`.
-- **Documents hub (locked 2026-11-02; upload/actions polish 2026-11-02):** Keep **folder IA** (org select → fixed folders → files). Compact company toolbar (Admin). Files card: sleek **dropzone + Select files** (drag and click; multi-file into active folder; **PDF only**). Dense rows: checkbox + type chip + title/meta + **icon actions** (not ⋮) — Preview · Download · Rename (unsigned) · Request signature (Admin PDF unsigned) · Delete. Signed rows omit Rename / Request signature. In-folder search + type filter (All/PDF) + sort (Name/Date/Size). Multi-select → Download selected / Remove selected (confirm). Shared `DocumentsPanel` Admin+Client. No flat cross-org mock library. **No Versions UI** — history stays in DB quietly.
-- **Document rename (locked 2026-11-02):** PATCH title for normal files only. **Signed copies cannot be renamed** (API `SIGNED_COPY_LOCKED` + no ⋮ Rename). Title unique per folder.
+- **Documents hub (locked 2026-11-02; upload/actions polish 2026-11-02):** Keep **folder IA** (org select → fixed folders → files). Compact company toolbar (Admin). Files card: sleek **dropzone + Select files** (drag and click; multi-file into active folder; **PDF only**). Dense rows: checkbox + type chip + title/meta + **icon actions** (not ⋮) — Preview · Download · Rename (unsigned) · Request signature (Admin PDF unsigned) · Delete. Signed rows omit Rename / Request signature. In-folder search + sort (Name/Date/Size) — no type filter (uploads are PDF-only). Multi-select → Download selected / Remove selected (confirm). Shared `DocumentsPanel` Admin+Client. No flat cross-org mock library. **No Versions UI** — history stays in DB quietly.
+- **Document rename (locked 2026-11-02):** Compact rename dialog → PATCH title for normal files only. **Signed copies cannot be renamed** (API `SIGNED_COPY_LOCKED` + no Rename icon). Title unique per folder.
 - **Signed library copies (locked 2026-11-02):** DB flags on `documents`: `isSignedCopy` + optional `signatureRequestId`, set when e-sign **Reviewed** publishes the stamped PDF. List APIs expose `isSignedCopy`. UI shows compact **Signed** badge and **hides Request signature** on those rows. Title patterns (` — Signed — ` / sanitized variants) are fallback for older rows only.
 - **Org directory table (locked 2026-11-01):** Dense containerized table (avatar + company/ref, contact, type, **regulatory**, onboarding **progress bar + short text**, open cases, status pill). Filters: search + status + type + **regulatory context**. Row **⋮** menu (portal + flip up when near bottom): Open / Edit / Resend invite|password reset / Deactivate|Activate. No hard delete — soft inactive only.
 - **Org chrome rule:** Sidebar + top bar = general only. Section CTAs (Add organisation, Open documents, Start/Open onboarding) sit **inside the page** beside that section’s heading — never in shell `actions` for org-specific work.
@@ -234,6 +235,10 @@
 - **Org select lists (mock-aligned):** Type = Adult Social Care / Children's Residential Care / Other Care Provider / Other Business. Regulatory = To Be Confirmed / CQC / Ofsted / Both / Not Applicable / Other.
 - **Form density:** Dialogs and admin edit forms use compact field tokens (`.form-compact`) — tighter than auth screens.
 - **Portal toasts (locked 2026-11-01):** Shared bottom-right toast (`useToast` / `ToastProvider`) for success / error / info across Admin + Client — SMTP, create client, saves, and any future action. Not email-only. Page banners may remain for form context; toast is default quick feedback.
+- **Skeleton loading (locked 2026-11-02):** Portal-wide shared skeletons in `components/Skeleton.tsx` + `.ui-skeleton*` CSS. Use on first load / refetch for orgs table, Documents folder rail + file list, Overview metrics/lists, client profile hub, cases / employees / signatures / users lists. Prefer skeletons over inline “Loading…” copy; keep empty states for zero-data after load.
+- **Buttons (locked 2026-11-02):** Soft-rect actions — `.btn` uses **~10px radius**, compact padding (~9×16 / 13.5px), not capsule `980px` pills. Dense surfaces prefer `btn-sm`. Status **pills** stay rounded; action buttons do not.
+- **Employees hub (locked 2026-11-02):** Match mock journey (not orange chrome). Admin `/admin/employees` dense directory + modal create/edit (`EmployeeFormDialog`); detail `/admin/employees/[id]` (identity + related cases). Client mirror under `/portal/employees`. Deep link from org profile `?org=`. Reuse org-dialog, `PortalSelect`, `StatusLiquidToggle`, status pills, `TableSkeleton` / `PanelSkeleton`.
+- **Employees chrome (locked 2026-11-02):** Same density as Organisations — single `org-directory` panel, `PortalSearch` toolbar + `sm` filters, `org-table` with avatar / primary-secondary cells / Cases count / status pills / `RowActionsMenu` ⋮ (not View+Edit button pair). Hub: profile-hub head (Edit + ⋮), icon `profile-meta-grid`, related cases panel.
 
 ### Portal section standards (apply as each area is built)
 Before calling a section done, check what this product needs (not generic SaaS clutter):
@@ -254,7 +259,7 @@ Before calling a section done, check what this product needs (not generic SaaS c
 | Deep links from hubs | Profile → docs / employees / cases / onboarding |
 | Permissions | Admin vs client; Private Space; admin-only notes |
 | Notify | Creates/updates clients or admins should hear about |
-| Loading / errors | No silent failures |
+| Loading / errors | No silent failures; use shared skeleton primitives (`Skeleton` / `TableSkeleton` / `ListSkeleton` / `PanelSkeleton` / `MetricSkeleton`) instead of bare “Loading…” text on lists, tables, metrics, and hubs |
 | Shell fit | Tokens, btn primary/secondary, PortalSearch where lists grow |
 
 **Project-specific:** e-sign + onboarding are **workflows** (not only CRUD forms). Payments = paste links only. Folders = fixed set. GDPR audit/export later. Impersonation out of scope.
@@ -379,3 +384,9 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-02 | **Portal icon tooltips:** shared `IconButton` + `.ui-tooltip`; Documents, shell, profile, sheets, ⋮ trigger. |
 | 2026-11-02 | **Uploads PDF only:** remove Word from default/allowed types so upload matches e-sign and avoids misleading UX. |
 | 2026-11-02 | **PortalSelect:** replace native dropdown menus portal-wide (company pickers, filters, forms, e-sign/firm library). |
+| 2026-11-02 | **Docs polish:** rename dialog (not prompt); drop All/PDF type filter; Decisions icon-Rename wording. |
+| 2026-11-02 | **PortalMultiSelect:** e-sign CC uses designed multi picker; same `userIds` API. |
+| 2026-11-02 | **Skeleton loading:** shared `Skeleton` / `TableSkeleton` / `ListSkeleton` / `PanelSkeleton` / `MetricSkeleton`; wired on Overview, Orgs, Docs, profile, cases, employees, signatures, users. |
+| 2026-11-02 | **Employees rebuild:** `ref` + `workEmail` DB; directory + modal + record hub (Admin + Client); related cases; soft deactivate; delete blocked if cases. |
+| 2026-11-02 | **Employees density:** reuse Orgs directory/hub chrome (avatar, toolbar, ⋮, cases col, icon meta). |
+| 2026-11-02 | **Button tokens:** soft-rect 10px radius portal-wide; drop capsule pills on `.btn` (status pills unchanged). |
