@@ -3974,6 +3974,15 @@ button.case-metric-card.is-active .case-metric-icon {
   transition: width 0.25s ease;
 }
 
+.onb-stage-block {
+  margin-top: 14px;
+}
+
+.onb-stage-progress-meta {
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
 .stage-list,
 .check-list {
   list-style: none;
@@ -3988,7 +3997,7 @@ button.case-metric-card.is-active .case-metric-icon {
   gap: 12px;
   align-items: flex-start;
   padding: 10px 0;
-  border-top: 1px solid #f0f0f2;
+  border-top: 1px solid var(--line);
   font-size: 14px;
 }
 

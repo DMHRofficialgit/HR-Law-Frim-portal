@@ -46,6 +46,7 @@ router.post("/firm-library", singleUpload, async (req, res) => {
     const created = await uploadFirmLibraryDocument({
       title: req.body.title ? String(req.body.title) : undefined,
       requiresSignature,
+      journeyRole: req.body.journeyRole ? String(req.body.journeyRole) : undefined,
       file: {
         originalName: req.file.originalname,
         mimeType: req.file.mimetype,
@@ -102,6 +103,8 @@ router.patch("/firm-library/:id", async (req, res) => {
             : req.body.requiresSignature === "false"
               ? false
               : undefined,
+      journeyRole:
+        typeof req.body.journeyRole === "string" ? req.body.journeyRole : undefined,
       sortOrder:
         typeof req.body.sortOrder === "number" ? req.body.sortOrder : undefined,
     });

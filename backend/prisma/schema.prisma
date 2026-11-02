@@ -89,6 +89,14 @@ enum FirmLibraryFieldRole {
   admin
 }
 
+/// Which onboarding journey stage a Firm Library template drives.
+enum FirmLibraryJourneyRole {
+  terms
+  welcome
+  compliance
+  other
+}
+
 model Organisation {
   id                 String           @id @default(uuid())
   name               String
@@ -493,21 +501,23 @@ model SignatureField {
 
 /// Admin-only firm templates (onboarding pack source). Not tied to a client org.
 model FirmLibraryDocument {
-  id                String   @id @default(uuid())
+  id                String                 @id @default(uuid())
   title             String
-  fileName          String   @map("file_name")
-  mimeType          String   @map("mime_type")
-  sizeBytes         Int      @map("size_bytes")
-  storagePath       String   @map("storage_path")
-  requiresSignature Boolean  @default(true) @map("requires_signature")
-  sortOrder         Int      @default(0) @map("sort_order")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  fileName          String                 @map("file_name")
+  mimeType          String                 @map("mime_type")
+  sizeBytes         Int                    @map("size_bytes")
+  storagePath       String                 @map("storage_path")
+  requiresSignature Boolean                @default(true) @map("requires_signature")
+  journeyRole       FirmLibraryJourneyRole @default(other) @map("journey_role")
+  sortOrder         Int                    @default(0) @map("sort_order")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
 
   fields    FirmLibraryField[]
   packItems OnboardingPackItem[]
 
   @@index([sortOrder])
+  @@index([journeyRole])
   @@map("firm_library_documents")
 }
 
@@ -565,6 +575,8 @@ model OnboardingPackItem {
   clientDocumentId   String                   @map("client_document_id")
   title              String
   requiresSignature  Boolean                  @default(true) @map("requires_signature")
+  /// Copied from Firm Library at issue time (checklist uses this, not title regex).
+  journeyRole        FirmLibraryJourneyRole   @default(other) @map("journey_role")
   status             OnboardingPackItemStatus @default(issued)
   signatureRequestId String?                  @map("signature_request_id")
   sortOrder          Int                      @default(0) @map("sort_order")
@@ -579,6 +591,7 @@ model OnboardingPackItem {
   @@index([runId])
   @@index([clientDocumentId])
   @@index([signatureRequestId])
+  @@index([journeyRole])
   @@map("onboarding_pack_items")
 }
 

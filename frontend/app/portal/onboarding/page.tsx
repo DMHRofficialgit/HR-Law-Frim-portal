@@ -1,49 +1,77 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { EsignSheet } from "../../../components/EsignSheet";
-import { apiFetch, type PublicUser } from "../../../lib/api";
+import { FilePreviewSheet, type FilePreviewTarget } from "../../../components/FilePreviewSheet";
+import { OnboardingStageList } from "../../../components/OnboardingStageList";
+import { PanelSkeleton } from "../../../components/Skeleton";
+import { useToast } from "../../../context/ToastContext";
+import { API_URL, apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { clientNav } from "../../../lib/nav";
 import {
-  journeyStages,
   onboardingOrgLabel,
+  onboardingRunBadgeTone,
   onboardingRunLabel,
+  packAwaitingAdminReview,
   packItemDone,
   packItemLabel,
-  packProgress,
+  packPreviewDoc,
   paymentUrl,
+  type OnboardingPackItem,
   type OnboardingRun,
 } from "../../../lib/onboarding";
 
 export default function ClientOnboardingPage() {
   const router = useRouter();
+  const { error: toastError } = useToast();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [run, setRun] = useState<OnboardingRun | null>(null);
   const [skipped, setSkipped] = useState(false);
   const [orgName, setOrgName] = useState("");
   const [orgStatus, setOrgStatus] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [esignId, setEsignId] = useState<string | null>(null);
+  const [preview, setPreview] = useState<FilePreviewTarget | null>(null);
 
-  async function load(token: string | null) {
-    const result = await apiFetch<{
-      organisation: { id: string; name: string; onboardingStatus: string };
-      run: OnboardingRun | null;
-      skipped: boolean;
-    }>("/client/onboarding", { token });
-    if (!result.success) {
-      setError(result.error.message);
-      return;
-    }
-    setOrgName(result.data.organisation.name);
-    setOrgStatus(result.data.organisation.onboardingStatus);
-    setSkipped(result.data.skipped);
-    setRun(result.data.run);
+  function openPackPreview(item: OnboardingPackItem) {
+    const doc = packPreviewDoc(item);
+    if (!doc) return;
+    setPreview({
+      title: doc.title,
+      url: `${API_URL}/client/documents/${doc.id}/download`,
+      fileName: `${doc.title}.pdf`,
+      mimeType: "application/pdf",
+    });
   }
+
+  const load = useCallback(
+    async (token: string | null) => {
+      setLoading(true);
+      const result = await apiFetch<{
+        organisation: { id: string; name: string; onboardingStatus: string };
+        run: OnboardingRun | null;
+        skipped: boolean;
+      }>("/client/onboarding", { token });
+      if (!result.success) {
+        setError(result.error.message);
+        toastError(result.error.message);
+        setLoading(false);
+        return;
+      }
+      setError("");
+      setOrgName(result.data.organisation.name);
+      setOrgStatus(result.data.organisation.onboardingStatus);
+      setSkipped(result.data.skipped);
+      setRun(result.data.run);
+      setLoading(false);
+    },
+    [toastError]
+  );
 
   useEffect(() => {
     const token = getToken();
@@ -53,8 +81,8 @@ export default function ClientOnboardingPage() {
       return;
     }
     setUser(stored);
-    load(token);
-  }, [router]);
+    void load(token);
+  }, [router, load]);
 
   if (!user) return null;
 
@@ -67,7 +95,7 @@ export default function ClientOnboardingPage() {
             You are already set up as a DM.HR client. Ongoing documents live in your six document
             folders — there is no one-time onboarding pack for this company.
           </p>
-          <Link href="/portal/documents" className="btn btn-primary">
+          <Link href="/portal/documents" className="btn btn-primary btn-sm">
             Open documents
           </Link>
         </section>
@@ -75,59 +103,46 @@ export default function ClientOnboardingPage() {
     );
   }
 
-  const prog = run ? packProgress(run) : { done: 0, total: 0 };
-  const stages = run ? journeyStages(run) : [];
   const dd = run ? paymentUrl(run, "direct_debit") : "";
   const pay = run ? paymentUrl(run, "initial_payment") : "";
-  const stageDone = stages.filter((s) => s.done).length;
 
   return (
     <AppShell user={user} nav={clientNav} title="My Onboarding">
       {error ? <div className="error-banner">{error}</div> : null}
 
+      {loading && !run ? (
+        <div className="panel">
+          <PanelSkeleton lines={6} />
+        </div>
+      ) : null}
+
       <section className="panel" style={{ marginBottom: 16 }}>
-        <div className="row-between">
-          <div>
-            <h2>Client onboarding checklist</h2>
-            <p className="lead" style={{ marginBottom: 0 }}>
-              {orgName} · {onboardingOrgLabel(orgStatus)}
-              {run ? ` · ${onboardingRunLabel(run.status)}` : ""}
-            </p>
+        <div className="profile-hub-head" style={{ marginBottom: 0, padding: 0 }}>
+          <div className="profile-hub-head-main">
+            <div className="profile-hub-titles">
+              <h1 style={{ fontSize: "1.15rem" }}>Client onboarding checklist</h1>
+              <div className="profile-hub-meta">
+                {orgName} · {onboardingOrgLabel(orgStatus)}
+                {run ? (
+                  <span
+                    className={`status-pill status-pill-${onboardingRunBadgeTone(run.status)}`}
+                  >
+                    {onboardingRunLabel(run.status)}
+                  </span>
+                ) : null}
+              </div>
+            </div>
           </div>
-          {run ? <span className="status-chip">{onboardingRunLabel(run.status)}</span> : null}
         </div>
 
-        {!run ? (
+        {!run && !loading ? (
           <p className="org-meta" style={{ marginTop: 16 }}>
             DM.HR has not started your onboarding pack yet. You can still use Documents, Cases, and
             other portal areas.
           </p>
-        ) : (
-          <>
-            <div className="row-top" style={{ marginTop: 16 }}>
-              <strong>Overall progress</strong>
-              <strong>
-                {stageDone} of {stages.length} stages · pack {prog.done}/{prog.total || 0}
-              </strong>
-            </div>
-            <div className="progress-track">
-              <div
-                className="progress-fill"
-                style={{
-                  width: `${stages.length ? (stageDone / stages.length) * 100 : 0}%`,
-                }}
-              />
-            </div>
-            <ul className="stage-list">
-              {stages.map((s) => (
-                <li key={s.key} className={s.done ? "done" : ""}>
-                  <strong>{s.name}</strong>
-                  <span>{s.status}</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
+        ) : null}
+
+        {run ? <OnboardingStageList run={run} className="onb-stage-block--in-panel" /> : null}
       </section>
 
       {run ? (
@@ -151,6 +166,8 @@ export default function ClientOnboardingPage() {
                       item.signatureRequest.status === "revision_requested" ||
                       item.signatureRequest.status === "ready_for_send" ||
                       item.signatureRequest.status === "sent");
+                  const awaitingReview = packAwaitingAdminReview(item);
+                  const canPreview = Boolean(packPreviewDoc(item));
                   return (
                     <li key={item.id}>
                       <div>
@@ -160,6 +177,12 @@ export default function ClientOnboardingPage() {
                             ? packItemLabel(item.status)
                             : "For your records"}
                         </div>
+                        {awaitingReview ? (
+                          <div className="org-meta" style={{ marginTop: 4 }}>
+                            Signed — waiting for DM.HR to mark complete. The Signed copy appears in
+                            My Onboarding after review.
+                          </div>
+                        ) : null}
                       </div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {needsSign && item.signatureRequestId ? (
@@ -169,6 +192,15 @@ export default function ClientOnboardingPage() {
                             onClick={() => setEsignId(item.signatureRequestId)}
                           >
                             Sign now
+                          </button>
+                        ) : null}
+                        {canPreview ? (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => openPackPreview(item)}
+                          >
+                            Preview
                           </button>
                         ) : null}
                         <Link
@@ -235,11 +267,13 @@ export default function ClientOnboardingPage() {
           role="client"
           onClose={() => {
             setEsignId(null);
-            load(getToken());
+            void load(getToken());
           }}
-          onChanged={() => load(getToken())}
+          onChanged={() => void load(getToken())}
         />
       ) : null}
+
+      <FilePreviewSheet target={preview} onClose={() => setPreview(null)} />
     </AppShell>
   );
 }

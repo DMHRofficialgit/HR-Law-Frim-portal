@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { API_URL, apiDownload, apiFetch, apiUpload } from "../lib/api";
 import { triggerBlobDownload } from "../lib/download-file";
 import { getStoredUser, getToken } from "../lib/auth";
@@ -102,6 +103,7 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
   const [activeRecipientId, setActiveRecipientId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [publishedFolderHref, setPublishedFolderHref] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
@@ -120,15 +122,34 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
   const [fieldTexts, setFieldTexts] = useState<Record<string, string>>({});
   const [fieldPreviews, setFieldPreviews] = useState<Record<string, string>>({});
   const [revisionNote, setRevisionNote] = useState("");
+  /** Stamped PDF confirmed rendered — then overlays can hide to avoid double-ink */
+  const [signedPdfReady, setSignedPdfReady] = useState(false);
+  /** If stamped PDF fails to load, fall back to source + overlays */
+  const [preferSourcePdf, setPreferSourcePdf] = useState(false);
+  const [previewInkHint, setPreviewInkHint] = useState("");
 
   const token = getToken();
-  const showSignedPdf =
+  const isFullySigned =
     request?.status === "signed_returned" || request?.status === "reviewed";
+  const showSignedPdf = isFullySigned && !preferSourcePdf;
+  const hideOverlays = showSignedPdf && signedPdfReady;
   const fileUrl = useMemo(() => {
     const base = role === "admin" ? "/admin" : "/client";
-    const q = showSignedPdf ? "?signed=1" : "";
-    return `${API_URL}${base}/signature-requests/${requestId}/file${q}`;
-  }, [role, requestId, showSignedPdf]);
+    if (!showSignedPdf) {
+      return `${API_URL}${base}/signature-requests/${requestId}/file`;
+    }
+    const bust = encodeURIComponent(
+      String(request?.signedAt || request?.updatedAt || request?.reviewedAt || Date.now())
+    );
+    return `${API_URL}${base}/signature-requests/${requestId}/file?signed=1&t=${bust}`;
+  }, [
+    role,
+    requestId,
+    showSignedPdf,
+    request?.signedAt,
+    request?.updatedAt,
+    request?.reviewedAt,
+  ]);
 
   const revokePreviews = useCallback((map: Record<string, string>) => {
     Object.values(map).forEach((url) => {
@@ -185,30 +206,63 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
       const auth = getToken();
       const next: Record<string, string> = {};
       const texts: Record<string, string> = {};
+      let failed = 0;
+
       await Promise.all(
         fieldList.map(async (f) => {
           if (f.valueText) texts[f.id] = f.valueText;
           if (!f.signedImagePath) return;
+
+          const url = `${API_URL}${base}/signature-requests/${reqId}/fields/${f.id}/image`;
+          const headers = auth ? { Authorization: `Bearer ${auth}` } : {};
+
+          async function fetchOnce() {
+            const res = await fetch(url, { headers });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.blob();
+          }
+
           try {
-            const res = await fetch(
-              `${API_URL}${base}/signature-requests/${reqId}/fields/${f.id}/image`,
-              { headers: auth ? { Authorization: `Bearer ${auth}` } : {} }
-            );
-            if (!res.ok) return;
-            const blob = await res.blob();
+            let blob: Blob;
+            try {
+              blob = await fetchOnce();
+            } catch {
+              blob = await fetchOnce();
+            }
             next[f.id] = URL.createObjectURL(blob);
           } catch {
-            /* skip */
+            failed += 1;
           }
         })
       );
+
       setFieldTexts((prev) => ({ ...texts, ...prev }));
       setFieldPreviews((prev) => {
-        revokePreviews(prev);
-        return next;
+        const merged = { ...prev };
+        for (const [id, url] of Object.entries(next)) {
+          if (merged[id]?.startsWith("blob:")) URL.revokeObjectURL(merged[id]);
+          merged[id] = url;
+        }
+        // Drop previews for fields no longer on the request
+        const keep = new Set(fieldList.map((f) => f.id));
+        for (const id of Object.keys(merged)) {
+          if (!keep.has(id)) {
+            if (merged[id]?.startsWith("blob:")) URL.revokeObjectURL(merged[id]);
+            delete merged[id];
+          }
+        }
+        return merged;
       });
+
+      if (failed > 0) {
+        setPreviewInkHint(
+          "Some signature images could not load in preview — refresh or use Download signed copy."
+        );
+      } else {
+        setPreviewInkHint("");
+      }
     },
-    [role, revokePreviews]
+    [role]
   );
 
   const loadProfileSignatures = useCallback(async () => {
@@ -241,6 +295,11 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
     const mapped = mapFieldsFromRequest(req);
     setFields(mapped);
     setCcUserIds((req.ccRecipients || []).map((c) => c.userId));
+    const fullySigned =
+      req.status === "signed_returned" || req.status === "reviewed";
+    setSignedPdfReady(false);
+    setPreferSourcePdf(false);
+    if (!fullySigned) setPreviewInkHint("");
 
     if (role === "admin") {
       const a = await apiFetch<{ users: AssigneeOption[] }>(
@@ -500,10 +559,15 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
       }
       setRequest(result.data.request);
       const publishedTitle = result.data.published?.title;
+      setPublishedFolderHref(
+        result.data.request.organisation?.id
+          ? `/admin/documents?org=${encodeURIComponent(result.data.request.organisation.id)}&folder=my_onboarding`
+          : "/admin/documents?folder=my_onboarding"
+      );
       setNotice(
         publishedTitle
-          ? `Marked complete — published as “${publishedTitle}”.`
-          : "Marked complete — signed PDF in Documents."
+          ? `Marked complete — published as “${publishedTitle}”. Open My Onboarding in Documents to view the Signed copy.`
+          : "Marked complete — signed PDF is in Documents → My Onboarding."
       );
       onChanged?.();
     } finally {
@@ -680,8 +744,12 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
       }
       setRequest(result.data.request);
       setFields(mapFieldsFromRequest(result.data.request));
-      await loadSignedFieldPreviews(requestId, result.data.request.fields);
       const done = result.data.request.status === "signed_returned";
+      if (done) {
+        setSignedPdfReady(false);
+        setPreferSourcePdf(false);
+      }
+      await loadSignedFieldPreviews(requestId, result.data.request.fields);
       setNotice(
         done
           ? "Document fully signed."
@@ -771,7 +839,20 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
         </div>
 
         {error ? <div className="error-banner">{error}</div> : null}
-        {notice ? <div className="success-banner">{notice}</div> : null}
+        {previewInkHint ? <div className="error-banner">{previewInkHint}</div> : null}
+        {notice ? (
+          <div className="success-banner">
+            {notice}
+            {publishedFolderHref ? (
+              <>
+                {" "}
+                <Link href={publishedFolderHref} onClick={onClose}>
+                  Open My Onboarding folder
+                </Link>
+              </>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="esign-sheet-body">
           <div className="esign-sheet-main">
@@ -796,12 +877,12 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
             <EsignPdfViewer
               pdfUrl={fileUrl}
               authToken={token}
-              fields={showSignedPdf ? [] : fields}
+              fields={hideOverlays ? [] : fields}
               mode={viewerMode}
               activeFieldId={activeFieldId}
-              fieldPreviews={showSignedPdf ? {} : fieldPreviews}
+              fieldPreviews={hideOverlays ? {} : fieldPreviews}
               interactiveFieldIds={canFillMine ? interactiveIds : null}
-              fieldColors={showSignedPdf ? {} : fieldColors}
+              fieldColors={hideOverlays ? {} : fieldColors}
               onFieldsChange={adminEdit ? setFields : undefined}
               onFieldActivate={(id) => {
                 setActiveFieldId(id);
@@ -815,6 +896,21 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
               }}
               onPlacePageChange={adminEdit ? setPlacePage : undefined}
               onPageCount={setPdfPageCount}
+              onPdfReady={({ url }) => {
+                if (url.includes("signed=1")) {
+                  setSignedPdfReady(true);
+                  setPreferSourcePdf(false);
+                }
+              }}
+              onPdfError={({ url }) => {
+                if (url.includes("signed=1")) {
+                  setSignedPdfReady(false);
+                  setPreferSourcePdf(true);
+                  setNotice(
+                    "Signed PDF preview failed — showing source with signature overlays. Use Download signed copy if needed."
+                  );
+                }
+              }}
               zoom={zoom}
             />
           </div>
@@ -1091,7 +1187,20 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
             ) : null}
 
             {role === "admin" && request.status === "reviewed" ? (
-              <p className="lead">Complete — signed copy is in Documents.</p>
+              <p className="lead">
+                Complete — signed copy is in Documents.
+                {request.organisation?.id ? (
+                  <>
+                    {" "}
+                    <Link
+                      href={`/admin/documents?org=${encodeURIComponent(request.organisation.id)}&folder=my_onboarding`}
+                      onClick={onClose}
+                    >
+                      Open My Onboarding folder
+                    </Link>
+                  </>
+                ) : null}
+              </p>
             ) : null}
 
             {role === "admin" && fillMode && !canFillMine && !adminEdit ? (

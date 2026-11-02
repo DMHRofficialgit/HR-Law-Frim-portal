@@ -5,6 +5,8 @@ export type PackItemStatus =
   | "reviewed"
   | "done";
 
+export type JourneyRole = "terms" | "welcome" | "compliance" | "other";
+
 export type OnboardingPackItem = {
   id: string;
   title: string;
@@ -14,9 +16,45 @@ export type OnboardingPackItem = {
   libraryDocumentId?: string | null;
   clientDocumentId: string | null;
   signatureRequestId: string | null;
+  /** Snapshot from Firm Library at issue time */
+  journeyRole?: JourneyRole | string | null;
   clientDocument?: { id: string; title: string; folderId: string } | null;
-  signatureRequest?: { id: string; status: string; title: string } | null;
+  signatureRequest?: {
+    id: string;
+    status: string;
+    title: string;
+    publishedDocuments?: { id: string; title: string }[];
+  } | null;
 };
+
+export const JOURNEY_ROLE_LABELS: Record<JourneyRole, string> = {
+  terms: "Terms of Business",
+  welcome: "Welcome pack",
+  compliance: "Compliance documents",
+  other: "Other",
+};
+
+export function packPreviewDoc(item: OnboardingPackItem): {
+  id: string;
+  title: string;
+} | null {
+  const signed = item.signatureRequest?.publishedDocuments?.[0];
+  if (signed?.id) {
+    return { id: signed.id, title: signed.title || `${item.title} — Signed` };
+  }
+  if (item.clientDocumentId) {
+    return {
+      id: item.clientDocumentId,
+      title: item.clientDocument?.title || item.title,
+    };
+  }
+  return null;
+}
+
+export function packAwaitingAdminReview(item: OnboardingPackItem): boolean {
+  if (item.status === "signed") return true;
+  return item.signatureRequest?.status === "signed_returned";
+}
 
 export type OnboardingPaymentLink = {
   id: string;
@@ -59,6 +97,21 @@ export function onboardingRunLabel(status: string): string {
   return status.replace(/_/g, " ");
 }
 
+export function onboardingRunBadgeTone(
+  status: string
+): "ok" | "progress" | "muted" | "warn" {
+  if (status === "completed") return "ok";
+  if (status === "in_progress") return "progress";
+  return "muted";
+}
+
+export function orgInitialsFromName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+}
+
 export function packItemLabel(status: string): string {
   const map: Record<string, string> = {
     issued: "Issued",
@@ -79,8 +132,9 @@ export function packItemDone(item: OnboardingPackItem): boolean {
 
 export function termsStatus(run: OnboardingRun): string {
   const terms =
-    run.packItems.find((p) => /terms/i.test(p.title) && p.requiresSignature) ||
-    run.packItems.find((p) => p.requiresSignature);
+    run.packItems.find(
+      (p) => p.requiresSignature && packJourneyRole(p) === "terms"
+    ) || run.packItems.find((p) => p.requiresSignature);
   if (!terms) return "Not issued";
   return packItemLabel(terms.status);
 }
@@ -98,6 +152,20 @@ export function paymentUrl(
   return run.paymentLinks.find((p) => p.kind === kind)?.url || "";
 }
 
+export function packJourneyRole(item: OnboardingPackItem): JourneyRole {
+  const raw = String(item.journeyRole || "").toLowerCase();
+  if (raw === "terms" || raw === "welcome" || raw === "compliance" || raw === "other") {
+    return raw;
+  }
+  // Legacy packs (pre-role): infer from title so existing data still maps.
+  if (/terms/i.test(item.title)) return "terms";
+  if (/welcome/i.test(item.title)) return "welcome";
+  if (/compliance|gap analysis|data protection|hr support/i.test(item.title)) {
+    return "compliance";
+  }
+  return "other";
+}
+
 /** Six functional stages for journey UI (HTML structure + Decisions). */
 export function journeyStages(run: OnboardingRun): Array<{
   key: string;
@@ -105,18 +173,25 @@ export function journeyStages(run: OnboardingRun): Array<{
   status: string;
   done: boolean;
 }> {
-  const pack = packProgress(run);
-  const hasTermsIssued = run.packItems.some(
-    (p) => p.requiresSignature || /terms/i.test(p.title)
+  const signable = run.packItems.filter((p) => p.requiresSignature);
+  const termsByRole = run.packItems.filter(
+    (p) => p.requiresSignature && packJourneyRole(p) === "terms"
   );
-  const termsDone = run.packItems
-    .filter((p) => p.requiresSignature)
-    .every((p) => packItemDone(p));
-  const welcomeIssued = run.packItems.some((p) => /welcome/i.test(p.title));
-  const complianceIssued = run.packItems.some((p) =>
-    /compliance|gap|information|checklist/i.test(p.title)
+  // Fallback: any signable item when no template was tagged Terms (legacy packs).
+  const termsPool = termsByRole.length > 0 ? termsByRole : signable;
+  const hasTermsIssued = termsPool.length > 0;
+  const termsDone = hasTermsIssued && termsPool.every((p) => packItemDone(p));
+
+  const welcomeItems = run.packItems.filter((p) => packJourneyRole(p) === "welcome");
+  const welcomeIssued = welcomeItems.length > 0;
+  const welcomeDone = welcomeIssued;
+
+  const complianceItems = run.packItems.filter(
+    (p) => packJourneyRole(p) === "compliance"
   );
-  const hasAnyPack = run.packItems.length > 0;
+  const complianceIssued = complianceItems.length > 0;
+  const complianceDone = complianceIssued;
+
   const dd = Boolean(paymentUrl(run, "direct_debit"));
   const pay = Boolean(paymentUrl(run, "initial_payment"));
   const complete = run.status === "completed";
@@ -130,19 +205,27 @@ export function journeyStages(run: OnboardingRun): Array<{
         : termsDone
           ? "Complete"
           : termsStatus(run),
-      done: hasTermsIssued && termsDone,
+      done: termsDone,
     },
     {
       key: "welcome",
       name: "Welcome pack",
-      status: welcomeIssued || hasAnyPack ? "In My Onboarding" : "Not issued",
-      done: welcomeIssued || (hasAnyPack && pack.done > 0),
+      status: !welcomeIssued
+        ? "Not issued"
+        : welcomeDone
+          ? "In My Onboarding"
+          : "Issued",
+      done: welcomeDone,
     },
     {
       key: "compliance",
       name: "Compliance documents",
-      status: complianceIssued || hasAnyPack ? "In My Onboarding" : "Not issued",
-      done: complianceIssued || pack.done === pack.total && pack.total > 0,
+      status: !complianceIssued
+        ? "Not issued"
+        : complianceDone
+          ? "In My Onboarding"
+          : "Issued",
+      done: complianceDone,
     },
     {
       key: "dd",

@@ -20,12 +20,35 @@ import { uploadDocument } from "./documents";
 import { firmLibraryFieldHasAdminInk } from "./firmLibrary";
 import {
   createDraftFromDocument,
+  fieldIsComplete,
   getSignatureRequestById,
   markReady,
   replaceFields,
   sendForSignature,
   signSignatureRequest,
 } from "./signatures";
+
+function roundGeom(n: number) {
+  return Math.round(Number(n) * 10000) / 10000;
+}
+
+function fieldGeomKey(f: {
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: string;
+}) {
+  return [
+    f.page,
+    roundGeom(f.x),
+    roundGeom(f.y),
+    roundGeom(f.width),
+    roundGeom(f.height),
+    String(f.type),
+  ].join("|");
+}
 
 const runInclude = {
   organisation: {
@@ -47,7 +70,17 @@ const runInclude = {
     include: {
       clientDocument: { select: { id: true, title: true, folderId: true } },
       signatureRequest: {
-        select: { id: true, status: true, title: true },
+        select: {
+          id: true,
+          status: true,
+          title: true,
+          publishedDocuments: {
+            where: { isSignedCopy: true },
+            select: { id: true, title: true },
+            take: 1,
+            orderBy: { createdAt: "desc" as const },
+          },
+        },
       },
     },
   },
@@ -381,18 +414,52 @@ export async function issuePackFromLibrary(params: {
       if (adminTpl.length > 0) {
         const fieldImages: Record<string, Buffer> = {};
         const fieldTexts: Record<string, string> = {};
-        const orderedFields = [...readyReq.fields].sort((a, b) => a.sortOrder - b.sortOrder);
-        const orderedTpl = [...lib.fields].sort((a, b) => a.sortOrder - b.sortOrder);
+        const liveByGeom = new Map(
+          readyReq.fields.map((f) => [fieldGeomKey(f), f] as const)
+        );
+        const usedLiveIds = new Set<string>();
 
-        for (let i = 0; i < orderedTpl.length; i++) {
-          const tpl = orderedTpl[i];
-          const live = orderedFields[i];
-          if (!live || tpl.role !== FirmLibraryFieldRole.admin) continue;
+        for (const tpl of adminTpl) {
+          const geom = fieldGeomKey(tpl);
+          let live =
+            liveByGeom.get(geom) ||
+            readyReq.fields.find(
+              (f) =>
+                !usedLiveIds.has(f.id) &&
+                f.assigneeUserId === params.issuedById &&
+                f.type === tpl.type &&
+                f.sortOrder === tpl.sortOrder
+            ) ||
+            readyReq.fields.find(
+              (f) =>
+                !usedLiveIds.has(f.id) &&
+                f.assigneeUserId === params.issuedById &&
+                f.type === tpl.type &&
+                f.page === tpl.page
+            );
+
+          if (!live) {
+            throw httpError(
+              `Could not map Admin field “${tpl.label}” onto the issued signature request`,
+              500,
+              "SERVER_ERROR"
+            );
+          }
+          usedLiveIds.add(live.id);
+
           if (tpl.signedImagePath) {
             fieldImages[live.id] = await fs.readFile(absoluteStoragePath(tpl.signedImagePath));
           }
           if (tpl.valueText?.trim()) {
             fieldTexts[live.id] = tpl.valueText.trim();
+          }
+
+          if (tpl.required && !fieldImages[live.id] && !fieldTexts[live.id]) {
+            throw httpError(
+              `Admin ink missing for “${tpl.label}” — save Admin ink in Firm Library, then issue again`,
+              400,
+              "VALIDATION_ERROR"
+            );
           }
         }
 
@@ -410,6 +477,20 @@ export async function issuePackFromLibrary(params: {
       const afterAdmin = await getSignatureRequestById(request.id);
       if (!afterAdmin) {
         throw httpError("Signature request missing after admin ink", 500, "SERVER_ERROR");
+      }
+
+      if (adminTpl.length > 0) {
+        const adminLive = afterAdmin.fields.filter(
+          (f) => f.assigneeUserId === params.issuedById
+        );
+        const incompleteAdmin = adminLive.filter((f) => f.required && !fieldIsComplete(f));
+        if (incompleteAdmin.length) {
+          throw httpError(
+            `Admin ink did not apply to ${incompleteAdmin.length} field(s) — check Firm Library layout and re-issue`,
+            500,
+            "SERVER_ERROR"
+          );
+        }
       }
 
       if (
@@ -436,6 +517,7 @@ export async function issuePackFromLibrary(params: {
         clientDocumentId: uploaded.document.id,
         title: lib.title,
         requiresSignature: lib.requiresSignature,
+        journeyRole: lib.journeyRole,
         status: packStatus,
         signatureRequestId,
         sortOrder: sortBase++,

@@ -1,11 +1,25 @@
 import path from "path";
 import {
   FirmLibraryFieldRole,
+  FirmLibraryJourneyRole,
   SignatureFieldType,
 } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { absoluteStoragePath, removeStoredFile, writeStoredFile } from "../lib/storage";
 import { validateUpload, type UploadedFileInput } from "./documents";
+
+function parseJourneyRole(raw: unknown): FirmLibraryJourneyRole {
+  const v = String(raw || "").toLowerCase().trim();
+  if (v === "terms") return FirmLibraryJourneyRole.terms;
+  if (v === "welcome") return FirmLibraryJourneyRole.welcome;
+  if (v === "compliance") return FirmLibraryJourneyRole.compliance;
+  if (v === "other" || !v) return FirmLibraryJourneyRole.other;
+  throw httpError(
+    "journeyRole must be terms, welcome, compliance, or other",
+    400,
+    "VALIDATION_ERROR"
+  );
+}
 
 function httpError(message: string, status: number, code: string) {
   return Object.assign(new Error(message), { status, code });
@@ -105,6 +119,7 @@ export async function getFirmLibraryDocument(id: string) {
 export async function uploadFirmLibraryDocument(params: {
   title?: string;
   requiresSignature?: boolean;
+  journeyRole?: string;
   file: UploadedFileInput;
 }) {
   const validation = await validateUpload(params.file);
@@ -130,6 +145,7 @@ export async function uploadFirmLibraryDocument(params: {
       sizeBytes: params.file.size,
       storagePath,
       requiresSignature: params.requiresSignature !== false,
+      journeyRole: parseJourneyRole(params.journeyRole),
       sortOrder: count,
     },
   });
@@ -140,6 +156,7 @@ export async function updateFirmLibraryDocument(params: {
   id: string;
   title?: string;
   requiresSignature?: boolean;
+  journeyRole?: string;
   sortOrder?: number;
 }) {
   const existing = await prisma.firmLibraryDocument.findUnique({ where: { id: params.id } });
@@ -151,6 +168,9 @@ export async function updateFirmLibraryDocument(params: {
       ...(params.title !== undefined ? { title: params.title.trim() || existing.title } : {}),
       ...(params.requiresSignature !== undefined
         ? { requiresSignature: params.requiresSignature }
+        : {}),
+      ...(params.journeyRole !== undefined
+        ? { journeyRole: parseJourneyRole(params.journeyRole) }
         : {}),
       ...(params.sortOrder !== undefined ? { sortOrder: params.sortOrder } : {}),
     },

@@ -5,10 +5,15 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { DocsDropzone } from "../../../components/DocsDropzone";
 import { FirmLibraryPrepareSheet } from "../../../components/FirmLibraryPrepareSheet";
+import { PortalSelect } from "../../../components/PortalSelect";
 import { apiFetch, apiUpload, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { useConfirm } from "../../../context/ConfirmContext";
 import { adminNav } from "../../../lib/nav";
+import {
+  JOURNEY_ROLE_LABELS,
+  type JourneyRole,
+} from "../../../lib/onboarding";
 import { isPdfDocument } from "../../../lib/signatures";
 
 type LibraryDoc = {
@@ -18,11 +23,19 @@ type LibraryDoc = {
   mimeType: string;
   sizeBytes: number;
   requiresSignature: boolean;
+  journeyRole?: JourneyRole | string;
   sortOrder: number;
   createdAt: string;
   fieldCount?: number;
   adminInkReady?: boolean;
 };
+
+const JOURNEY_ROLE_OPTIONS = (
+  Object.keys(JOURNEY_ROLE_LABELS) as JourneyRole[]
+).map((value) => ({
+  value,
+  label: JOURNEY_ROLE_LABELS[value],
+}));
 
 export default function AdminFirmLibraryPage() {
   const router = useRouter();
@@ -33,6 +46,7 @@ export default function AdminFirmLibraryPage() {
   const [notice, setNotice] = useState("");
   const [title, setTitle] = useState("");
   const [requiresSignature, setRequiresSignature] = useState(true);
+  const [journeyRole, setJourneyRole] = useState<JourneyRole>("other");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [prepareId, setPrepareId] = useState<string | null>(null);
@@ -70,6 +84,7 @@ export default function AdminFirmLibraryPage() {
       fd.append("file", file);
       if (title.trim()) fd.append("title", title.trim());
       fd.append("requiresSignature", requiresSignature ? "true" : "false");
+      fd.append("journeyRole", journeyRole);
       const result = await apiUpload<{ document: LibraryDoc }>(
         "/admin/firm-library",
         fd,
@@ -83,6 +98,7 @@ export default function AdminFirmLibraryPage() {
       setTitle("");
       setFile(null);
       setRequiresSignature(true);
+      setJourneyRole("other");
       await load(getToken());
       if (
         result.data.document.requiresSignature &&
@@ -103,6 +119,20 @@ export default function AdminFirmLibraryPage() {
       method: "PATCH",
       token: getToken(),
       body: JSON.stringify({ requiresSignature: !doc.requiresSignature }),
+    });
+    if (!result.success) {
+      setError(result.error.message);
+      return;
+    }
+    await load(getToken());
+  }
+
+  async function setDocJourneyRole(doc: LibraryDoc, next: JourneyRole) {
+    setError("");
+    const result = await apiFetch<{ document: LibraryDoc }>(`/admin/firm-library/${doc.id}`, {
+      method: "PATCH",
+      token: getToken(),
+      body: JSON.stringify({ journeyRole: next }),
     });
     if (!result.success) {
       setError(result.error.message);
@@ -143,9 +173,10 @@ export default function AdminFirmLibraryPage() {
         <h2>Add template</h2>
         <p className="lead">
           Upload once. Place boxes with Client or Admin roles. Sign Admin boxes here forever —
-          every new client pack reuses layout + Admin ink automatically.
+          every new client pack reuses layout + Admin ink automatically. Set the onboarding stage
+          so Welcome pack / Compliance progress updates when you issue the pack.
         </p>
-        <form onSubmit={onUpload}>
+        <form onSubmit={onUpload} className="form-compact">
           <div className="field">
             <label htmlFor="libTitle">Title (optional)</label>
             <input
@@ -153,6 +184,16 @@ export default function AdminFirmLibraryPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Terms of Business"
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="libJourneyRole">Onboarding stage</label>
+            <PortalSelect
+              id="libJourneyRole"
+              value={journeyRole}
+              onChange={(v) => setJourneyRole((v as JourneyRole) || "other")}
+              options={JOURNEY_ROLE_OPTIONS}
+              aria-label="Onboarding stage"
             />
           </div>
           <div className="field">
@@ -211,12 +252,14 @@ export default function AdminFirmLibraryPage() {
                 (doc.fieldCount !== undefined &&
                   doc.fieldCount > 0 &&
                   doc.adminInkReady !== false);
+              const roleKey = (String(doc.journeyRole || "other").toLowerCase() ||
+                "other") as JourneyRole;
               return (
                 <li key={doc.id}>
                   <div>
                     <div className="org-name">{doc.title}</div>
                     <div className="org-meta">
-                      {doc.fileName} ·{" "}
+                      {JOURNEY_ROLE_LABELS[roleKey] || "Other"} · {doc.fileName} ·{" "}
                       {doc.requiresSignature
                         ? ready
                           ? `${doc.fieldCount} box(es) · Admin ink ready`
@@ -224,6 +267,21 @@ export default function AdminFirmLibraryPage() {
                             ? "Boxes placed — sign Admin ink"
                             : "Signature required — prepare boxes"
                         : "No signature"}
+                    </div>
+                    <div className="field" style={{ marginTop: 8, maxWidth: 280 }}>
+                      <label className="sr-only" htmlFor={`role-${doc.id}`}>
+                        Onboarding stage for {doc.title}
+                      </label>
+                      <PortalSelect
+                        id={`role-${doc.id}`}
+                        value={roleKey}
+                        onChange={(v) =>
+                          void setDocJourneyRole(doc, (v as JourneyRole) || "other")
+                        }
+                        options={JOURNEY_ROLE_OPTIONS}
+                        size="sm"
+                        aria-label={`Onboarding stage for ${doc.title}`}
+                      />
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>

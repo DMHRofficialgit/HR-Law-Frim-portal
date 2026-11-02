@@ -30,6 +30,10 @@ type EsignPdfViewerProps = {
   /** Admin place: which page “+ Add” should target */
   onPlacePageChange?: (page: number) => void;
   onPageCount?: (count: number) => void;
+  /** Fired after pages render successfully for the current pdfUrl */
+  onPdfReady?: (info: { url: string; pageCount: number }) => void;
+  /** Fired when the current pdfUrl fails to load */
+  onPdfError?: (info: { url: string; message: string }) => void;
   zoom?: number;
 };
 
@@ -50,6 +54,8 @@ export function EsignPdfViewer({
   onFieldActivate,
   onPlacePageChange,
   onPageCount,
+  onPdfReady,
+  onPdfError,
   zoom = 1,
 }: EsignPdfViewerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -58,6 +64,10 @@ export function EsignPdfViewer({
   );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const onPdfReadyRef = useRef(onPdfReady);
+  const onPdfErrorRef = useRef(onPdfError);
+  onPdfReadyRef.current = onPdfReady;
+  onPdfErrorRef.current = onPdfError;
   const dragRef = useRef<{
     id: string;
     pointerId: number;
@@ -108,9 +118,14 @@ export function EsignPdfViewer({
         if (!cancelled) {
           setPages(rendered);
           onPageCount?.(rendered.length);
+          onPdfReadyRef.current?.({ url: pdfUrl, pageCount: rendered.length });
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "PDF preview failed");
+        const message = e instanceof Error ? e.message : "PDF preview failed";
+        if (!cancelled) {
+          setError(message);
+          onPdfErrorRef.current?.({ url: pdfUrl, message });
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

@@ -100,17 +100,20 @@
 - **Admin UX:** Onboarding list with metrics; detail with stage rows + progress; start onboarding from client profile / organisations; issue pack from Firm Library → **My Onboarding**.
 - **Client UX:** **My Onboarding** folder + journey page with progress + CTAs (Sign → Signatures; open pack files in My Onboarding).
 - Stages are **functional** (e-sign, My Onboarding files, payment links) — not a dead checklist mock.
+- **Onboarding chrome (locked 2026-11-03):** Admin list = Cases/Orgs density (`metrics-row` KPIs + `org-directory` / `org-table` / `PortalSearch` / status pills / `RowActionsMenu`). **Start** = thin `StartOnboardingDialog` (select client only — not mock 5-step wizard). Detail = profile-hub head + shared `OnboardingStageList` + existing welcome/pack/payment/Complete panels; `useConfirm` before Mark Complete; toasts + skeletons. Client journey reuses stage list + pills. No mock marketing checklist.
 
 ### Welcome pack / compliance tracking
 - Delivered into **My Onboarding** + stage status (Issued / Awaiting / Done style).
+- **Journey role (locked 2026-11-03):** Firm Library templates carry `journeyRole` = `terms` | `welcome` | `compliance` | `other`. Issue pack **snapshots** the role onto the pack item. Stage checklist uses role (not title regex). Terms falls back to any signable pack item when nothing is tagged `terms` (legacy). Tag templates in Firm Library; re-issue (or new issue) for Welcome/Compliance stages to flip.
+- Pack hub: **Preview** of source (or Signed library file after Reviewed); hint while `signed_returned` that Admin **Mark complete** publishes the Signed copy into My Onboarding; e-sign sheet links to Documents → My Onboarding after review.
 - Ongoing HR library after onboard remains the **six operational folders** below.
 - Full free-form checklist editor can still expand later; the **six-stage journey above is in scope now**.
 
 ### Onboarding ops (locked with build)
 - **Create org:** choose **Needs onboarding** (`in_progress`) or **Already onboarded** (`existing_skip`).
 - **Welcome email:** required before Complete; Admin edits subject/body then sends via SMTP.
-- **Firm Library:** N templates; default **requires signature**. **Place signature boxes once** (Client or Admin role). **Admin boxes: sign ink once on the template (forever)**; Client boxes stay empty until each company signs.
-- **Issue pack:** Admin multi-selects library docs → copy into **My Onboarding** → clone boxes → apply saved Admin ink (issuer as signer for audit) → assign Client boxes to **primary client login** → Mark Ready + Send (client only needs to sign).
+- **Firm Library:** N templates; default **requires signature**. Set **onboarding stage** (Terms / Welcome / Compliance / Other). **Place signature boxes once** (Client or Admin role). **Admin boxes: sign ink once on the template (forever)**; Client boxes stay empty until each company signs.
+- **Issue pack:** Admin multi-selects library docs → copy into **My Onboarding** → clone boxes + snapshot journey role → apply saved Admin ink (issuer as signer for audit) → assign Client boxes to **primary client login** → Mark Ready + Send (client only needs to sign).
 - **Ad-hoc e-sign:** Documents → Request signature still available for one-off / non-pack docs (manual place + assignee).
 - **Sign UX:** Draw | Saved | Type (no “I agree”); Part 4.1/4.2 sheet.
 - **Payments:** paste Direct Debit + initial payment URLs; both required to Complete.
@@ -424,4 +427,7 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-03 | **Documents audit fixes:** bulk delete `ok` shadow; same-name upload toast + no signed versioning; Admin `?folder=`; preferred folder URL sync; cleanup. |
 | 2026-11-03 | **Organisations audit fixes:** Add dialog reset harden; `?edit=1` clear; deactivate confirm; open cases `?open=1`; toast/loading polish. |
 | 2026-11-03 | **Cases register Edit:** Admin + Client ⋮ Edit → hub `?edit=1` (overview dialog). |
+| 2026-11-03 | **Onboarding chrome:** list KPIs/table/Start dialog; detail hub + Complete confirm; client stage polish; tighter `journeyStages`. |
+| 2026-11-03 | **Onboarding pack UX + journey roles:** Pack Preview + signed-review hint; Mark complete → My Onboarding link; Firm Library `journeyRole` (terms/welcome/compliance/other) snapshotted on issue; checklist uses role. |
+| 2026-11-03 | **E-sign ink reliability:** Admin pack Preview uses org-scoped document download; stamp fails loud on bad pages / missing values; sheet keeps overlays until stamped PDF loads (fallback to source); pack Admin ink matched by geometry/role not sort index. |
 

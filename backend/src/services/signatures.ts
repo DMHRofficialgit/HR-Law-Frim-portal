@@ -126,7 +126,7 @@ function defaultLabelForType(type: SignatureFieldType): string {
   }
 }
 
-function fieldIsComplete(f: {
+export function fieldIsComplete(f: {
   required: boolean;
   type: SignatureFieldType;
   signedImagePath: string | null;
@@ -594,7 +594,17 @@ async function completeRequestStamp(params: {
   const { request, typedName, signedById, ip, now } = params;
   const fields = request.fields;
 
-  const stampedFields = fields
+  const completed = fields.filter((f) => fieldIsComplete(f));
+  const incompleteRequired = fields.filter((f) => f.required && !fieldIsComplete(f));
+  if (incompleteRequired.length) {
+    throw httpError(
+      `Cannot stamp — ${incompleteRequired.length} required field(s) still incomplete`,
+      409,
+      "INVALID_STATUS"
+    );
+  }
+
+  const stampedFields = completed
     .filter((f) => f.signedImagePath || (f.valueText && f.valueText.trim()))
     .map((f) => ({
       page: f.page,
@@ -604,6 +614,7 @@ async function completeRequestStamp(params: {
       height: f.height,
       imageRelativePath: f.signedImagePath,
       text: f.signedImagePath ? null : f.valueText,
+      label: f.label,
     }));
 
   if (stampedFields.length === 0) {
@@ -614,13 +625,24 @@ async function completeRequestStamp(params: {
     );
   }
 
+  if (stampedFields.length < completed.length) {
+    throw httpError(
+      `Could not stamp signatures — ${completed.length - stampedFields.length} completed field(s) have no image or text`,
+      500,
+      "STAMP_FAILED"
+    );
+  }
+
   let signedBytes: Buffer;
   try {
     signedBytes = await stampSignaturesOnPdf(request.sourceStoragePath, stampedFields);
   } catch (err) {
     console.error("[esign:stamp-failed]", err);
+    const detail = err instanceof Error ? err.message : "";
     throw httpError(
-      "Could not stamp signatures onto the PDF. Please try again.",
+      detail
+        ? `Could not stamp signatures onto the PDF. ${detail}`
+        : "Could not stamp signatures onto the PDF. Please try again.",
       500,
       "STAMP_FAILED"
     );
