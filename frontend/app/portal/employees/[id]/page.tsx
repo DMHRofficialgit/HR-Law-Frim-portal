@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -37,7 +37,7 @@ import {
 } from "../../../../lib/employees";
 import { clientNav } from "../../../../lib/nav";
 
-export default function PortalEmployeeDetailPage() {
+function PortalEmployeeDetailInner() {
   const params = useParams();
   const id = String(params.id || "");
   const router = useRouter();
@@ -351,5 +351,13 @@ export default function PortalEmployeeDetailPage() {
         </>
       ) : null}
     </AppShell>
+  );
+}
+
+export default function PortalEmployeeDetailPage() {
+  return (
+    <Suspense fallback={<main className="auth-shell">Loading…</main>}>
+      <PortalEmployeeDetailInner />
+    </Suspense>
   );
 }
