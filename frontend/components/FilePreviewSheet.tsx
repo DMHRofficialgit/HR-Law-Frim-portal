@@ -144,6 +144,7 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
   }, [target]);
 
   if (!target) return null;
+  const preview = target;
 
   async function handleDownload() {
     if (onDownload) {
@@ -151,7 +152,7 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
       return;
     }
 
-    const name = target.fileName || target.title || "download";
+    const name = preview.fileName || preview.title || "download";
     const href = downloadUrl || objectUrl;
     if (href) {
       triggerUrlDownload(href, name);
@@ -161,7 +162,7 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
     // Fallback: re-fetch if blob URL missing (e.g. preview still loading / failed mid-way)
     setDownloading(true);
     try {
-      await fetchAuthenticatedDownload(target.url, name, getToken());
+      await fetchAuthenticatedDownload(preview.url, name, getToken());
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Download failed";
       toast.error(msg);
@@ -170,7 +171,7 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
     }
   }
 
-  const canDownload = Boolean(onDownload || downloadUrl || objectUrl || target.url);
+  const canDownload = Boolean(onDownload || downloadUrl || objectUrl || preview.url);
 
   return (
     <div
