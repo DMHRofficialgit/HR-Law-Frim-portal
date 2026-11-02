@@ -23,7 +23,9 @@ import {
   Sun,
   X,
 } from "lucide-react";
+import { IconButton } from "./IconButton";
 import { PortalSearch } from "./PortalSearch";
+import { TooltipAnchor } from "./TooltipAnchor";
 import { apiFetch, type PublicUser } from "../lib/api";
 import { clearSession, getToken } from "../lib/auth";
 import {
@@ -317,25 +319,40 @@ export function AppShell({ user, nav, title, actions, children }: AppShellProps)
       <div
         className={`shell-account${compact ? " compact" : ""}${variant === "top" ? " top" : ""}`}
       >
-        <button
-          type="button"
-          className="shell-icon-btn shell-avatar-btn"
-          aria-haspopup="menu"
-          aria-expanded={open}
-          aria-controls={open ? menuId : undefined}
-          title={user.name}
-          onClick={() => setMenuOpen((o) => (o === variant ? null : variant))}
-        >
-          <span className="shell-avatar" aria-hidden>
-            {initials(user.name)}
-          </span>
-          {!compact ? (
+        {compact ? (
+          <TooltipAnchor label="Account" side="bottom">
+            <button
+              type="button"
+              className="shell-icon-btn shell-avatar-btn"
+              aria-haspopup="menu"
+              aria-expanded={open}
+              aria-controls={open ? menuId : undefined}
+              aria-label={`Account · ${user.name}`}
+              onClick={() => setMenuOpen((o) => (o === variant ? null : variant))}
+            >
+              <span className="shell-avatar" aria-hidden>
+                {initials(user.name)}
+              </span>
+            </button>
+          </TooltipAnchor>
+        ) : (
+          <button
+            type="button"
+            className="shell-icon-btn shell-avatar-btn"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            aria-controls={open ? menuId : undefined}
+            onClick={() => setMenuOpen((o) => (o === variant ? null : variant))}
+          >
+            <span className="shell-avatar" aria-hidden>
+              {initials(user.name)}
+            </span>
             <span className="shell-account-meta">
               <span className="shell-user-name">{user.name}</span>
               <span className="shell-user-email">{user.email}</span>
             </span>
-          ) : null}
-        </button>
+          </button>
+        )}
         {open ? (
           <div id={menuId} className="shell-account-menu" role="menu">
             <div className="shell-account-menu-head">
@@ -416,14 +433,9 @@ export function AppShell({ user, nav, title, actions, children }: AppShellProps)
                   <div className="shell-brand-sub">{roleLabel}</div>
                 </div>
               </div>
-              <button
-                type="button"
-                className="shell-icon-btn"
-                aria-label="Close menu"
-                onClick={() => setDrawerOpen(false)}
-              >
+              <IconButton label="Close menu" onClick={() => setDrawerOpen(false)}>
                 <X size={20} strokeWidth={1.75} />
-              </button>
+              </IconButton>
             </div>
             {renderNav(() => setDrawerOpen(false), false)}
             <div className="shell-sidebar-foot">{renderUserMenu("drawer")}</div>
@@ -434,19 +446,18 @@ export function AppShell({ user, nav, title, actions, children }: AppShellProps)
       <div className="shell-main">
         <header className="shell-top">
           <div className="shell-top-left">
-            <button
-              type="button"
-              className="shell-icon-btn shell-menu-toggle"
-              aria-label="Open menu"
+            <IconButton
+              label="Open menu"
+              className="shell-menu-toggle"
               onClick={() => setDrawerOpen(true)}
             >
               <Menu size={20} strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              className="shell-icon-btn shell-desktop-pin"
+            </IconButton>
+            <IconButton
+              label={pinned ? "Collapse sidebar" : "Expand sidebar"}
               aria-label={pinned ? "Collapse sidebar" : "Expand and pin sidebar"}
-              title={pinned ? "Collapse sidebar" : "Expand sidebar"}
+              className="shell-desktop-pin"
+              side="bottom"
               onClick={onPinToggle}
             >
               {pinned ? (
@@ -454,7 +465,7 @@ export function AppShell({ user, nav, title, actions, children }: AppShellProps)
               ) : (
                 <PanelLeft size={18} strokeWidth={1.75} />
               )}
-            </button>
+            </IconButton>
             <nav className="shell-breadcrumbs" aria-label="Breadcrumb">
               {crumbs.map((c, i) => {
                 const last = i === crumbs.length - 1;
@@ -482,11 +493,12 @@ export function AppShell({ user, nav, title, actions, children }: AppShellProps)
               role={user.role === "admin" ? "admin" : "client"}
             />
             {actions ? <div className="shell-top-actions">{actions}</div> : null}
-            <button
-              type="button"
-              className="shell-icon-btn"
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              title={theme === "dark" ? "Light mode" : "Dark mode"}
+            <IconButton
+              label={theme === "dark" ? "Light mode" : "Dark mode"}
+              aria-label={
+                theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+              }
+              side="bottom"
               onClick={onThemeToggle}
             >
               {theme === "dark" ? (
@@ -494,16 +506,16 @@ export function AppShell({ user, nav, title, actions, children }: AppShellProps)
               ) : (
                 <Moon size={18} strokeWidth={1.75} />
               )}
-            </button>
-            <Link
+            </IconButton>
+            <IconButton
               href={notificationsHref}
-              className="shell-icon-btn"
+              label="Notifications"
               aria-label={
                 unreadCount > 0
                   ? `Notifications, ${unreadCount} unread`
                   : "Notifications"
               }
-              title="Notifications"
+              side="bottom"
             >
               <Bell size={18} strokeWidth={1.75} />
               {unreadCount > 0 ? (
@@ -511,7 +523,7 @@ export function AppShell({ user, nav, title, actions, children }: AppShellProps)
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               ) : null}
-            </Link>
+            </IconButton>
             <div className="shell-top-account">{renderUserMenu("top")}</div>
           </div>
         </header>

@@ -112,7 +112,7 @@ function AdminDocumentsInner() {
           </select>
         </div>
         <p className="docs-page-hint">
-          Browse folders · Request signature on PDFs from the row menu
+          Browse folders · Drop or select files · Request signature on PDFs from the row icons
         </p>
       </div>
 

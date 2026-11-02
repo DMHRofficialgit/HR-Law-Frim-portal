@@ -9,6 +9,7 @@ import {
   getDocumentForOrg,
   listDocuments,
   listFolders,
+  renameDocument,
   uploadDocument,
 } from "../services/documents";
 import { prisma } from "../lib/prisma";
@@ -209,6 +210,44 @@ export async function handleDelete(
     success: true,
     data: { id: deleted.id },
     message: "Document deleted",
+  });
+}
+
+const renameSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+});
+
+export async function handleRename(
+  organisationId: string,
+  documentId: string,
+  req: Request,
+  res: Response
+) {
+  const parsed = renameSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "Valid title is required" },
+    });
+  }
+
+  const result = await renameDocument({
+    organisationId,
+    documentId,
+    title: parsed.data.title,
+  });
+
+  if ("error" in result && result.error) {
+    return res.status(result.error.status).json({
+      success: false,
+      error: { code: result.error.code, message: result.error.message },
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: { document: result.document },
+    message: "Document renamed",
   });
 }
 

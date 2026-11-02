@@ -10,6 +10,7 @@ import {
   handleListDocuments,
   handleListFolders,
   handlePatchUploadSettings,
+  handleRename,
   handleUpload,
   handleVersions,
 } from "./documentsShared";
@@ -108,6 +109,17 @@ router.get("/organisations/:organisationId/documents/:documentId/download", asyn
     });
   }
   return handleDownload(organisationId, documentId, req, res);
+});
+
+router.patch("/organisations/:organisationId/documents/:documentId", async (req, res) => {
+  const { organisationId, documentId } = req.params;
+  if (!orgIdSchema.safeParse(organisationId).success) {
+    return res.status(400).json({
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "Invalid organisation id" },
+    });
+  }
+  return handleRename(organisationId, documentId, req, res);
 });
 
 router.delete("/organisations/:organisationId/documents/:documentId", async (req, res) => {

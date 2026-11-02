@@ -10,6 +10,7 @@ import {
   handleDownload,
   handleGetUploadSettings,
   handleListDocuments,
+  handleRename,
   handleUpload,
   handleVersions,
 } from "./documentsShared";
@@ -66,6 +67,10 @@ router.get("/documents/:documentId/versions", async (req, res) => {
 
 router.get("/documents/:documentId/download", async (req, res) => {
   return handleDownload(clientOrgId(req), req.params.documentId, req, res);
+});
+
+router.patch("/documents/:documentId", async (req, res) => {
+  return handleRename(clientOrgId(req), req.params.documentId, req, res);
 });
 
 router.delete("/documents/:documentId", async (req, res) => {

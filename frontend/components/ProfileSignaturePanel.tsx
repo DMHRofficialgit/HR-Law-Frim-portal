@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { API_URL, apiFetch, apiUpload } from "../lib/api";
 import { getToken } from "../lib/auth";
 import { SignaturePad } from "./SignaturePad";
+import { TooltipAnchor } from "./TooltipAnchor";
 
 type SignatureMeta = {
   id: string;
@@ -164,14 +165,16 @@ export function ProfileSignaturePanel() {
         <ul className="signature-tile-grid">
           {signatures.map((s) => (
             <li key={s.id} className={`signature-tile${s.isDefault ? " is-default" : ""}`}>
-              <button
-                type="button"
-                className="signature-tile-x"
-                aria-label="Remove signature"
-                onClick={() => setConfirmId(s.id)}
-              >
-                ×
-              </button>
+              <TooltipAnchor label="Remove">
+                <button
+                  type="button"
+                  className="signature-tile-x"
+                  aria-label="Remove signature"
+                  onClick={() => setConfirmId(s.id)}
+                >
+                  ×
+                </button>
+              </TooltipAnchor>
               {previews[s.id] ? (
                 <img src={previews[s.id]} alt="Saved signature" className="signature-preview" />
               ) : (

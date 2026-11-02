@@ -13,6 +13,7 @@ import {
   type AddOrganisationPayload,
 } from "../lib/organisations";
 import { ChoiceToggle } from "./ChoiceToggle";
+import { IconButton } from "./IconButton";
 
 type CreateResult = {
   organisation: { id: string; name: string };
@@ -164,14 +165,9 @@ export function AddOrganisationDialog({
               or send pack documents yet.
             </p>
           </div>
-          <button
-            type="button"
-            className="shell-icon-btn"
-            aria-label="Close"
-            onClick={onClose}
-          >
+          <IconButton label="Close" onClick={onClose}>
             <X size={16} strokeWidth={1.75} />
-          </button>
+          </IconButton>
         </header>
 
         <form className="org-dialog-form form-compact" onSubmit={onSubmit}>

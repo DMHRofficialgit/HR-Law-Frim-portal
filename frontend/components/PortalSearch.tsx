@@ -15,6 +15,7 @@ import { Building2, Briefcase, FileText, Search, X } from "lucide-react";
 import { apiFetch } from "../lib/api";
 import { getToken } from "../lib/auth";
 import type { NavItem } from "../lib/nav";
+import { TooltipAnchor } from "./TooltipAnchor";
 
 export type PortalSearchHit = {
   id: string;
@@ -311,15 +312,16 @@ export function PortalSearch({
               />
               <div className="portal-search-field-actions">
                 <kbd className="portal-search-kbd muted">Esc</kbd>
-                <button
-                  type="button"
-                  className="portal-search-close"
-                  aria-label="Close search"
-                  title="Close"
-                  onClick={() => setOpen(false)}
-                >
-                  <X size={16} strokeWidth={1.75} aria-hidden />
-                </button>
+                <TooltipAnchor label="Close">
+                  <button
+                    type="button"
+                    className="portal-search-close"
+                    aria-label="Close search"
+                    onClick={() => setOpen(false)}
+                  >
+                    <X size={16} strokeWidth={1.75} aria-hidden />
+                  </button>
+                </TooltipAnchor>
               </div>
             </div>
             <div id={listId} className="portal-search-results" role="listbox">

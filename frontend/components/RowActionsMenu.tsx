@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { MoreHorizontal } from "lucide-react";
+import { TooltipAnchor } from "./TooltipAnchor";
 
 export type RowActionItem = {
   id: string;
@@ -106,18 +107,20 @@ export const RowActionsMenu = ({ label, items }: RowActionsMenuProps): ReactElem
 
   return (
     <div className="row-menu" ref={rootRef}>
-      <button
-        ref={triggerRef}
-        type="button"
-        className="row-menu-trigger"
-        aria-label={label}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={menuId}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <MoreHorizontal size={16} strokeWidth={1.75} />
-      </button>
+      <TooltipAnchor label="Actions">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="row-menu-trigger"
+          aria-label={label}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={menuId}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <MoreHorizontal size={16} strokeWidth={1.75} />
+        </button>
+      </TooltipAnchor>
       {open && typeof document !== "undefined"
         ? createPortal(
             <div

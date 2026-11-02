@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, X } from "lucide-react";
 import { getToken } from "../lib/auth";
+import { IconButton } from "./IconButton";
 
 export type FilePreviewTarget = {
   title: string;
@@ -178,14 +179,9 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
                 Download
               </button>
             ) : null}
-            <button
-              type="button"
-              className="shell-icon-btn"
-              aria-label="Close preview"
-              onClick={onClose}
-            >
+            <IconButton label="Close" aria-label="Close preview" onClick={onClose}>
               <X size={18} strokeWidth={1.75} />
-            </button>
+            </IconButton>
           </div>
         </header>
 

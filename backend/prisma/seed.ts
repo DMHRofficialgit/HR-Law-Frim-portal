@@ -12,7 +12,10 @@ async function main() {
 
   await prisma.uploadSettings.upsert({
     where: { id: "default" },
-    update: {},
+    update: {
+      allowedExtensions: DEFAULT_UPLOAD_SETTINGS.allowedExtensions,
+      allowedMimeTypes: DEFAULT_UPLOAD_SETTINGS.allowedMimeTypes,
+    },
     create: {
       id: "default",
       ...DEFAULT_UPLOAD_SETTINGS,

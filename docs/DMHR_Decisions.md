@@ -117,8 +117,9 @@
 - **Complete gate:** welcome sent + pack issued + required signatures reviewed + both payment links.
 
 ### File upload rules
-- Keep types and max size **dynamic/configurable**.
-- Must support Word and PDF at minimum (and allow configuring size).
+- **PDF only** for portal uploads (locked 2026-11-02) — matches e-sign (PDF-only) so clients are not misled by Word files they cannot sign.
+- Max size remains configurable in Admin Settings.
+- Existing Word files already stored may still download/preview; new uploads must be PDF.
 
 ### Document folders (final names)
 **Operational (ongoing client library — 6):**
@@ -209,6 +210,7 @@
 - **Structure / journeys:** match HTML prototype IA (see **UX structure & user journeys**).
 - **Look:** **clean Apple-like UI** — do **not** copy navy/gold mockup colours or dense chrome.
 - Prefer **21st.dev MCP** components where useful.
+- **Icon tooltips (locked 2026-11-02):** Icon-only controls show a designed hover/focus tooltip with the action name via shared `IconButton` / `.ui-tooltip`. Keep `aria-label` for accessibility. Do not rely on native `title` as the primary label.
 - Site reference (footer/contact optional): phone `07493 392481`, email `dave@dmhrgroup.com`, Falcon Point, Park Plaza, Heath Hayes, Cannock, WS12 2DE.
 
 ### Client / Admin IA to mirror (from HTML — functional)
@@ -218,7 +220,8 @@
 - **Sidebar groups:** Admin `home` (Overview) → `Clients` (Organisations) → `Workspace` (Documents, Firm Library, Employees, Cases, Onboarding, Signatures) → `System` (Users, Notifications, Settings, Payments). Client: Overview → Workspace → System. Collapsed rail shows thin dividers between groups.
 - **Organisations journey:** Directory (search/filters/table + **Open profile**) → **Client profile hub** `/admin/organisations/[id]`. Mock = journey ideas; we own data flow + components (Apple shell). No fake “view as client”.
 - **Client profile hub (locked 2026-11-02):** Compact density — icon **Back** + org name as page title + status pill + **Start/Open onboarding** CTA + **⋮** (Edit / Resend invite|password reset / Open documents / Deactivate|Activate). Identity row: avatar + icon meta (contact, email, phone, login) + pencil edit. Four metric tiles (docs / employees / open cases / onboarding + pack bar) deep-link. Scrollable **Documents** + **Recent cases** panels (`ProfileActivityPanel` + Eye preview). Compact **Company users** list. Shared tokens `.profile-hub-*`.
-- **Documents hub (locked 2026-11-02):** Keep **folder IA** (org select → fixed folders → files). Compact company toolbar (Admin). Dense file rows: type chip + title/meta + **Eye** preview; **⋮** for Download / Request signature (Admin PDF) / Delete. In-folder search + type filter (All/PDF/Word). Shared `DocumentsPanel` Admin+Client. No flat cross-org mock library. **No Versions UI** — history stays in DB quietly; do not surface a versions panel/menu.
+- **Documents hub (locked 2026-11-02; upload/actions polish 2026-11-02):** Keep **folder IA** (org select → fixed folders → files). Compact company toolbar (Admin). Files card: sleek **dropzone + Select files** (drag and click; multi-file into active folder; **PDF only**). Dense rows: checkbox + type chip + title/meta + **icon actions** (not ⋮) — Preview · Download · Rename (unsigned) · Request signature (Admin PDF unsigned) · Delete. Signed rows omit Rename / Request signature. In-folder search + type filter (All/PDF) + sort (Name/Date/Size). Multi-select → Download selected / Remove selected (confirm). Shared `DocumentsPanel` Admin+Client. No flat cross-org mock library. **No Versions UI** — history stays in DB quietly.
+- **Document rename (locked 2026-11-02):** PATCH title for normal files only. **Signed copies cannot be renamed** (API `SIGNED_COPY_LOCKED` + no ⋮ Rename). Title unique per folder.
 - **Signed library copies (locked 2026-11-02):** DB flags on `documents`: `isSignedCopy` + optional `signatureRequestId`, set when e-sign **Reviewed** publishes the stamped PDF. List APIs expose `isSignedCopy`. UI shows compact **Signed** badge and **hides Request signature** on those rows. Title patterns (` — Signed — ` / sanitized variants) are fallback for older rows only.
 - **Org directory table (locked 2026-11-01):** Dense containerized table (avatar + company/ref, contact, type, **regulatory**, onboarding **progress bar + short text**, open cases, status pill). Filters: search + status + type + **regulatory context**. Row **⋮** menu (portal + flip up when near bottom): Open / Edit / Resend invite|password reset / Deactivate|Activate. No hard delete — soft inactive only.
 - **Org chrome rule:** Sidebar + top bar = general only. Section CTAs (Add organisation, Open documents, Start/Open onboarding) sit **inside the page** beside that section’s heading — never in shell `actions` for org-specific work.
@@ -370,3 +373,7 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-02 | **Signed doc rows:** Signed badge on published `— Signed —` copies; hide Request signature on those files. |
 | 2026-11-02 | **Document.isSignedCopy:** DB flag + `signatureRequestId` on publish; API + UI prefer flag; title heuristic fallback + backfill. |
 | 2026-11-02 | **Documents Versions UI removed:** no ⋮ Versions / history panel; backend version rows remain for storage only. |
+| 2026-11-02 | **Document rename:** PATCH title for unsigned docs; signed copies blocked in API + UI. |
+| 2026-11-02 | **Documents upload UX:** 21st-inspired dropzone + Select files; multi-upload; icon row actions; sort + multi-select download/delete. |
+| 2026-11-02 | **Portal icon tooltips:** shared `IconButton` + `.ui-tooltip`; Documents, shell, profile, sheets, ⋮ trigger. |
+| 2026-11-02 | **Uploads PDF only:** remove Word from default/allowed types so upload matches e-sign and avoids misleading UX. |

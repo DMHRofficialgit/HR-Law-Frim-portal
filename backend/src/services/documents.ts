@@ -204,6 +204,71 @@ export async function uploadDocument(params: {
   return { document: full, version };
 }
 
+export async function renameDocument(params: {
+  organisationId: string;
+  documentId: string;
+  title: string;
+}) {
+  const title = params.title.trim();
+  if (!title) {
+    return {
+      error: { status: 400, code: "VALIDATION_ERROR", message: "Title is required" },
+    };
+  }
+  if (title.length > 200) {
+    return {
+      error: {
+        status: 400,
+        code: "VALIDATION_ERROR",
+        message: "Title must be 200 characters or fewer",
+      },
+    };
+  }
+
+  const document = await prisma.document.findFirst({
+    where: { id: params.documentId, organisationId: params.organisationId },
+  });
+  if (!document) {
+    return { error: { status: 404, code: "NOT_FOUND", message: "Document not found" } };
+  }
+  if (document.isSignedCopy) {
+    return {
+      error: {
+        status: 409,
+        code: "SIGNED_COPY_LOCKED",
+        message: "Signed copies cannot be renamed",
+      },
+    };
+  }
+
+  const clash = await prisma.document.findFirst({
+    where: {
+      organisationId: params.organisationId,
+      folderId: document.folderId,
+      title,
+      NOT: { id: document.id },
+    },
+    select: { id: true },
+  });
+  if (clash) {
+    return {
+      error: {
+        status: 409,
+        code: "TITLE_TAKEN",
+        message: "Another file in this folder already uses that name",
+      },
+    };
+  }
+
+  await prisma.document.update({
+    where: { id: document.id },
+    data: { title },
+  });
+
+  const full = await getDocumentForOrg(params.organisationId, document.id);
+  return { document: full };
+}
+
 export async function deleteDocument(organisationId: string, documentId: string) {
   const document = await prisma.document.findFirst({
     where: { id: documentId, organisationId },

@@ -26,7 +26,7 @@ export default function AdminSettingsPage() {
   const router = useRouter();
   const toast = useToast();
   const [user, setUser] = useState<PublicUser | null>(null);
-  const [extensions, setExtensions] = useState("pdf, doc, docx");
+  const [extensions, setExtensions] = useState("pdf");
   const [mimes, setMimes] = useState("");
   const [maxMb, setMaxMb] = useState("25");
   const [categories, setCategories] = useState<Category[]>([]);
@@ -167,7 +167,10 @@ export default function AdminSettingsPage() {
 
       <section className="panel" style={{ marginBottom: 16 }}>
         <h2>File uploads</h2>
-        <p className="lead">Configure allowed types and max size. Word and PDF must remain available.</p>
+        <p className="lead">
+          Uploads are <strong>PDF only</strong> (same as e-sign). Adjust max size if needed; keep
+          extensions as <code>pdf</code> so clients are not offered unsigned Word files.
+        </p>
         <form onSubmit={onSave}>
           <div className="field">
             <label htmlFor="ext">Allowed extensions</label>

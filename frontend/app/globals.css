@@ -2221,6 +2221,37 @@ textarea {
   gap: 6px;
 }
 
+/* Designed tooltips for icon-only controls (portal-wide) */
+.ui-tooltip-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Portaled tip — escapes overflow:auto scroll panels */
+.ui-tooltip-portal {
+  position: fixed;
+  z-index: 4000;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 92%, var(--surface));
+  color: var(--surface);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+
+.ui-tooltip-portal.is-bottom {
+  transform: translate(-50%, 0);
+}
+
 .shell-icon-btn {
   position: relative;
   display: inline-flex;
@@ -2915,6 +2946,13 @@ textarea {
   padding: 12px;
 }
 
+.docs-hub .docs-folders .folder-list {
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
 .docs-folders-head {
   margin-bottom: 8px;
 }
@@ -2976,6 +3014,13 @@ textarea {
   margin-bottom: 10px;
 }
 
+.docs-files-body {
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  margin: 0 -4px;
+  padding: 0 4px 4px;
+}
+
 .docs-files-titles h2 {
   margin: 0;
   font-size: 15px;
@@ -2994,6 +3039,7 @@ textarea {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .docs-search {
@@ -3014,6 +3060,134 @@ textarea {
   background: var(--surface);
   color: var(--ink);
   font-size: 13px;
+}
+
+.docs-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1.5px dashed color-mix(in srgb, var(--ink) 18%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--surface));
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.docs-dropzone.is-dragover {
+  border-color: color-mix(in srgb, var(--blue) 55%, var(--line));
+  background: color-mix(in srgb, var(--blue) 8%, var(--surface));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 12%, transparent);
+}
+
+.docs-dropzone.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.docs-dropzone-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.docs-dropzone-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.docs-dropzone-copy {
+  min-width: 0;
+}
+
+.docs-dropzone-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.docs-dropzone-hint {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.docs-dropzone-select {
+  flex-shrink: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+}
+
+.docs-dropzone-select.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.docs-select-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 4px 2px;
+}
+
+.docs-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.docs-select-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.docs-select-actions .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.docs-btn-danger {
+  color: var(--danger);
+}
+
+.docs-row-check {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.shell-icon-btn-danger {
+  color: var(--danger);
+}
+
+.shell-icon-btn-danger:hover {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
 }
 
 .docs-file-list li {
@@ -3544,6 +3718,37 @@ textarea {
 
   .docs-layout {
     grid-template-columns: 1fr;
+  }
+
+  .docs-hub .docs-folders .folder-list {
+    max-height: 200px;
+  }
+
+  .docs-files-body {
+    max-height: min(48vh, 360px);
+  }
+
+  .docs-dropzone {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .docs-dropzone-select {
+    justify-content: center;
+  }
+
+  .docs-select-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .docs-select-actions {
+    width: 100%;
+  }
+
+  .docs-select-actions .btn {
+    flex: 1;
+    justify-content: center;
   }
 
   .form-grid {

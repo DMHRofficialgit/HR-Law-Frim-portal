@@ -19,6 +19,7 @@ import {
 import { AccessCredentialsBanner } from "../../../../components/AccessCredentialsBanner";
 import { AppShell } from "../../../../components/AppShell";
 import { FilePreviewSheet, type FilePreviewTarget } from "../../../../components/FilePreviewSheet";
+import { IconButton } from "../../../../components/IconButton";
 import { StatusLiquidToggle } from "../../../../components/StatusLiquidToggle";
 import {
   ProfileActivityPanel,
@@ -406,10 +407,8 @@ const AdminOrganisationProfilePage = () => {
       actions: (
         <div className="profile-activity-actions">
           {doc.latestVersion ? (
-            <button
-              type="button"
-              className="shell-icon-btn"
-              title="Preview"
+            <IconButton
+              label="Preview"
               aria-label={`Preview ${doc.title}`}
               onClick={() =>
                 setPreview({
@@ -421,16 +420,15 @@ const AdminOrganisationProfilePage = () => {
               }
             >
               <Eye size={15} strokeWidth={1.75} />
-            </button>
+            </IconButton>
           ) : null}
-          <Link
+          <IconButton
             href={`/admin/documents?org=${encodeURIComponent(org.id)}`}
-            className="shell-icon-btn"
-            title="Open in Documents"
+            label="Open in Documents"
             aria-label={`Open ${doc.title} in Documents`}
           >
             <FileText size={15} strokeWidth={1.75} />
-          </Link>
+          </IconButton>
         </div>
       ),
     })) || [];
@@ -443,14 +441,13 @@ const AdminOrganisationProfilePage = () => {
       badge: statusLabel(c.status),
       badgeTone: caseBadgeTone(c.status),
       actions: (
-        <Link
+        <IconButton
           href={`/admin/cases/${c.id}`}
-          className="shell-icon-btn"
-          title="Open case"
+          label="Open case"
           aria-label={`Open case ${c.ref}`}
         >
           <Briefcase size={15} strokeWidth={1.75} />
-        </Link>
+        </IconButton>
       ),
     })) || [];
 
@@ -471,14 +468,14 @@ const AdminOrganisationProfilePage = () => {
         <>
           <div className="profile-hub-head">
             <div className="profile-hub-head-main">
-              <Link
+              <IconButton
                 href="/admin/organisations"
-                className="shell-icon-btn"
+                label="Back"
                 aria-label="Back to client directory"
-                title="Back to client directory"
+                side="bottom"
               >
                 <ArrowLeft size={16} strokeWidth={1.75} />
-              </Link>
+              </IconButton>
               <div className="profile-hub-titles">
                 <h1>{org.name}</h1>
                 <div className="profile-hub-meta">
@@ -574,15 +571,13 @@ const AdminOrganisationProfilePage = () => {
                       </div>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="shell-icon-btn"
+                  <IconButton
+                    label="Edit"
                     aria-label="Edit organisation"
-                    title="Edit organisation"
                     onClick={() => setEditing(true)}
                   >
                     <Pencil size={15} strokeWidth={1.75} />
-                  </button>
+                  </IconButton>
                 </div>
               </>
             ) : (

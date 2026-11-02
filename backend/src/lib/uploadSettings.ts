@@ -1,12 +1,9 @@
 import { prisma } from "./prisma";
 
+/** PDF only — matches e-sign (no Word upload → no “can’t sign” confusion). */
 export const DEFAULT_UPLOAD_SETTINGS = {
-  allowedExtensions: ["pdf", "doc", "docx"],
-  allowedMimeTypes: [
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ],
+  allowedExtensions: ["pdf"],
+  allowedMimeTypes: ["application/pdf"],
   maxUploadBytes: 25 * 1024 * 1024,
 };
 
