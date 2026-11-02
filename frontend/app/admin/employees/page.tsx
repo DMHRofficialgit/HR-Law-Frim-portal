@@ -10,6 +10,7 @@ import { PortalSearch } from "../../../components/PortalSearch";
 import { PortalSelect } from "../../../components/PortalSelect";
 import { RowActionsMenu } from "../../../components/RowActionsMenu";
 import { TableSkeleton } from "../../../components/Skeleton";
+import { useConfirm } from "../../../context/ConfirmContext";
 import { useToast } from "../../../context/ToastContext";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
@@ -26,7 +27,8 @@ type OrgOption = { id: string; name: string };
 function AdminEmployeesInner() {
   const router = useRouter();
   const search = useSearchParams();
-  const toast = useToast();
+  const { error: toastError, success: toastSuccess } = useToast();
+  const { confirm } = useConfirm();
   const orgFromUrl = search.get("org") || "";
 
   const [user, setUser] = useState<PublicUser | null>(null);
@@ -55,10 +57,10 @@ function AdminEmployeesInner() {
       setError("");
     } else {
       setError(result.error.message);
-      toast.error(result.error.message);
+      toastError(result.error.message);
     }
     setLoading(false);
-  }, [orgFilter, statusFilter, toast]);
+  }, [orgFilter, statusFilter, toastError]);
 
   useEffect(() => {
     const token = getToken();
@@ -108,7 +110,13 @@ function AdminEmployeesInner() {
 
   async function setEmployeeStatus(emp: EmployeeRow, status: "active" | "inactive") {
     const label = status === "inactive" ? "Deactivate" : "Activate";
-    if (!window.confirm(`${label} ${emp.name}?`)) return;
+    const ok = await confirm({
+      title: `${label} employee?`,
+      description: `${label} ${emp.name}?`,
+      confirmLabel: label,
+      tone: status === "inactive" ? "danger" : "default",
+    });
+    if (!ok) return;
     setBusyId(emp.id);
     const result = await apiFetch<{ employee: EmployeeRow }>(`/admin/employees/${emp.id}`, {
       method: "PATCH",
@@ -117,10 +125,10 @@ function AdminEmployeesInner() {
     });
     setBusyId(null);
     if (!result.success) {
-      toast.error(result.error.message);
+      toastError(result.error.message);
       return;
     }
-    toast.success(status === "inactive" ? "Employee deactivated" : "Employee activated");
+    toastSuccess(status === "inactive" ? "Employee deactivated" : "Employee activated");
     await load();
   }
 

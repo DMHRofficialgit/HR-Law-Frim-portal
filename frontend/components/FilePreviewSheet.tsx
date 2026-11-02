@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { Download, X } from "lucide-react";
+import { useToast } from "../context/ToastContext";
 import { getToken } from "../lib/auth";
+import {
+  fetchAuthenticatedDownload,
+  triggerUrlDownload,
+} from "../lib/download-file";
 import { IconButton } from "./IconButton";
 
 export type FilePreviewTarget = {
@@ -16,7 +21,7 @@ export type FilePreviewTarget = {
 type FilePreviewSheetProps = {
   target: FilePreviewTarget | null;
   onClose: () => void;
-  /** Optional download handler (defaults to opening blob download) */
+  /** Optional download handler (defaults to blob / re-fetch download) */
   onDownload?: () => void;
 };
 
@@ -34,9 +39,12 @@ function isImage(mime?: string | null, name?: string | null) {
 }
 
 export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewSheetProps) {
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState("");
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [pdfPages, setPdfPages] = useState<string[]>([]);
   const [kind, setKind] = useState<"pdf" | "image" | "other">("other");
 
@@ -57,19 +65,21 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
   useEffect(() => {
     if (!target) {
       setObjectUrl(null);
+      setDownloadUrl(null);
       setPdfPages([]);
       setError("");
       return;
     }
 
     let cancelled = false;
-    let createdUrl: string | null = null;
+    let downloadCreatedUrl: string | null = null;
 
     async function load() {
       setLoading(true);
       setError("");
       setPdfPages([]);
       setObjectUrl(null);
+      setDownloadUrl(null);
 
       const mime = target!.mimeType;
       const name = target!.fileName || target!.title;
@@ -85,6 +95,15 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
         if (!res.ok) throw new Error("Unable to load file");
         const blob = await res.blob();
         if (cancelled) return;
+
+        // Clone so pdf.js arrayBuffer() cannot interfere with download blob.
+        const downloadBlob = blob.slice(
+          0,
+          blob.size,
+          blob.type || (pdf ? "application/pdf" : mime || undefined)
+        );
+        downloadCreatedUrl = URL.createObjectURL(downloadBlob);
+        if (!cancelled) setDownloadUrl(downloadCreatedUrl);
 
         if (pdf) {
           const pdfjs = await import("pdfjs-dist");
@@ -107,12 +126,8 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
             pages.push(canvas.toDataURL("image/png"));
           }
           if (!cancelled) setPdfPages(pages);
-        } else if (image) {
-          createdUrl = URL.createObjectURL(blob);
-          if (!cancelled) setObjectUrl(createdUrl);
         } else {
-          createdUrl = URL.createObjectURL(blob);
-          if (!cancelled) setObjectUrl(createdUrl);
+          if (!cancelled) setObjectUrl(downloadCreatedUrl);
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : "Preview failed");
@@ -124,23 +139,38 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
     load();
     return () => {
       cancelled = true;
-      if (createdUrl) URL.revokeObjectURL(createdUrl);
+      if (downloadCreatedUrl) URL.revokeObjectURL(downloadCreatedUrl);
     };
   }, [target]);
 
   if (!target) return null;
 
-  function handleDownload() {
+  async function handleDownload() {
     if (onDownload) {
       onDownload();
       return;
     }
-    if (!objectUrl) return;
-    const a = document.createElement("a");
-    a.href = objectUrl;
-    a.download = target!.fileName || target!.title || "download";
-    a.click();
+
+    const name = target.fileName || target.title || "download";
+    const href = downloadUrl || objectUrl;
+    if (href) {
+      triggerUrlDownload(href, name);
+      return;
+    }
+
+    // Fallback: re-fetch if blob URL missing (e.g. preview still loading / failed mid-way)
+    setDownloading(true);
+    try {
+      await fetchAuthenticatedDownload(target.url, name, getToken());
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Download failed";
+      toast.error(msg);
+    } finally {
+      setDownloading(false);
+    }
   }
+
+  const canDownload = Boolean(onDownload || downloadUrl || objectUrl || target.url);
 
   return (
     <div
@@ -169,14 +199,15 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
             {target.fileName ? <span>{target.fileName}</span> : null}
           </div>
           <div className="file-preview-head-actions">
-            {kind !== "other" || objectUrl ? (
+            {canDownload ? (
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
-                onClick={handleDownload}
+                onClick={() => void handleDownload()}
+                disabled={downloading || loading}
               >
                 <Download size={14} strokeWidth={1.75} aria-hidden />
-                Download
+                {downloading ? "Downloading…" : "Download"}
               </button>
             ) : null}
             <IconButton label="Close" aria-label="Close preview" onClick={onClose}>
@@ -210,9 +241,14 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
             <div className="file-preview-fallback">
               <p>In-portal preview isn’t available for this file type.</p>
               <p className="lead">Download to open it on your device.</p>
-              <button type="button" className="btn btn-primary btn-sm" onClick={handleDownload}>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => void handleDownload()}
+                disabled={downloading}
+              >
                 <Download size={14} strokeWidth={1.75} aria-hidden />
-                Download file
+                {downloading ? "Downloading…" : "Download file"}
               </button>
             </div>
           ) : null}

@@ -43,7 +43,7 @@ function PortalDocumentsInner() {
 
 export default function PortalDocumentsPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<main className="auth-shell">Loading…</main>}>
       <PortalDocumentsInner />
     </Suspense>
   );

@@ -1,8 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { useConfirm } from "../context/ConfirmContext";
 import { API_URL, apiFetch, apiUpload } from "../lib/api";
 import { getToken } from "../lib/auth";
+import { DocsDropzone } from "./DocsDropzone";
 import { SignaturePad } from "./SignaturePad";
 import { TooltipAnchor } from "./TooltipAnchor";
 
@@ -19,6 +21,7 @@ type ListPayload = {
 };
 
 export function ProfileSignaturePanel() {
+  const { confirm } = useConfirm();
   const [signatures, setSignatures] = useState<SignatureMeta[]>([]);
   const [max, setMax] = useState(5);
   const [previews, setPreviews] = useState<Record<string, string>>({});
@@ -26,8 +29,6 @@ export function ProfileSignaturePanel() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const previewsRef = useRef(previews);
   previewsRef.current = previews;
 
@@ -114,15 +115,20 @@ export function ProfileSignaturePanel() {
     await saveBlob(file, file.name);
   }
 
-  async function confirmDelete() {
-    if (!confirmId) return;
+  async function removeSignature(id: string) {
+    const ok = await confirm({
+      title: "Remove this signature?",
+      description: "This cannot be undone.",
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     setError("");
     setNotice("");
-    const result = await apiFetch<ListPayload>(`/me/signature/${confirmId}`, {
+    const result = await apiFetch<ListPayload>(`/me/signature/${id}`, {
       method: "DELETE",
       token: getToken(),
     });
-    setConfirmId(null);
     if (!result.success) {
       setError(result.error.message);
       return;
@@ -170,7 +176,7 @@ export function ProfileSignaturePanel() {
                   type="button"
                   className="signature-tile-x"
                   aria-label="Remove signature"
-                  onClick={() => setConfirmId(s.id)}
+                  onClick={() => removeSignature(s.id)}
                 >
                   ×
                 </button>
@@ -198,23 +204,6 @@ export function ProfileSignaturePanel() {
         </ul>
       )}
 
-      {confirmId ? (
-        <div className="esign-sheet-backdrop" style={{ zIndex: 80 }} role="dialog" aria-modal="true">
-          <div className="panel confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>Remove this signature?</h3>
-            <p className="lead">This cannot be undone.</p>
-            <div className="esign-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => setConfirmId(null)}>
-                Cancel
-              </button>
-              <button type="button" className="btn btn-primary" onClick={confirmDelete}>
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       <form onSubmit={onSaveDraw}>
         <div className="field">
           <label>Draw signature</label>
@@ -224,24 +213,19 @@ export function ProfileSignaturePanel() {
           <button className="btn btn-primary" type="submit" disabled={saving || !blob || atMax}>
             {saving ? "Saving…" : "Save drawing"}
           </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={saving || atMax}
-            onClick={() => fileRef.current?.click()}
-          >
-            Upload PNG
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
+        </div>
+        <div className="field" style={{ marginBottom: 8 }}>
+          <label>Or upload a PNG</label>
+          <DocsDropzone
+            compact
+            multiple={false}
+            disabled={atMax}
+            busy={saving}
             accept="image/png,.png"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0] || null;
-              e.target.value = "";
-              onUploadFile(file);
-            }}
+            hint="PNG only · drag and drop or select"
+            title="Drop a signature PNG here"
+            selectLabel="Select PNG"
+            onFiles={(picked) => onUploadFile(picked[0] || null)}
           />
         </div>
         {atMax ? (

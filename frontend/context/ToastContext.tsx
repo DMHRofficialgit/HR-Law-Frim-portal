@@ -70,16 +70,32 @@ export const ToastProvider = ({ children }: { children: ReactNode }): ReactEleme
     [dismissToast]
   );
 
+  const success = useCallback(
+    (message: string, durationMs?: number) =>
+      showToast({ tone: "success", message, durationMs }),
+    [showToast]
+  );
+  const error = useCallback(
+    (message: string, durationMs?: number) =>
+      showToast({ tone: "error", message, durationMs }),
+    [showToast]
+  );
+  const info = useCallback(
+    (message: string, durationMs?: number) =>
+      showToast({ tone: "info", message, durationMs }),
+    [showToast]
+  );
+
   const value = useMemo<ToastContextValue>(
     () => ({
       toasts,
       showToast,
-      success: (message, durationMs) => showToast({ tone: "success", message, durationMs }),
-      error: (message, durationMs) => showToast({ tone: "error", message, durationMs }),
-      info: (message, durationMs) => showToast({ tone: "info", message, durationMs }),
+      success,
+      error,
+      info,
       dismissToast,
     }),
-    [toasts, showToast, dismissToast]
+    [toasts, showToast, success, error, info, dismissToast]
   );
 
   return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>;

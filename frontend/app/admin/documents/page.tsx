@@ -17,11 +17,12 @@ type OrgOption = { id: string; name: string };
 function AdminDocumentsInner() {
   const router = useRouter();
   const search = useSearchParams();
-  const toast = useToast();
+  const { error: toastError } = useToast();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
   const [orgId, setOrgId] = useState("");
   const [esignId, setEsignId] = useState<string | null>(null);
+  const preferredFolderKey = search.get("folder");
 
   useEffect(() => {
     const token = getToken();
@@ -62,9 +63,18 @@ function AdminDocumentsInner() {
     [orgs, orgId]
   );
 
+  const replaceDocsUrl = (nextOrgId: string, folderKey?: string | null) => {
+    const params = new URLSearchParams();
+    if (nextOrgId) params.set("org", nextOrgId);
+    const folder = folderKey === undefined ? preferredFolderKey : folderKey;
+    if (folder) params.set("folder", folder);
+    const qs = params.toString();
+    router.replace(qs ? `/admin/documents?${qs}` : "/admin/documents");
+  };
+
   async function startEsign(documentId: string, title: string, mimeType: string | null) {
     if (!isPdfDocument(mimeType, title)) {
-      toast.error("E-sign requires a PDF document.");
+      toastError("E-sign requires a PDF document.");
       return;
     }
     if (!orgId) return;
@@ -81,7 +91,7 @@ function AdminDocumentsInner() {
       }
     );
     if (!result.success) {
-      toast.error(result.error.message);
+      toastError(result.error.message);
       return;
     }
     setEsignId(result.data.request.id);
@@ -106,7 +116,7 @@ function AdminDocumentsInner() {
             searchable
             onChange={(next) => {
               setOrgId(next);
-              router.replace(`/admin/documents?org=${encodeURIComponent(next)}`);
+              replaceDocsUrl(next);
             }}
           />
         </div>
@@ -120,6 +130,7 @@ function AdminDocumentsInner() {
         mode="admin"
         organisationId={orgId || undefined}
         organisationName={orgName}
+        preferredFolderKey={preferredFolderKey}
         onRequestSignature={startEsign}
       />
 

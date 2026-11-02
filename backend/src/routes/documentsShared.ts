@@ -116,8 +116,11 @@ export async function handleUpload(
 
   return res.status(201).json({
     success: true,
-    data: { document: result.document },
-    message: "File uploaded",
+    data: {
+      document: result.document,
+      created: result.created !== false,
+    },
+    message: result.created === false ? "File updated" : "File uploaded",
   });
 }
 

@@ -9,6 +9,7 @@ import { PortalSearch } from "../../../components/PortalSearch";
 import { PortalSelect } from "../../../components/PortalSelect";
 import { RowActionsMenu } from "../../../components/RowActionsMenu";
 import { TableSkeleton } from "../../../components/Skeleton";
+import { useConfirm } from "../../../context/ConfirmContext";
 import { useToast } from "../../../context/ToastContext";
 import {
   mailStatusLabel,
@@ -30,7 +31,8 @@ import {
 
 export default function AdminOrganisationsPage() {
   const router = useRouter();
-  const toast = useToast();
+  const { error: toastError, success: toastSuccess, info: toastInfo } = useToast();
+  const { confirm } = useConfirm();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [orgs, setOrgs] = useState<OrgListRow[]>([]);
   const [error, setError] = useState("");
@@ -41,6 +43,7 @@ export default function AdminOrganisationsPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [contextFilter, setContextFilter] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const closeAddDialog = useCallback(() => setAddOpen(false), []);
 
   const loadOrgs = useCallback(async () => {
     const token = getToken();
@@ -132,6 +135,17 @@ export default function AdminOrganisationsPage() {
   }, [orgs]);
 
   async function setOrgStatus(org: OrgListRow, status: "active" | "inactive") {
+    const label = status === "inactive" ? "Deactivate" : "Activate";
+    const ok = await confirm({
+      title: `${label} client?`,
+      description:
+        status === "inactive"
+          ? `Deactivate ${org.name}? Client users keep accounts but the organisation is marked inactive.`
+          : `Activate ${org.name}?`,
+      confirmLabel: label,
+      tone: status === "inactive" ? "danger" : "default",
+    });
+    if (!ok) return;
     setBusyId(org.id);
     try {
       const result = await apiFetch<{ organisation: OrgListRow }>(
@@ -143,17 +157,17 @@ export default function AdminOrganisationsPage() {
         }
       );
       if (!result.success) {
-        toast.error(result.error.message);
+        toastError(result.error.message);
         return;
       }
-      toast.success(
+      toastSuccess(
         status === "inactive"
           ? `${org.name} deactivated.`
           : `${org.name} activated.`
       );
       await loadOrgs();
     } catch {
-      toast.error("Unable to update organisation status.");
+      toastError("Unable to update organisation status.");
     } finally {
       setBusyId(null);
     }
@@ -162,14 +176,16 @@ export default function AdminOrganisationsPage() {
   async function sendClientAccessLink(org: OrgListRow) {
     const primary = org.users[0];
     if (!primary || primary.status !== "active") {
-      toast.error("No active client login.");
+      toastError("No active client login.");
       return;
     }
     const action = clientAccessAction(primary);
     if (action === "reset") {
-      const ok = window.confirm(
-        `Send a password reset link to ${primary.email}? They can choose a new password.`
-      );
+      const ok = await confirm({
+        title: "Send password reset?",
+        description: `Send a password reset link to ${primary.email}? They can choose a new password.`,
+        confirmLabel: "Send reset",
+      });
       if (!ok) return;
     }
     setBusyId(org.id);
@@ -183,7 +199,7 @@ export default function AdminOrganisationsPage() {
         token: getToken(),
       });
       if (!result.success) {
-        toast.error(result.error.message);
+        toastError(result.error.message);
         return;
       }
       const mailStatus = result.data.mailStatus || "skipped";
@@ -200,17 +216,17 @@ export default function AdminOrganisationsPage() {
         mailStatus,
         createdAt: new Date().toISOString(),
       });
-      toast.success(
+      toastSuccess(
         purpose === "reset"
           ? `Password reset sent for ${primary.email}.`
           : `Invite refreshed for ${primary.email}.`
       );
-      if (mailStatus === "sent") toast.success(mailStatusLabel(mailStatus));
-      else if (mailStatus === "failed") toast.error(mailStatusLabel(mailStatus));
-      else toast.info(mailStatusLabel(mailStatus));
+      if (mailStatus === "sent") toastSuccess(mailStatusLabel(mailStatus));
+      else if (mailStatus === "failed") toastError(mailStatusLabel(mailStatus));
+      else toastInfo(mailStatusLabel(mailStatus));
       router.push(`/admin/organisations/${org.id}`);
     } catch {
-      toast.error(
+      toastError(
         action === "reset" ? "Unable to send password reset." : "Unable to resend invite."
       );
     } finally {
@@ -229,7 +245,7 @@ export default function AdminOrganisationsPage() {
           <div>
             <h2>Client directory</h2>
             <p className="lead">
-              {loading ? "Loading…" : `${filtered.length} clients`}
+              {loading ? "…" : `${filtered.length} clients`}
               {!loading && orgs.length !== filtered.length
                 ? ` · ${orgs.length} total`
                 : ""}
@@ -443,7 +459,7 @@ export default function AdminOrganisationsPage() {
 
       <AddOrganisationDialog
         open={addOpen}
-        onClose={() => setAddOpen(false)}
+        onClose={closeAddDialog}
         onCreated={(result) => {
           const mailStatus = result.mailStatus || "skipped";
           storeAccessCredentials({
@@ -457,10 +473,10 @@ export default function AdminOrganisationsPage() {
             mailStatus,
             createdAt: new Date().toISOString(),
           });
-          toast.success(`Created ${result.organisation.name}.`);
-          if (mailStatus === "sent") toast.success(mailStatusLabel(mailStatus));
-          else if (mailStatus === "failed") toast.error(mailStatusLabel(mailStatus));
-          else toast.info(mailStatusLabel(mailStatus));
+          toastSuccess(`Created ${result.organisation.name}.`);
+          if (mailStatus === "sent") toastSuccess(mailStatusLabel(mailStatus));
+          else if (mailStatus === "failed") toastError(mailStatusLabel(mailStatus));
+          else toastInfo(mailStatusLabel(mailStatus));
           loadOrgs();
           router.push(`/admin/organisations/${result.organisation.id}`);
         }}

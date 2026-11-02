@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactElement,
 } from "react";
@@ -28,7 +29,9 @@ import {
   docFileKindLabel,
   isSignedLibraryDocument,
 } from "../lib/documents";
+import { triggerBlobDownload } from "../lib/download-file";
 import { isPdfDocument } from "../lib/signatures";
+import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
 import { DocsDropzone } from "./DocsDropzone";
 import { DocsRenameDialog } from "./DocsRenameDialog";
@@ -73,7 +76,9 @@ export const DocumentsPanel = ({
   preferredFolderKey,
   onRequestSignature,
 }: DocumentsPanelProps): ReactElement => {
-  const toast = useToast();
+  const { error: toastError, success: toastSuccess, info: toastInfo } = useToast();
+  const { confirm } = useConfirm();
+  const preferredKeyRef = useRef(preferredFolderKey || null);
   const [folders, setFolders] = useState<FolderRow[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<DocumentRow[]>([]);
@@ -151,6 +156,16 @@ export const DocumentsPanel = ({
       setLoading(false);
     }
   }, [base, mode, organisationId, preferredFolderKey, resetDocArea]);
+
+  // Honor ?folder= when the query changes after first paint.
+  useEffect(() => {
+    const nextKey = preferredFolderKey || null;
+    if (nextKey === preferredKeyRef.current) return;
+    preferredKeyRef.current = nextKey;
+    if (!nextKey || folders.length === 0) return;
+    const preferred = folders.find((f) => f.key === nextKey);
+    if (preferred) setActiveFolderId(preferred.id);
+  }, [preferredFolderKey, folders]);
 
   const loadDocuments = useCallback(
     async (folderId: string) => {
@@ -279,7 +294,8 @@ export const DocumentsPanel = ({
     if (!activeFolderId || files.length === 0) return;
     setUploading(true);
     setError("");
-    let ok = 0;
+    let createdCount = 0;
+    let updatedCount = 0;
     const failures: string[] = [];
 
     for (const file of files) {
@@ -291,30 +307,44 @@ export const DocumentsPanel = ({
       try {
         const form = new FormData();
         form.append("file", file);
-        const result = await apiUpload<{ document: { id: string; title: string } }>(
-          `${base}/folders/${activeFolderId}/documents`,
-          form,
-          getToken()
-        );
+        const result = await apiUpload<{
+          document: { id: string; title: string };
+          created?: boolean;
+        }>(`${base}/folders/${activeFolderId}/documents`, form, getToken());
         if (!result.success) {
           failures.push(`${file.name}: ${result.error.message}`);
+        } else if (result.data.created === false) {
+          updatedCount += 1;
         } else {
-          ok += 1;
+          createdCount += 1;
         }
       } catch {
         failures.push(`${file.name}: upload failed`);
       }
     }
 
-    if (ok > 0) {
-      toast.success(ok === 1 ? "Uploaded 1 file" : `Uploaded ${ok} files`);
+    const saved = createdCount + updatedCount;
+    if (saved > 0) {
+      if (updatedCount > 0 && createdCount === 0) {
+        toastSuccess(
+          updatedCount === 1
+            ? "Updated existing file (same name)"
+            : `Updated ${updatedCount} existing files (same name)`
+        );
+      } else if (updatedCount > 0) {
+        toastSuccess(
+          `Uploaded ${createdCount} · updated ${updatedCount} existing (same name)`
+        );
+      } else {
+        toastSuccess(createdCount === 1 ? "Uploaded 1 file" : `Uploaded ${createdCount} files`);
+      }
       await loadDocuments(activeFolderId);
       await loadFolders();
     }
     if (failures.length > 0) {
       const msg = failures.slice(0, 3).join(" · ");
       setError(msg);
-      toast.error(msg);
+      toastError(msg);
     }
     setUploading(false);
   }
@@ -326,16 +356,11 @@ export const DocumentsPanel = ({
         `${base}/documents/${documentId}/download`,
         getToken()
       );
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
+      triggerBlobDownload(blob, fileName);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Download failed";
       setError(msg);
-      toast.error(msg);
+      toastError(msg);
     }
   }
 
@@ -343,7 +368,7 @@ export const DocumentsPanel = ({
     if (!renameTarget) return;
     const next = title.trim();
     if (!next) {
-      toast.error("Title is required.");
+      toastError("Title is required.");
       return;
     }
     if (next === renameTarget.title) {
@@ -363,22 +388,28 @@ export const DocumentsPanel = ({
       );
       if (!result.success) {
         setError(result.error.message);
-        toast.error(result.error.message);
+        toastError(result.error.message);
         return;
       }
-      toast.success(`Renamed to “${result.data.document.title}”.`);
+      toastSuccess(`Renamed to “${result.data.document.title}”.`);
       setRenameTarget(null);
       if (activeFolderId) await loadDocuments(activeFolderId);
     } catch {
       setError("Unable to rename document.");
-      toast.error("Unable to rename document.");
+      toastError("Unable to rename document.");
     } finally {
       setRenaming(false);
     }
   }
 
   async function onDelete(documentId: string, title: string) {
-    if (!window.confirm(`Delete “${title}”? This cannot be undone.`)) return;
+    const confirmed = await confirm({
+      title: "Delete document?",
+      description: `Delete “${title}”? This cannot be undone.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     setError("");
     try {
       const result = await apiFetch<{ id: string }>(`${base}/documents/${documentId}`, {
@@ -387,10 +418,10 @@ export const DocumentsPanel = ({
       });
       if (!result.success) {
         setError(result.error.message);
-        toast.error(result.error.message);
+        toastError(result.error.message);
         return;
       }
-      toast.success(`Deleted ${title}`);
+      toastSuccess(`Deleted ${title}`);
       setSelectedIds((prev) => {
         const next = new Set(prev);
         next.delete(documentId);
@@ -402,12 +433,16 @@ export const DocumentsPanel = ({
       }
     } catch {
       setError("Delete failed.");
-      toast.error("Delete failed.");
+      toastError("Delete failed.");
     }
   }
 
   async function onDownloadSelected() {
     const ids = visibleDocs.filter((d) => selectedIds.has(d.id)).map((d) => d.id);
+    if (ids.length === 0) return;
+    if (ids.length > 1) {
+      toastInfo(`Downloading ${ids.length} files…`);
+    }
     for (const id of ids) {
       await onDownload(id);
     }
@@ -416,35 +451,47 @@ export const DocumentsPanel = ({
   async function onDeleteSelected() {
     const targets = visibleDocs.filter((d) => selectedIds.has(d.id));
     if (targets.length === 0) return;
-    if (
-      !window.confirm(
-        `Delete ${targets.length} selected file${targets.length === 1 ? "" : "s"}? This cannot be undone.`
-      )
-    ) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Delete selected files?",
+      description: `Delete ${targets.length} selected file${targets.length === 1 ? "" : "s"}? This cannot be undone.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     setError("");
-    let ok = 0;
+    let deletedCount = 0;
+    const failures: string[] = [];
     for (const doc of targets) {
       try {
         const result = await apiFetch<{ id: string }>(`${base}/documents/${doc.id}`, {
           method: "DELETE",
           token: getToken(),
         });
-        if (result.success) ok += 1;
+        if (result.success) deletedCount += 1;
+        else failures.push(doc.title);
       } catch {
-        /* continue */
+        failures.push(doc.title);
       }
     }
-    if (ok > 0) {
-      toast.success(ok === 1 ? "Deleted 1 file" : `Deleted ${ok} files`);
+    if (deletedCount > 0) {
+      toastSuccess(
+        deletedCount === 1 ? "Deleted 1 file" : `Deleted ${deletedCount} files`
+      );
       setSelectedIds(new Set());
       if (activeFolderId) {
         await loadDocuments(activeFolderId);
         await loadFolders();
       }
-    } else {
-      toast.error("Delete failed.");
+    }
+    if (failures.length > 0) {
+      const msg =
+        failures.length === targets.length
+          ? "Delete failed."
+          : `Could not delete ${failures.length}: ${failures.slice(0, 2).join(", ")}`;
+      setError(msg);
+      toastError(msg);
+    } else if (deletedCount === 0) {
+      toastError("Delete failed.");
     }
   }
 
@@ -557,7 +604,7 @@ export const DocumentsPanel = ({
             aria-label="Search documents in this folder"
           />
           <PortalSelect
-            className="docs-type-filter"
+            className="docs-sort-filter"
             size="sm"
             aria-label="Sort files"
             value={sortKey}

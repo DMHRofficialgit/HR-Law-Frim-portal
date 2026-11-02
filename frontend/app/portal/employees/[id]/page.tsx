@@ -11,7 +11,7 @@ import {
   CircleCheck,
   Layers,
   Mail,
-  Pencil,
+  Plus,
   Trash2,
   Users,
 } from "lucide-react";
@@ -24,6 +24,7 @@ import {
 } from "../../../../components/ProfileActivityPanel";
 import { PanelSkeleton } from "../../../../components/Skeleton";
 import { RowActionsMenu } from "../../../../components/RowActionsMenu";
+import { useConfirm } from "../../../../context/ConfirmContext";
 import { useToast } from "../../../../context/ToastContext";
 import { apiFetch, type PublicUser } from "../../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../../lib/auth";
@@ -40,7 +41,8 @@ export default function PortalEmployeeDetailPage() {
   const params = useParams();
   const id = String(params.id || "");
   const router = useRouter();
-  const toast = useToast();
+  const { error: toastError, success: toastSuccess } = useToast();
+  const { confirm } = useConfirm();
 
   const [user, setUser] = useState<PublicUser | null>(null);
   const [employee, setEmployee] = useState<EmployeeRow | null>(null);
@@ -79,9 +81,14 @@ export default function PortalEmployeeDetailPage() {
   async function toggleStatus() {
     if (!employee) return;
     const next = employee.status === "active" ? "inactive" : "active";
-    if (!window.confirm(`${next === "inactive" ? "Deactivate" : "Activate"} ${employee.name}?`)) {
-      return;
-    }
+    const label = next === "inactive" ? "Deactivate" : "Activate";
+    const ok = await confirm({
+      title: `${label} employee?`,
+      description: `${label} ${employee.name}?`,
+      confirmLabel: label,
+      tone: next === "inactive" ? "danger" : "default",
+    });
+    if (!ok) return;
     setBusy(true);
     const result = await apiFetch<{ employee: EmployeeRow }>(`/client/employees/${employee.id}`, {
       method: "PATCH",
@@ -90,18 +97,22 @@ export default function PortalEmployeeDetailPage() {
     });
     setBusy(false);
     if (!result.success) {
-      toast.error(result.error.message);
+      toastError(result.error.message);
       return;
     }
-    toast.success(next === "inactive" ? "Employee deactivated" : "Employee activated");
+    toastSuccess(next === "inactive" ? "Employee deactivated" : "Employee activated");
     setEmployee({ ...employee, ...result.data.employee });
   }
 
   async function onDelete() {
     if (!employee) return;
-    if (!window.confirm(`Permanently delete ${employee.name}? Only allowed with no linked cases.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: `Delete ${employee.name}?`,
+      description: "Permanently delete this employee? Only allowed with no linked cases.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     setBusy(true);
     const result = await apiFetch(`/client/employees/${employee.id}`, {
       method: "DELETE",
@@ -109,18 +120,30 @@ export default function PortalEmployeeDetailPage() {
     });
     setBusy(false);
     if (!result.success) {
-      toast.error(result.error.message);
+      toastError(result.error.message);
       return;
     }
-    toast.success("Employee deleted");
+    toastSuccess("Employee deleted");
     router.push("/portal/employees");
   }
 
   const cases = employee?.cases || [];
+  const linkedCaseCount = employee?._count?.cases ?? cases.length;
+  const hasLinkedCases = linkedCaseCount > 0;
   const openCaseCount = useMemo(
     () => cases.filter((c) => c.status !== "closed").length,
     [cases]
   );
+
+  const casesHref = useMemo(() => {
+    if (!employee) return "/portal/cases";
+    return `/portal/cases?employee=${encodeURIComponent(employee.id)}`;
+  }, [employee]);
+
+  const createCaseHref = useMemo(() => {
+    if (!employee) return "/portal/cases?create=1";
+    return `/portal/cases?create=1&employee=${encodeURIComponent(employee.id)}`;
+  }, [employee]);
 
   const caseRows: ProfileActivityRow[] = useMemo(
     () =>
@@ -187,6 +210,10 @@ export default function PortalEmployeeDetailPage() {
               </div>
             </div>
             <div className="profile-hub-actions">
+              <Link href={createCaseHref} className="btn btn-secondary btn-sm">
+                <Plus size={14} strokeWidth={1.75} aria-hidden />
+                Create case
+              </Link>
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
@@ -198,12 +225,6 @@ export default function PortalEmployeeDetailPage() {
                 label={`Actions for ${employee.name}`}
                 items={[
                   {
-                    id: "edit",
-                    label: "Edit",
-                    icon: <Pencil size={14} strokeWidth={1.75} />,
-                    onSelect: () => setEditOpen(true),
-                  },
-                  {
                     id: "toggle",
                     label: employee.status === "active" ? "Deactivate" : "Activate",
                     icon:
@@ -213,17 +234,16 @@ export default function PortalEmployeeDetailPage() {
                         <CircleCheck size={14} strokeWidth={1.75} />
                       ),
                     tone: employee.status === "active" ? "danger" : "default",
-                    separatorBefore: true,
                     disabled: busy,
                     onSelect: () => toggleStatus(),
                   },
                   {
                     id: "delete",
-                    label: "Delete",
+                    label: hasLinkedCases ? "Delete (has cases)" : "Delete",
                     icon: <Trash2 size={14} strokeWidth={1.75} />,
                     tone: "danger",
                     separatorBefore: true,
-                    disabled: busy,
+                    disabled: busy || hasLinkedCases,
                     onSelect: () => onDelete(),
                   },
                 ]}
@@ -232,12 +252,12 @@ export default function PortalEmployeeDetailPage() {
           </div>
 
           <div className="profile-hub-metrics emp-hub-metrics">
-            <Link href="/portal/cases" className="profile-metric">
+            <Link href={casesHref} className="profile-metric">
               <Briefcase className="profile-metric-icon" size={14} strokeWidth={1.75} aria-hidden />
-              <div className="profile-metric-value">{cases.length}</div>
+              <div className="profile-metric-value">{linkedCaseCount}</div>
               <div className="profile-metric-label">Linked cases</div>
             </Link>
-            <Link href="/portal/cases" className="profile-metric">
+            <Link href={casesHref} className="profile-metric">
               <Briefcase className="profile-metric-icon" size={14} strokeWidth={1.75} aria-hidden />
               <div className="profile-metric-value">{openCaseCount}</div>
               <div className="profile-metric-label">Open cases</div>
@@ -288,19 +308,34 @@ export default function PortalEmployeeDetailPage() {
                   ? `Related employment cases · ${caseRows.length}`
                   : "Related employment cases"
               }
-              hrefAll="/portal/cases"
+              hrefAll={casesHref}
               allLabel="View all cases"
               empty="No linked cases. Cases linked to this employee will appear here."
               rows={caseRows}
             />
           </div>
 
-          {employee.notes ? (
-            <section className="panel emp-hub-notes">
+          <section className="panel emp-hub-notes">
+            <div className="emp-hub-notes-head">
               <h2 style={{ margin: 0, fontSize: 14 }}>Notes</h2>
+              {!employee.notes ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setEditOpen(true)}
+                >
+                  Add notes
+                </button>
+              ) : null}
+            </div>
+            {employee.notes ? (
               <p>{employee.notes}</p>
-            </section>
-          ) : null}
+            ) : (
+              <p className="lead" style={{ margin: 0 }}>
+                No notes yet. Add context for DM.HR when useful.
+              </p>
+            )}
+          </section>
 
           <EmployeeFormDialog
             open={editOpen}
@@ -309,8 +344,8 @@ export default function PortalEmployeeDetailPage() {
             employee={employee}
             onClose={() => setEditOpen(false)}
             onSaved={(updated) => {
-              setEmployee({ ...employee, ...updated });
-              load();
+              setEmployee((prev) => (prev ? { ...prev, ...updated } : updated));
+              void load();
             }}
           />
         </>

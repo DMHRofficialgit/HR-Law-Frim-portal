@@ -101,7 +101,7 @@ export default function PortalHomePage() {
       nav={clientNav}
       title="Overview"
       actions={
-        <Link href="/portal/cases/new" className="btn btn-primary btn-sm">
+        <Link href="/portal/cases?create=1" className="btn btn-primary btn-sm">
           Submit a case
         </Link>
       }

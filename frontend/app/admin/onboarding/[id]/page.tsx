@@ -410,7 +410,7 @@ function AdminOnboardingDetailInner() {
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {item.clientDocumentId ? (
                         <Link
-                          href={`/admin/documents?org=${encodeURIComponent(run.organisationId)}`}
+                          href={`/admin/documents?org=${encodeURIComponent(run.organisationId)}&folder=my_onboarding`}
                           className="btn btn-secondary btn-sm"
                         >
                           My Onboarding folder

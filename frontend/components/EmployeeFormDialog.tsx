@@ -18,6 +18,8 @@ import { StatusLiquidToggle } from "./StatusLiquidToggle";
 
 type OrgOption = { id: string; name: string };
 
+const EMPTY_ORGS: OrgOption[] = [];
+
 type EmployeeFormDialogProps = {
   open: boolean;
   mode: "create" | "edit";
@@ -33,7 +35,7 @@ export const EmployeeFormDialog = ({
   open,
   mode,
   role,
-  orgs = [],
+  orgs = EMPTY_ORGS,
   initialOrganisationId = "",
   employee = null,
   onClose,
@@ -45,14 +47,24 @@ export const EmployeeFormDialog = ({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const employeeId = employee?.id || "";
+  const firstOrgId = orgs[0]?.id || "";
+
+  // Reset form when dialog opens (or when switching the edited employee).
   useEffect(() => {
     if (!open) return;
     if (mode === "edit" && employee) {
       setForm(employeeToFormValues(employee));
     } else {
-      setForm(emptyEmployeeForm(initialOrganisationId || orgs[0]?.id || ""));
+      setForm(emptyEmployeeForm(initialOrganisationId || firstOrgId || ""));
     }
     setError("");
+    // employee read on open/employeeId change only — avoid depending on object identity
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable reset keys above
+  }, [open, mode, employeeId, initialOrganisationId, firstOrgId]);
+
+  useEffect(() => {
+    if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     function onKey(e: KeyboardEvent) {
@@ -63,7 +75,7 @@ export const EmployeeFormDialog = ({
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
-  }, [open, mode, employee, initialOrganisationId, orgs, onClose]);
+  }, [open, onClose]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

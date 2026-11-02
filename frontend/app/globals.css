@@ -352,7 +352,7 @@ textarea {
   position: fixed;
   right: 16px;
   bottom: 16px;
-  z-index: 120;
+  z-index: 400;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1829,6 +1829,13 @@ textarea {
   margin-top: 16px;
 }
 
+.emp-hub-notes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .emp-hub-notes p {
   margin: 8px 0 0;
   font-size: 13px;
@@ -3198,6 +3205,7 @@ textarea {
   width: 100%;
 }
 
+.docs-sort-filter.portal-select,
 .docs-type-filter.portal-select,
 .docs-toolbar .portal-select {
   width: auto;
@@ -3337,6 +3345,7 @@ textarea {
   font-size: 13px;
 }
 
+.docs-sort-filter,
 .docs-type-filter {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -3422,6 +3431,60 @@ textarea {
 .docs-dropzone-select.disabled {
   opacity: 0.55;
   pointer-events: none;
+}
+
+.docs-dropzone.is-compact {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+}
+
+.docs-dropzone.is-compact .docs-dropzone-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.docs-file-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.docs-file-chip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.docs-file-chip-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.docs-file-chip-remove {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  font-size: 14px;
+}
+
+.docs-file-chip-remove:hover {
+  color: var(--danger, #ef4444);
 }
 
 .docs-select-bar {
@@ -3671,6 +3734,58 @@ textarea {
   padding: 20px;
 }
 
+.confirm-dialog-root {
+  z-index: 95;
+}
+
+.confirm-dialog-panel.org-dialog,
+.confirm-dialog-panel {
+  width: min(400px, 100%);
+  max-height: none;
+  overflow: visible;
+}
+
+.confirm-dialog-body {
+  padding: 18px 18px 8px;
+}
+
+.confirm-dialog-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.confirm-dialog-desc {
+  margin: 8px 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px 16px;
+}
+
+.btn-danger {
+  background: color-mix(in srgb, var(--danger, #ef4444) 92%, #000);
+  color: #fff;
+  border: 1px solid transparent;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger, #ef4444) 78%, #000);
+}
+
+.btn-danger:disabled {
+  opacity: 0.55;
+}
+
 .ink-mode-toggle {
   display: flex;
   gap: 4px;
@@ -3740,6 +3855,44 @@ textarea {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;
+}
+
+/* Cases register KPIs — Overview metric cards above the table panel */
+button.case-metric-card {
+  position: relative;
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  margin: 0;
+}
+
+button.case-metric-card .case-metric-icon {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  color: var(--muted);
+}
+
+button.case-metric-card.is-active {
+  border-color: color-mix(in srgb, var(--blue) 55%, var(--line));
+  background: color-mix(in srgb, var(--blue-soft) 55%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 22%, transparent);
+}
+
+button.case-metric-card.is-active .metric-label {
+  color: var(--blue);
+}
+
+button.case-metric-card.is-active .case-metric-icon {
+  color: var(--blue);
+}
+
+.case-metrics-row {
+  margin-bottom: 16px;
 }
 
 .overview-list {
@@ -4501,4 +4654,537 @@ textarea {
   flex-wrap: wrap;
   gap: 10px;
   align-items: flex-end;
+}
+
+
+/* —— Cases register + hub (density polish) —— */
+.case-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+button.case-kpi.profile-metric {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  margin: 0;
+  box-shadow: none;
+}
+
+button.case-kpi.profile-metric:hover {
+  transform: translateY(-1px);
+}
+
+button.case-kpi.profile-metric.is-active {
+  border-color: color-mix(in srgb, var(--blue) 55%, var(--line));
+  background: color-mix(in srgb, var(--blue-soft) 70%, var(--surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 28%, transparent);
+}
+
+button.case-kpi.profile-metric.is-active .profile-metric-label {
+  color: var(--blue);
+}
+
+.case-hub-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+  gap: 12px;
+  align-items: start;
+}
+
+.case-hub-layout-client {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.case-hub-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.case-hub-aside {
+  position: sticky;
+  top: 64px;
+  align-self: start;
+}
+
+.case-hub-panel.panel {
+  padding: 14px 16px;
+  box-shadow: none;
+}
+
+.case-hub-panel.panel h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.case-hub-panel-head {
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.case-hub-panel-head .lead {
+  margin: 0;
+  font-size: 12px;
+}
+
+/* Grow with content, then cap + inner scroll (composer stays uncapped). */
+.case-hub-panel--overview,
+.case-hub-panel--files,
+.case-hub-panel--timeline {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.case-hub-panel--overview {
+  max-height: min(42vh, 360px);
+}
+
+.case-hub-panel--files {
+  max-height: min(28vh, 220px);
+}
+
+.case-hub-panel--timeline {
+  max-height: min(56vh, 520px);
+}
+
+.case-hub-panel-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Left gutter so timeline rail icons aren’t clipped by overflow:hidden */
+  padding: 2px 4px 12px 12px;
+  scroll-padding-block: 8px 16px;
+}
+
+.case-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin-bottom: 4px;
+}
+
+.case-overview-grid > div {
+  min-width: 0;
+}
+
+.case-overview-block {
+  padding: 10px 0 0;
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.case-overview-block h3 {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.case-overview-text {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--text);
+  line-height: 1.45;
+  font-size: 0.88rem;
+}
+
+.case-overview-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  padding: 8px 0;
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.case-overview-row-label {
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  min-width: 9rem;
+}
+
+.case-overview-empty {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.case-file-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+}
+
+.case-file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.case-file-row:last-child {
+  border-bottom: none;
+}
+
+.case-file-name {
+  font-weight: 550;
+  font-size: 0.86rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.case-file-chip {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger, #ef4444) 14%, var(--surface));
+  color: color-mix(in srgb, var(--danger, #ef4444) 80%, var(--ink));
+}
+
+.case-file-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.case-file-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.case-status-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.case-status-form .field {
+  flex: 1 1 160px;
+  margin-bottom: 0;
+}
+
+.case-timeline-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.case-timeline-count {
+  flex-shrink: 0;
+  margin-top: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 12%, var(--surface));
+}
+
+.case-timeline-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.case-timeline-day-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.case-timeline-day-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.case-timeline-day-count {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+ul.case-timeline,
+.case-timeline {
+  list-style: none !important;
+  margin: 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--line);
+}
+
+.case-timeline-item {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  padding: 0 0 12px 10px;
+  list-style: none !important;
+}
+
+.case-timeline-item::marker {
+  content: none;
+}
+
+.case-timeline-item:last-child {
+  padding-bottom: 2px;
+}
+
+.case-timeline-icon {
+  position: absolute;
+  left: -9px;
+  top: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--blue-soft);
+  color: var(--blue);
+  border: 2px solid var(--surface);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.case-timeline-item.is-system .case-timeline-icon {
+  background: color-mix(in srgb, var(--muted) 18%, var(--surface));
+  color: var(--muted);
+}
+
+.case-timeline-item.is-private .case-timeline-icon {
+  background: color-mix(in srgb, var(--warn, #d97706) 18%, var(--surface));
+  color: color-mix(in srgb, var(--warn, #d97706) 90%, var(--ink));
+}
+
+.case-timeline-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.case-timeline-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.case-timeline-title {
+  font-weight: 650;
+  font-size: 0.8rem;
+  color: var(--text);
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.case-timeline-item.is-system .case-timeline-title {
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.case-timeline-time {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.case-timeline-badge {
+  font-size: 0.62rem;
+  font-weight: 650;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn, #d97706) 16%, var(--surface));
+  color: color-mix(in srgb, var(--warn, #d97706) 90%, var(--ink));
+}
+
+.case-timeline-badge.is-client {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.case-timeline-text {
+  margin: 3px 0 0;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.case-timeline-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px 7px;
+  margin-top: 4px;
+}
+
+.case-timeline-actor {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.case-timeline-item.is-system .case-timeline-actor {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.case-timeline-meta {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.case-inline-link {
+  color: var(--blue);
+  text-decoration: none;
+  font-weight: 550;
+}
+
+.case-inline-link:hover {
+  text-decoration: underline;
+}
+
+.case-hub-ref {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.case-overview-complete {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.case-composer.panel,
+.case-composer {
+  padding-top: 12px;
+}
+
+.case-composer h3 {
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.case-composer .field {
+  margin-bottom: 8px;
+}
+
+.case-composer textarea {
+  min-height: 72px;
+}
+
+.case-aside-block {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.case-aside-block:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.case-aside-block .profile-meta-label {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.case-aside-note {
+  margin: 4px 0 8px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.profile-meta-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 650;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.profile-meta-value {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 550;
+  color: var(--text);
+}
+
+@media (max-width: 960px) {
+  .case-kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .case-hub-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .case-hub-aside {
+    position: static;
+  }
+
+  .case-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .case-hub-panel--overview {
+    max-height: min(40vh, 300px);
+  }
+
+  .case-hub-panel--files {
+    max-height: min(26vh, 180px);
+  }
+
+  .case-hub-panel--timeline {
+    max-height: min(50vh, 420px);
+  }
 }

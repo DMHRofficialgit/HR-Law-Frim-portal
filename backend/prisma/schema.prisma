@@ -310,17 +310,21 @@ model CaseCategory {
 }
 
 model Case {
-  id             String     @id @default(uuid())
-  ref            String     @unique
-  organisationId String     @map("organisation_id")
-  title          String
-  description    String
-  status         CaseStatus @default(submitted)
-  categoryId     String     @map("category_id")
-  employeeId     String?    @map("employee_id")
-  createdById    String?    @map("created_by_id")
-  createdAt      DateTime   @default(now()) @map("created_at")
-  updatedAt      DateTime   @updatedAt @map("updated_at")
+  id              String     @id @default(uuid())
+  ref             String     @unique
+  organisationId  String     @map("organisation_id")
+  title           String
+  description     String
+  peopleInvolved  String?    @map("people_involved")
+  investigation   String?
+  outcome         String?
+  status          CaseStatus @default(submitted)
+  categoryId      String     @map("category_id")
+  categoryOther   String?    @map("category_other")
+  employeeId      String?    @map("employee_id")
+  createdById     String?    @map("created_by_id")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
 
   organisation Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   category     CaseCategory     @relation(fields: [categoryId], references: [id])

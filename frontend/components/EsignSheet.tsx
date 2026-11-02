@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { API_URL, apiDownload, apiFetch, apiUpload } from "../lib/api";
+import { triggerBlobDownload } from "../lib/download-file";
 import { getStoredUser, getToken } from "../lib/auth";
 import { renderTypedSignaturePng } from "../lib/render-typed-signature";
 import {
@@ -699,12 +700,7 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
         `${base}/signature-requests/${requestId}/download/${kind}`,
         getToken()
       );
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
+      triggerBlobDownload(blob, fileName);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Download failed");
     }

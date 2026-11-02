@@ -25,19 +25,6 @@ export const docFileKindLabel = (kind: DocFileKind): string => {
   return "FILE";
 };
 
-export type DocTypeFilter = "all" | "pdf" | "word";
-
-export const matchesDocTypeFilter = (
-  filter: DocTypeFilter,
-  mimeType?: string | null,
-  fileName?: string | null
-): boolean => {
-  if (filter === "all") return true;
-  const kind = docFileKind(mimeType, fileName);
-  if (filter === "pdf") return kind === "pdf";
-  return kind === "docx" || kind === "doc";
-};
-
 /**
  * Prefer DB `isSignedCopy`. Title patterns are fallback for older rows
  * (em-dash publish title or sanitized filename variants).

@@ -17,6 +17,13 @@ type DocsDropzoneProps = {
   accept: string;
   hint: string;
   onFiles: (files: File[]) => void;
+  /** Default true. Set false for single-file surfaces (Firm Library, signature PNG). */
+  multiple?: boolean;
+  /** Tighter padding for composers / dialogs. */
+  compact?: boolean;
+  title?: string;
+  selectLabel?: string;
+  className?: string;
 };
 
 export const DocsDropzone = ({
@@ -25,6 +32,11 @@ export const DocsDropzone = ({
   accept,
   hint,
   onFiles,
+  multiple = true,
+  compact = false,
+  title = "Drop files to upload",
+  selectLabel = "Select files",
+  className = "",
 }: DocsDropzoneProps): ReactElement => {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -34,11 +46,12 @@ export const DocsDropzone = ({
   const takeFiles = useCallback(
     (list: FileList | File[] | null) => {
       if (!list || locked) return;
-      const files = Array.from(list);
+      let files = Array.from(list);
       if (files.length === 0) return;
+      if (!multiple) files = files.slice(0, 1);
       onFiles(files);
     },
-    [locked, onFiles]
+    [locked, multiple, onFiles]
   );
 
   const onDragEnter = (e: DragEvent<HTMLDivElement>) => {
@@ -76,7 +89,9 @@ export const DocsDropzone = ({
 
   return (
     <div
-      className={`docs-dropzone${dragOver ? " is-dragover" : ""}${locked ? " is-disabled" : ""}`}
+      className={`docs-dropzone${compact ? " is-compact" : ""}${
+        dragOver ? " is-dragover" : ""
+      }${locked ? " is-disabled" : ""}${className ? ` ${className}` : ""}`}
       onDragEnter={onDragEnter}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
@@ -86,12 +101,10 @@ export const DocsDropzone = ({
     >
       <div className="docs-dropzone-main">
         <span className="docs-dropzone-icon" aria-hidden>
-          <FileUp size={18} strokeWidth={1.75} />
+          <FileUp size={compact ? 16 : 18} strokeWidth={1.75} />
         </span>
         <div className="docs-dropzone-copy">
-          <p className="docs-dropzone-title">
-            {busy ? "Uploading…" : "Drop files to upload"}
-          </p>
+          <p className="docs-dropzone-title">{busy ? "Uploading…" : title}</p>
           <p className="docs-dropzone-hint">{hint}</p>
         </div>
       </div>
@@ -100,13 +113,13 @@ export const DocsDropzone = ({
         className={`btn btn-ghost btn-sm docs-dropzone-select${locked ? " disabled" : ""}`}
       >
         <Upload size={14} strokeWidth={1.75} aria-hidden />
-        Select files
+        {selectLabel}
         <input
           id={inputId}
           ref={inputRef}
           type="file"
           hidden
-          multiple
+          multiple={multiple}
           accept={accept}
           disabled={locked}
           onChange={onChange}

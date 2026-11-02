@@ -31,7 +31,7 @@ type AddOrganisationDialogProps = {
   onCreated: (result: CreateResult) => void;
 };
 
-const emptyForm = {
+const emptyOrganisationForm = () => ({
   name: "",
   ref: "",
   contactName: "",
@@ -46,7 +46,7 @@ const emptyForm = {
   authMode: "invite" as "invite" | "temporary_password",
   temporaryPassword: "",
   onboardingStatus: "in_progress" as "in_progress" | "existing_skip",
-};
+});
 
 export function AddOrganisationDialog({
   open,
@@ -54,15 +54,20 @@ export function AddOrganisationDialog({
   onCreated,
 }: AddOrganisationDialogProps) {
   const titleId = useId();
-  const toast = useToast();
-  const [form, setForm] = useState(emptyForm);
+  const { error: toastError } = useToast();
+  const [form, setForm] = useState(emptyOrganisationForm);
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Reset form when dialog opens only — avoid depending on onClose identity.
   useEffect(() => {
     if (!open) return;
-    setForm(emptyForm);
+    setForm(emptyOrganisationForm());
     setError("");
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     function onKey(e: KeyboardEvent) {
@@ -82,13 +87,13 @@ export function AddOrganisationDialog({
     if (isOtherOption(form.type) && !form.typeOther.trim()) {
       const msg = "Please specify the organisation type.";
       setError(msg);
-      toast.error(msg);
+      toastError(msg);
       return;
     }
     if (isOtherOption(form.regulatoryContext) && !form.regulatoryOther.trim()) {
       const msg = "Please specify the regulatory context.";
       setError(msg);
-      toast.error(msg);
+      toastError(msg);
       return;
     }
 
@@ -119,14 +124,14 @@ export function AddOrganisationDialog({
 
       if (!result.success) {
         setError(result.error.message);
-        toast.error(result.error.message);
+        toastError(result.error.message);
         return;
       }
       onCreated(result.data);
       onClose();
     } catch {
       setError("Unable to create organisation.");
-      toast.error("Unable to create organisation.");
+      toastError("Unable to create organisation.");
     } finally {
       setCreating(false);
     }

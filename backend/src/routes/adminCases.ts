@@ -8,10 +8,13 @@ import { absoluteStoragePath } from "../lib/storage";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
 import {
   addCaseMessage,
+  createCase,
   deleteCase,
+  deleteCaseAttachment,
   getCase,
   getCaseAttachment,
   listCases,
+  updateCase,
   updateCaseStatus,
 } from "../services/cases";
 
@@ -90,6 +93,76 @@ router.get("/cases", async (req, res) => {
   return res.status(200).json({ success: true, data: { cases } });
 });
 
+router.post("/cases", (req, res) => {
+  multiUpload(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "UPLOAD_ERROR", message: err.message || "Upload failed" },
+      });
+    }
+
+    const parsed = z
+      .object({
+        organisationId: z.string().uuid(),
+        title: z.string().min(1),
+        description: z.string().min(1),
+        categoryId: z.string().uuid(),
+        categoryOther: z.string().optional(),
+        employeeId: z.union([z.string().uuid(), z.literal("")]).optional(),
+        peopleInvolved: z.string().optional(),
+        investigation: z.string().optional(),
+        outcome: z.string().optional(),
+      })
+      .safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parsed.error.issues[0]?.message || "Invalid case payload",
+        },
+      });
+    }
+
+    const files = ((req.files as Express.Multer.File[]) || []).map((f) => ({
+      originalName: f.originalname,
+      mimeType: f.mimetype,
+      size: f.size,
+      buffer: f.buffer,
+    }));
+
+    const result = await createCase({
+      organisationId: parsed.data.organisationId,
+      title: parsed.data.title,
+      description: parsed.data.description,
+      categoryId: parsed.data.categoryId,
+      categoryOther: parsed.data.categoryOther || null,
+      employeeId: parsed.data.employeeId || null,
+      peopleInvolved: parsed.data.peopleInvolved || null,
+      investigation: parsed.data.investigation || null,
+      outcome: parsed.data.outcome || null,
+      userId: req.auth!.id,
+      createdByRole: "admin",
+      files,
+    });
+
+    if ("error" in result && result.error) {
+      return res.status(result.error.status).json({
+        success: false,
+        error: { code: result.error.code, message: result.error.message },
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      data: { case: result.case },
+      message: "Case created",
+    });
+  });
+});
+
 router.get("/cases/:id", async (req, res) => {
   const c = await getCase(req.params.id);
   if (!c) {
@@ -99,6 +172,56 @@ router.get("/cases/:id", async (req, res) => {
     });
   }
   return res.status(200).json({ success: true, data: { case: c } });
+});
+
+router.patch("/cases/:id", async (req, res) => {
+  const parsed = z
+    .object({
+      title: z.string().min(1).optional(),
+      description: z.string().min(1).optional(),
+      categoryId: z.string().uuid().optional(),
+      categoryOther: z.string().nullable().optional(),
+      employeeId: z.union([z.string().uuid(), z.literal(""), z.null()]).optional(),
+      peopleInvolved: z.string().nullable().optional(),
+      investigation: z.string().nullable().optional(),
+      outcome: z.string().nullable().optional(),
+    })
+    .safeParse(req.body);
+
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "Invalid case payload" },
+    });
+  }
+
+  const result = await updateCase({
+    caseId: req.params.id,
+    title: parsed.data.title,
+    description: parsed.data.description,
+    categoryId: parsed.data.categoryId,
+    categoryOther: parsed.data.categoryOther,
+    employeeId:
+      parsed.data.employeeId === undefined
+        ? undefined
+        : parsed.data.employeeId || null,
+    peopleInvolved: parsed.data.peopleInvolved,
+    investigation: parsed.data.investigation,
+    outcome: parsed.data.outcome,
+  });
+
+  if ("error" in result && result.error) {
+    return res.status(result.error.status).json({
+      success: false,
+      error: { code: result.error.code, message: result.error.message },
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: { case: result.case },
+    message: "Case updated",
+  });
 });
 
 router.patch("/cases/:id/status", async (req, res) => {
@@ -191,6 +314,21 @@ router.get("/case-attachments/:id/download", async (req, res) => {
     `attachment; filename="${encodeURIComponent(att.fileName)}"`
   );
   createReadStream(absoluteStoragePath(att.storagePath)).pipe(res);
+});
+
+router.delete("/case-attachments/:id", async (req, res) => {
+  const deleted = await deleteCaseAttachment(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({
+      success: false,
+      error: { code: "NOT_FOUND", message: "Attachment not found" },
+    });
+  }
+  return res.status(200).json({
+    success: true,
+    data: { id: deleted.id },
+    message: "File removed",
+  });
 });
 
 router.delete("/cases/:id", async (req, res) => {

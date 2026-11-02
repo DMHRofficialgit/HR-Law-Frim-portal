@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { PortalSelect } from "../../../components/PortalSelect";
 import { ListSkeleton } from "../../../components/Skeleton";
+import { useConfirm } from "../../../context/ConfirmContext";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
@@ -32,6 +33,7 @@ type CreateResult = {
 
 export default function AdminUsersPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [users, setUsers] = useState<PortalUser[]>([]);
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
@@ -145,9 +147,11 @@ export default function AdminUsersPage() {
     setNotice("");
     const isReset = Boolean(u.passwordChangedAt);
     if (isReset) {
-      const ok = window.confirm(
-        `Send a password reset link to ${u.email}? They can choose a new password.`
-      );
+      const ok = await confirm({
+        title: "Send password reset?",
+        description: `Send a password reset link to ${u.email}? They can choose a new password.`,
+        confirmLabel: "Send reset",
+      });
       if (!ok) return;
     }
     const result = await apiFetch<{

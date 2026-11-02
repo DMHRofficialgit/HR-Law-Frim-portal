@@ -147,12 +147,26 @@ export async function uploadDocument(params: {
           organisationId: params.organisationId,
           folderId: params.folderId,
           title,
+          // Normal uploads must not version onto a signed library copy.
+          ...(isSignedCopy ? {} : { isSignedCopy: false }),
         },
       });
 
   if (params.documentId && !document) {
     return { error: { status: 404, code: "NOT_FOUND", message: "Document not found" } };
   }
+
+  if (document && document.isSignedCopy && !isSignedCopy) {
+    return {
+      error: {
+        status: 409,
+        code: "SIGNED_COPY_LOCKED",
+        message: "Cannot replace a signed copy. Upload under a different name.",
+      },
+    };
+  }
+
+  const created = !document;
 
   if (!document) {
     document = await prisma.document.create({
@@ -201,7 +215,7 @@ export async function uploadDocument(params: {
   ]);
 
   const full = await getDocumentForOrg(params.organisationId, document.id);
-  return { document: full, version };
+  return { document: full, version, created };
 }
 
 export async function renameDocument(params: {

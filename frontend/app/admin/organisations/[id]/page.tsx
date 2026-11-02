@@ -31,6 +31,7 @@ import {
 } from "../../../../components/ProfileActivityPanel";
 import { RowActionsMenu } from "../../../../components/RowActionsMenu";
 import { PanelSkeleton } from "../../../../components/Skeleton";
+import { useConfirm } from "../../../../context/ConfirmContext";
 import { useToast } from "../../../../context/ToastContext";
 import {
   mailStatusLabel,
@@ -40,7 +41,7 @@ import {
 } from "../../../../lib/access-credentials";
 import { API_URL, apiFetch, type PublicUser } from "../../../../lib/api";
 import { clearSession, getStoredUser, getToken, homeForUser } from "../../../../lib/auth";
-import { statusLabel } from "../../../../lib/cases";
+import { caseBadgeTone, statusLabel } from "../../../../lib/cases";
 import { adminNav } from "../../../../lib/nav";
 import { isSignedLibraryDocument } from "../../../../lib/documents";
 import {
@@ -79,18 +80,11 @@ const hydrateOrgForm = (o: OrgDetail) => {
   };
 };
 
-const caseBadgeTone = (
-  status: string
-): "ok" | "progress" | "muted" | "warn" => {
-  if (status === "closed") return "muted";
-  if (status === "pending") return "warn";
-  return "progress";
-};
-
 const AdminOrganisationProfilePage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const toast = useToast();
+  const { error: toastError, success: toastSuccess, info: toastInfo } = useToast();
+  const { confirm } = useConfirm();
   const params = useParams();
   const orgId = String(params.id || "");
   const [user, setUser] = useState<PublicUser | null>(null);
@@ -99,6 +93,7 @@ const AdminOrganisationProfilePage = () => {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [editUrlConsumed, setEditUrlConsumed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [startingOnboarding, setStartingOnboarding] = useState(false);
   const [resendingInvite, setResendingInvite] = useState(false);
@@ -174,12 +169,21 @@ const AdminOrganisationProfilePage = () => {
   useEffect(() => {
     if (!orgId) return;
     setAccessCreds(readAccessCredentials(orgId));
+    setEditUrlConsumed(false);
   }, [orgId]);
 
+  const clearEditQuery = useCallback(() => {
+    if (searchParams.get("edit") !== "1") return;
+    router.replace(`/admin/organisations/${orgId}`);
+  }, [orgId, router, searchParams]);
+
   useEffect(() => {
-    if (!org || loading) return;
-    if (searchParams.get("edit") === "1") setEditing(true);
-  }, [org, loading, searchParams]);
+    if (!org || loading || editUrlConsumed) return;
+    if (searchParams.get("edit") === "1") {
+      setEditing(true);
+      setEditUrlConsumed(true);
+    }
+  }, [org, loading, searchParams, editUrlConsumed]);
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
@@ -189,14 +193,14 @@ const AdminOrganisationProfilePage = () => {
     if (isOtherOption(form.type) && !form.typeOther.trim()) {
       const msg = "Please specify the organisation type.";
       setError(msg);
-      toast.error(msg);
+      toastError(msg);
       setSaving(false);
       return;
     }
     if (isOtherOption(form.regulatoryContext) && !form.regulatoryOther.trim()) {
       const msg = "Please specify the regulatory context.";
       setError(msg);
-      toast.error(msg);
+      toastError(msg);
       setSaving(false);
       return;
     }
@@ -221,16 +225,17 @@ const AdminOrganisationProfilePage = () => {
       );
       if (!result.success) {
         setError(result.error.message);
-        toast.error(result.error.message);
+        toastError(result.error.message);
         return;
       }
       setNotice("Organisation updated.");
-      toast.success("Organisation updated.");
+      toastSuccess("Organisation updated.");
       setEditing(false);
+      clearEditQuery();
       await load();
     } catch {
       setError("Unable to save organisation.");
-      toast.error("Unable to save organisation.");
+      toastError("Unable to save organisation.");
     } finally {
       setSaving(false);
     }
@@ -253,14 +258,14 @@ const AdminOrganisationProfilePage = () => {
       });
       if (!result.success) {
         setError(result.error.message);
-        toast.error(result.error.message);
+        toastError(result.error.message);
         return;
       }
-      toast.success("Onboarding started.");
+      toastSuccess("Onboarding started.");
       router.push(`/admin/onboarding/${result.data.run.id}`);
     } catch {
       setError("Unable to start onboarding.");
-      toast.error("Unable to start onboarding.");
+      toastError("Unable to start onboarding.");
     } finally {
       setStartingOnboarding(false);
     }
@@ -270,14 +275,16 @@ const AdminOrganisationProfilePage = () => {
     if (!org?.users[0]) return;
     const primary = org.users[0];
     if (primary.status !== "active") {
-      toast.error("Primary client login is disabled — enable the user first.");
+      toastError("Primary client login is disabled — enable the user first.");
       return;
     }
     const action = clientAccessAction(primary);
     if (action === "reset") {
-      const ok = window.confirm(
-        `Send a password reset link to ${primary.email}? They can choose a new password.`
-      );
+      const ok = await confirm({
+        title: "Send password reset?",
+        description: `Send a password reset link to ${primary.email}? They can choose a new password.`,
+        confirmLabel: "Send reset",
+      });
       if (!ok) return;
     }
     setResendingInvite(true);
@@ -294,7 +301,7 @@ const AdminOrganisationProfilePage = () => {
       });
       if (!result.success) {
         setError(result.error.message);
-        toast.error(result.error.message);
+        toastError(result.error.message);
         return;
       }
       const mailStatus = result.data.mailStatus || "skipped";
@@ -318,15 +325,15 @@ const AdminOrganisationProfilePage = () => {
           ? `Password reset sent for ${primary.email}.`
           : `Invite refreshed for ${primary.email}.`;
       setNotice(doneMsg);
-      toast.success(doneMsg);
-      if (mailStatus === "sent") toast.success(mailStatusLabel(mailStatus));
-      else if (mailStatus === "failed") toast.error(mailStatusLabel(mailStatus));
-      else toast.info(mailStatusLabel(mailStatus));
+      toastSuccess(doneMsg);
+      if (mailStatus === "sent") toastSuccess(mailStatusLabel(mailStatus));
+      else if (mailStatus === "failed") toastError(mailStatusLabel(mailStatus));
+      else toastInfo(mailStatusLabel(mailStatus));
     } catch {
       const failMsg =
         action === "reset" ? "Unable to send password reset." : "Unable to resend invite.";
       setError(failMsg);
-      toast.error(failMsg);
+      toastError(failMsg);
     } finally {
       setResendingInvite(false);
     }
@@ -334,6 +341,17 @@ const AdminOrganisationProfilePage = () => {
 
   async function setOrgStatus(status: "active" | "inactive") {
     if (!org) return;
+    const label = status === "inactive" ? "Deactivate" : "Activate";
+    const ok = await confirm({
+      title: `${label} client?`,
+      description:
+        status === "inactive"
+          ? `Deactivate ${org.name}? Client users keep accounts but the organisation is marked inactive.`
+          : `Activate ${org.name}?`,
+      confirmLabel: label,
+      tone: status === "inactive" ? "danger" : "default",
+    });
+    if (!ok) return;
     setBusyStatus(true);
     try {
       const result = await apiFetch<{ organisation: OrgDetail }>(
@@ -345,13 +363,13 @@ const AdminOrganisationProfilePage = () => {
         }
       );
       if (!result.success) {
-        toast.error(result.error.message);
+        toastError(result.error.message);
         return;
       }
-      toast.success(status === "inactive" ? `${org.name} deactivated.` : `${org.name} activated.`);
+      toastSuccess(status === "inactive" ? `${org.name} deactivated.` : `${org.name} activated.`);
       await load();
     } catch {
-      toast.error("Unable to update organisation status.");
+      toastError("Unable to update organisation status.");
     } finally {
       setBusyStatus(false);
     }
@@ -726,6 +744,7 @@ const AdminOrganisationProfilePage = () => {
                     onClick={() => {
                       setEditing(false);
                       setForm(hydrateOrgForm(org));
+                      clearEditQuery();
                     }}
                   >
                     Cancel
@@ -753,7 +772,7 @@ const AdminOrganisationProfilePage = () => {
               <div className="profile-metric-label">Employees</div>
             </Link>
             <Link
-              href={`/admin/cases?org=${encodeURIComponent(org.id)}`}
+              href={`/admin/cases?org=${encodeURIComponent(org.id)}&open=1`}
               className="profile-metric"
             >
               <Briefcase className="profile-metric-icon" size={14} strokeWidth={1.75} aria-hidden />

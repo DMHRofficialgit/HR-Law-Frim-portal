@@ -3,9 +3,11 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
+import { DocsDropzone } from "../../../components/DocsDropzone";
 import { FirmLibraryPrepareSheet } from "../../../components/FirmLibraryPrepareSheet";
 import { apiFetch, apiUpload, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
+import { useConfirm } from "../../../context/ConfirmContext";
 import { adminNav } from "../../../lib/nav";
 import { isPdfDocument } from "../../../lib/signatures";
 
@@ -24,6 +26,7 @@ type LibraryDoc = {
 
 export default function AdminFirmLibraryPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [docs, setDocs] = useState<LibraryDoc[]>([]);
   const [error, setError] = useState("");
@@ -109,7 +112,13 @@ export default function AdminFirmLibraryPage() {
   }
 
   async function remove(doc: LibraryDoc) {
-    if (!window.confirm(`Remove “${doc.title}” from Firm Library?`)) return;
+    const ok = await confirm({
+      title: "Remove from Firm Library?",
+      description: `Remove “${doc.title}” from Firm Library?`,
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     setError("");
     const result = await apiFetch(`/admin/firm-library/${doc.id}`, {
       method: "DELETE",
@@ -137,25 +146,42 @@ export default function AdminFirmLibraryPage() {
           every new client pack reuses layout + Admin ink automatically.
         </p>
         <form onSubmit={onUpload}>
-          <div className="form-grid">
-            <div className="field">
-              <label htmlFor="libTitle">Title (optional)</label>
-              <input
-                id="libTitle"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Terms of Business"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="libFile">File</label>
-              <input
-                id="libFile"
-                type="file"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                required
-              />
-            </div>
+          <div className="field">
+            <label htmlFor="libTitle">Title (optional)</label>
+            <input
+              id="libTitle"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Terms of Business"
+            />
+          </div>
+          <div className="field">
+            <label>PDF template</label>
+            <DocsDropzone
+              multiple={false}
+              busy={uploading}
+              accept=".pdf,application/pdf"
+              hint="PDF only · drag and drop or select"
+              title="Drop a PDF template here"
+              selectLabel="Select PDF"
+              onFiles={(picked) => setFile(picked[0] || null)}
+            />
+            {file ? (
+              <ul className="docs-file-chips">
+                <li className="docs-file-chip-item">
+                  <span>{file.name}</span>
+                  <button
+                    type="button"
+                    className="docs-file-chip-remove"
+                    aria-label={`Remove ${file.name}`}
+                    onClick={() => setFile(null)}
+                    disabled={uploading}
+                  >
+                    ×
+                  </button>
+                </li>
+              </ul>
+            ) : null}
           </div>
           <label className="check-inline" style={{ display: "flex", gap: 8, margin: "12px 0" }}>
             <input
