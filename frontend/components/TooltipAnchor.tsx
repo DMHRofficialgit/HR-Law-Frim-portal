@@ -64,6 +64,12 @@ export const TooltipAnchor = ({
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    const dismiss = () => setOpen(false);
+    window.addEventListener("dmhr:dismiss-tooltips", dismiss);
+    return () => window.removeEventListener("dmhr:dismiss-tooltips", dismiss);
+  }, []);
+
   const updatePos = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;

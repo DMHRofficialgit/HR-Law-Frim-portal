@@ -2468,8 +2468,8 @@ textarea {
 .esign-sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  z-index: 80;
+  background: color-mix(in srgb, var(--ink) 35%, transparent);
+  z-index: 120;
   display: flex;
   justify-content: flex-end;
 }
@@ -2478,7 +2478,8 @@ textarea {
   width: min(1120px, 100%);
   height: 100%;
   background: var(--surface);
-  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.12);
+  color: var(--ink);
+  box-shadow: -12px 0 40px color-mix(in srgb, var(--ink) 18%, transparent);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -2489,13 +2490,16 @@ textarea {
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  padding: 16px 20px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
 }
 
 .esign-sheet-head h2 {
   margin: 0 0 4px;
-  font-size: 18px;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
 }
 
 .esign-sheet-body {
@@ -2508,14 +2512,29 @@ textarea {
 .esign-sheet-main {
   overflow: auto;
   padding: 12px 16px;
-  background: #eef0f3;
+  background: var(--bg);
 }
 
 .esign-sheet-side {
   border-left: 1px solid var(--line);
   padding: 14px 16px 20px;
   overflow: auto;
-  background: #fafbfc;
+  background: var(--surface-2, var(--surface));
+  color: var(--ink);
+}
+
+.esign-sheet-side-place {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.esign-rail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 16px 8px;
 }
 
 .esign-stage-row {
@@ -2534,64 +2553,65 @@ textarea {
   letter-spacing: 0.02em;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #e8ecf1;
-  color: #334155;
+  background: color-mix(in srgb, var(--muted) 18%, var(--surface));
+  color: var(--ink);
 }
 
 .esign-stage-chip.status-draft {
-  background: #e8ecf1;
+  background: color-mix(in srgb, var(--muted) 18%, var(--surface));
 }
 
 .esign-stage-chip.status-ready_for_send {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--blue-soft);
+  color: var(--blue);
 }
 
 .esign-stage-chip.status-awaiting_signature,
 .esign-stage-chip.status-sent,
 .esign-stage-chip.status-revision_requested {
-  background: #fef3c7;
-  color: #92400e;
+  background: color-mix(in srgb, var(--amber) 22%, transparent);
+  color: var(--amber);
 }
 
 .esign-stage-chip.status-signed_returned {
-  background: #dcfce7;
-  color: #166534;
+  background: color-mix(in srgb, var(--ok) 22%, transparent);
+  color: var(--ok);
 }
 
 .esign-stage-chip.status-reviewed {
-  background: #e0e7ff;
-  color: #3730a3;
+  background: var(--blue-soft);
+  color: var(--blue);
 }
 
 .esign-stage-meta {
   font-size: 12px;
-  color: var(--muted, #64748b);
+  color: var(--muted);
 }
 
 .esign-stage-hint {
   margin: 4px 0 0;
-  font-size: 13px;
-  max-width: 52ch;
+  font-size: 12.5px;
+  max-width: 48ch;
+  color: var(--muted);
 }
 
 .esign-page-chip {
   margin-left: auto;
   font-size: 12px;
-  color: var(--muted, #64748b);
+  color: var(--muted);
 }
 
 .esign-rail-block {
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 
 .esign-rail-block h3 {
   margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #475569;
+  color: var(--muted);
 }
 
 .esign-recipient-list {
@@ -2600,22 +2620,28 @@ textarea {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-height: 180px;
+  gap: 5px;
+  max-height: 160px;
   overflow: auto;
 }
 
 .esign-recipient {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   width: 100%;
   text-align: left;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
+  color: var(--ink);
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 7px 10px;
   cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.esign-recipient:hover {
+  border-color: color-mix(in srgb, var(--blue) 35%, var(--line));
 }
 
 .esign-recipient.active {
@@ -2623,28 +2649,30 @@ textarea {
 }
 
 .esign-recipient-dot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
-  margin-top: 4px;
   flex-shrink: 0;
 }
 
 .esign-recipient-copy {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
   font-size: 12px;
 }
 
 .esign-recipient-copy strong {
   font-size: 13px;
-  color: #0f172a;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .esign-recipient-copy span {
-  color: #64748b;
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2657,18 +2685,33 @@ textarea {
 }
 
 .esign-palette-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   border: 1px solid var(--line);
-  background: #fff;
-  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 10px;
   padding: 10px 8px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 11.5px;
+  font-weight: 550;
   cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.esign-palette-btn span {
+  line-height: 1.2;
 }
 
 .esign-palette-btn:hover:not(:disabled) {
   border-color: var(--blue);
   background: var(--blue-soft);
+  color: var(--blue);
 }
 
 .esign-palette-btn:disabled {
@@ -2683,13 +2726,14 @@ textarea {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .esign-inspector-title {
   margin: 0;
   font-size: 13px;
   font-weight: 600;
+  color: var(--ink);
 }
 
 .esign-inspector .field {
@@ -2699,7 +2743,7 @@ textarea {
 .esign-inspector .field span {
   display: block;
   font-size: 11px;
-  color: #64748b;
+  color: var(--muted);
   margin-bottom: 4px;
 }
 
@@ -2711,16 +2755,34 @@ textarea {
 
 .esign-cc-toggle {
   width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   text-align: left;
-  border: none;
-  background: transparent;
-  padding: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: #475569;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--muted);
   cursor: pointer;
   text-transform: uppercase;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.04em;
+}
+
+.esign-cc-toggle svg {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.esign-cc-toggle.is-open svg {
+  transform: rotate(180deg);
+}
+
+.esign-cc-panel {
+  margin-top: 8px;
 }
 
 .esign-fill-form h3 {
@@ -2745,8 +2807,17 @@ textarea {
 .esign-zoom {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 10px;
+}
+
+.esign-zoom-label {
+  min-width: 3.2em;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .esign-pdf-scroll {
@@ -2758,8 +2829,9 @@ textarea {
 
 .esign-pdf-page {
   position: relative;
-  background: #fff;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  background: var(--surface);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--ink) 10%, transparent);
+  border-radius: 2px;
 }
 
 .esign-pdf-img {
@@ -2883,7 +2955,8 @@ textarea {
   flex: 1;
   text-align: left;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
+  color: var(--ink);
   border-radius: 8px;
   padding: 8px 10px;
   cursor: pointer;
@@ -2901,6 +2974,14 @@ textarea {
   margin-top: 12px;
 }
 
+.esign-actions-sticky {
+  margin-top: 0;
+  flex-shrink: 0;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
 @media (max-width: 640px) {
   .esign-sheet-body {
     grid-template-columns: 1fr;
@@ -2910,6 +2991,10 @@ textarea {
     border-left: none;
     border-top: 1px solid var(--line);
     max-height: 42vh;
+  }
+
+  .esign-sheet-side-place {
+    max-height: 48vh;
   }
 }
 

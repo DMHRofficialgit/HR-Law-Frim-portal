@@ -3,7 +3,7 @@
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye, FileSignature, FolderOpen, PenLine } from "lucide-react";
 import { AppShell } from "../../../../components/AppShell";
 import { EsignSheet } from "../../../../components/EsignSheet";
 import { FilePreviewSheet, type FilePreviewTarget } from "../../../../components/FilePreviewSheet";
@@ -22,7 +22,8 @@ import {
   packAwaitingAdminReview,
   packItemLabel,
   packJourneyRole,
-  packPreviewDoc,
+  packPreviewShowsUnsignedSource,
+  packPreviewTarget,
   packProgress,
   paymentUrl,
   type JourneyRole,
@@ -253,14 +254,14 @@ function AdminOnboardingDetailInner() {
   const issuedRoles = new Set((run?.packItems || []).map((p) => packJourneyRole(p)));
 
   function openPackPreview(item: OnboardingPackItem) {
-    const doc = packPreviewDoc(item);
-    if (!doc || !run?.organisationId) return;
-    setPreview({
-      title: doc.title,
-      url: `${API_URL}/admin/organisations/${run.organisationId}/documents/${doc.id}/download`,
-      fileName: `${doc.title}.pdf`,
-      mimeType: "application/pdf",
+    if (!run?.organisationId) return;
+    const target = packPreviewTarget(item, {
+      role: "admin",
+      organisationId: run.organisationId,
+      apiUrl: API_URL,
     });
+    if (!target) return;
+    setPreview(target);
   }
 
   return (
@@ -456,7 +457,14 @@ function AdminOnboardingDetailInner() {
               <ul className="org-list">
                 {run.packItems.map((item) => {
                   const awaitingReview = packAwaitingAdminReview(item);
-                  const canPreview = Boolean(packPreviewDoc(item));
+                  const canPreview = Boolean(
+                    packPreviewTarget(item, {
+                      role: "admin",
+                      organisationId: run.organisationId,
+                      apiUrl: API_URL,
+                    })
+                  );
+                  const unsignedPreview = packPreviewShowsUnsignedSource(item);
                   return (
                     <li key={item.id}>
                       <div>
@@ -471,28 +479,35 @@ function AdminOnboardingDetailInner() {
                         </div>
                         {awaitingReview ? (
                           <div className="org-meta" style={{ marginTop: 4 }}>
-                            Mark complete in Open signature to publish the Signed copy into My
-                            Onboarding.
+                            Preview shows the stamped PDF. Mark complete in Open signature to
+                            publish the Signed copy into My Onboarding.
+                          </div>
+                        ) : null}
+                        {unsignedPreview ? (
+                          <div className="org-meta" style={{ marginTop: 4 }}>
+                            Preview is the unsigned source — Open signature to see boxes and Admin
+                            ink until everyone has signed.
                           </div>
                         ) : null}
                       </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <div className="file-actions" style={{ gap: 6 }}>
                         {canPreview ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
+                          <IconButton
+                            label="Preview"
+                            aria-label={`Preview ${item.title}`}
                             onClick={() => openPackPreview(item)}
                           >
-                            Preview
-                          </button>
+                            <Eye size={15} strokeWidth={1.75} />
+                          </IconButton>
                         ) : null}
                         {item.clientDocumentId ? (
-                          <Link
+                          <IconButton
+                            label="My Onboarding folder"
+                            aria-label={`Open My Onboarding folder for ${item.title}`}
                             href={`/admin/documents?org=${encodeURIComponent(run.organisationId)}&folder=my_onboarding`}
-                            className="btn btn-secondary btn-sm"
                           >
-                            My Onboarding folder
-                          </Link>
+                            <FolderOpen size={15} strokeWidth={1.75} />
+                          </IconButton>
                         ) : null}
                         {item.signatureRequestId ? (
                           <button
@@ -500,18 +515,19 @@ function AdminOnboardingDetailInner() {
                             className="btn btn-primary btn-sm"
                             onClick={() => setEsignId(item.signatureRequestId)}
                           >
+                            <PenLine size={14} strokeWidth={1.75} aria-hidden />
                             Open signature
                           </button>
                         ) : item.requiresSignature &&
                           item.clientDocumentId &&
                           run.status === "in_progress" ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
+                          <IconButton
+                            label="Manual request"
+                            aria-label={`Request signature for ${item.title}`}
                             onClick={() => requestSignature(item)}
                           >
-                            Manual request
-                          </button>
+                            <FileSignature size={15} strokeWidth={1.75} />
+                          </IconButton>
                         ) : null}
                       </div>
                     </li>

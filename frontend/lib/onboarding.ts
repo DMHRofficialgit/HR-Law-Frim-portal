@@ -51,9 +51,84 @@ export function packPreviewDoc(item: OnboardingPackItem): {
   return null;
 }
 
+/** Ceremony stamp exists (all assignees done) — before or after Admin Mark complete. */
+export function packCeremonyFullySigned(item: OnboardingPackItem): boolean {
+  if (item.status === "signed" || item.status === "reviewed" || item.status === "done") {
+    return Boolean(item.signatureRequestId);
+  }
+  const s = item.signatureRequest?.status;
+  return s === "signed_returned" || s === "reviewed";
+}
+
+/**
+ * Prefer Documents Signed copy when published; else stamped e-sign file once
+ * ceremony is complete (safe — does not publish early).
+ */
+export function packPreviewTarget(
+  item: OnboardingPackItem,
+  opts: { role: "admin" | "client"; organisationId?: string | null; apiUrl: string }
+): { title: string; url: string; fileName: string; mimeType: string } | null {
+  const published = item.signatureRequest?.publishedDocuments?.[0];
+  if (published?.id) {
+    if (opts.role === "admin") {
+      if (!opts.organisationId) return null;
+      return {
+        title: published.title || `${item.title} — Signed`,
+        url: `${opts.apiUrl}/admin/organisations/${opts.organisationId}/documents/${published.id}/download`,
+        fileName: `${published.title || item.title}.pdf`,
+        mimeType: "application/pdf",
+      };
+    }
+    return {
+      title: published.title || `${item.title} — Signed`,
+      url: `${opts.apiUrl}/client/documents/${published.id}/download`,
+      fileName: `${published.title || item.title}.pdf`,
+      mimeType: "application/pdf",
+    };
+  }
+
+  if (packCeremonyFullySigned(item) && item.signatureRequestId) {
+    const base = opts.role === "admin" ? "/admin" : "/client";
+    const title = `${item.title} — Signed`;
+    return {
+      title,
+      url: `${opts.apiUrl}${base}/signature-requests/${item.signatureRequestId}/file?signed=1`,
+      fileName: `${title}.pdf`,
+      mimeType: "application/pdf",
+    };
+  }
+
+  if (item.clientDocumentId) {
+    if (opts.role === "admin") {
+      if (!opts.organisationId) return null;
+      return {
+        title: item.clientDocument?.title || item.title,
+        url: `${opts.apiUrl}/admin/organisations/${opts.organisationId}/documents/${item.clientDocumentId}/download`,
+        fileName: `${item.title}.pdf`,
+        mimeType: "application/pdf",
+      };
+    }
+    return {
+      title: item.clientDocument?.title || item.title,
+      url: `${opts.apiUrl}/client/documents/${item.clientDocumentId}/download`,
+      fileName: `${item.title}.pdf`,
+      mimeType: "application/pdf",
+    };
+  }
+
+  return null;
+}
+
 export function packAwaitingAdminReview(item: OnboardingPackItem): boolean {
   if (item.status === "signed") return true;
   return item.signatureRequest?.status === "signed_returned";
+}
+
+/** Signable pack item that is not fully stamped yet — Preview is unsigned source only. */
+export function packPreviewShowsUnsignedSource(item: OnboardingPackItem): boolean {
+  if (!item.requiresSignature || !item.signatureRequestId) return false;
+  if (packCeremonyFullySigned(item)) return false;
+  return Boolean(item.clientDocumentId);
 }
 
 export type OnboardingPaymentLink = {

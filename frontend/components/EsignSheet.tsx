@@ -1,7 +1,18 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import {
+  Calendar,
+  ChevronDown,
+  Minus,
+  PenLine,
+  Plus,
+  Signature,
+  TextCursorInput,
+  User,
+  X,
+} from "lucide-react";
 import { API_URL, apiDownload, apiFetch, apiUpload } from "../lib/api";
 import { triggerBlobDownload } from "../lib/download-file";
 import { getStoredUser, getToken } from "../lib/auth";
@@ -20,9 +31,26 @@ import {
   type SignatureRequestRow,
 } from "../lib/signatures";
 import { EsignPdfViewer, type LocalField } from "./EsignPdfViewer";
+import { IconButton } from "./IconButton";
 import { PortalMultiSelect } from "./PortalMultiSelect";
 import { PortalSelect } from "./PortalSelect";
 import { SignaturePad } from "./SignaturePad";
+
+const fieldTypeIcon = (type: string): ReactNode => {
+  const props = { size: 16, strokeWidth: 1.75, "aria-hidden": true as const };
+  switch (type) {
+    case "initials":
+      return <Signature {...props} />;
+    case "text":
+      return <TextCursorInput {...props} />;
+    case "date":
+      return <Calendar {...props} />;
+    case "name":
+      return <User {...props} />;
+    default:
+      return <PenLine {...props} />;
+  }
+};
 
 type EsignSheetProps = {
   role: "admin" | "client";
@@ -127,8 +155,21 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
   /** If stamped PDF fails to load, fall back to source + overlays */
   const [preferSourcePdf, setPreferSourcePdf] = useState(false);
   const [previewInkHint, setPreviewInkHint] = useState("");
+  const [ccOpen, setCcOpen] = useState(false);
 
   const token = getToken();
+
+  useEffect(() => {
+    window.dispatchEvent(new Event("dmhr:dismiss-tooltips"));
+    document.body.classList.add("esign-sheet-open");
+    return () => {
+      document.body.classList.remove("esign-sheet-open");
+    };
+  }, []);
+
+  useEffect(() => {
+    if (ccUserIds.length > 0) setCcOpen(true);
+  }, [ccUserIds.length]);
   const isFullySigned =
     request?.status === "signed_returned" || request?.status === "reviewed";
   const showSignedPdf = isFullySigned && !preferSourcePdf;
@@ -780,9 +821,9 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
         <aside className="esign-sheet" onClick={(e) => e.stopPropagation()}>
           <div className="esign-sheet-head">
             <h2>E-sign</h2>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
-              Close
-            </button>
+            <IconButton label="Close" aria-label="Close" onClick={onClose}>
+              <X size={16} strokeWidth={1.75} />
+            </IconButton>
           </div>
           {error ? <div className="error-banner">{error}</div> : null}
           <p className="lead">Loading…</p>
@@ -794,7 +835,7 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
   const viewerMode = adminEdit ? "place" : canFillMine ? "sign" : "view";
   const stageHint = (() => {
     if (adminEdit) {
-      return "Place fields for each recipient. Mark Ready when layout is final — then you can Finish my part if assigned.";
+      return "Select a recipient, add fields, drag to position. Mark Ready when the layout is final.";
     }
     if (isReadyForSend && canFillMine) {
       return "You’re an assignee — Finish my part now. Send when others (e.g. clients) should be notified.";
@@ -831,11 +872,11 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
               ) : null}
             </div>
             <h2>{request.title}</h2>
-            <p className="lead esign-stage-hint">{stageHint}</p>
+            {stageHint ? <p className="lead esign-stage-hint">{stageHint}</p> : null}
           </div>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>
-            Close
-          </button>
+          <IconButton label="Close" aria-label="Close" onClick={onClose}>
+            <X size={16} strokeWidth={1.75} />
+          </IconButton>
         </div>
 
         {error ? <div className="error-banner">{error}</div> : null}
@@ -857,22 +898,24 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
         <div className="esign-sheet-body">
           <div className="esign-sheet-main">
             <div className="esign-zoom">
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
+              <IconButton
+                label="Zoom out"
+                aria-label="Zoom out"
                 onClick={() => setZoom((z) => Math.max(0.6, z - 0.1))}
               >
-                −
-              </button>
-              <span>{Math.round(zoom * 100)}%</span>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
+                <Minus size={15} strokeWidth={1.75} />
+              </IconButton>
+              <span className="esign-zoom-label">{Math.round(zoom * 100)}%</span>
+              <IconButton
+                label="Zoom in"
+                aria-label="Zoom in"
                 onClick={() => setZoom((z) => Math.min(1.6, z + 0.1))}
               >
-                +
-              </button>
-              <span className="esign-page-chip">Page {placePage}/{pdfPageCount}</span>
+                <Plus size={15} strokeWidth={1.75} />
+              </IconButton>
+              <span className="esign-page-chip">
+                Page {placePage}/{pdfPageCount}
+              </span>
             </div>
             <EsignPdfViewer
               pdfUrl={fileUrl}
@@ -915,192 +958,215 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
             />
           </div>
 
-          <div className="esign-sheet-side">
+          <div className={`esign-sheet-side${adminEdit ? " esign-sheet-side-place" : ""}`}>
             {adminEdit ? (
               <>
-                <section className="esign-rail-block">
-                  <h3>Recipients</h3>
-                  <p className="org-meta">
-                    Select who you’re placing for, then add a field type below.
-                  </p>
-                  <ul className="esign-recipient-list">
-                    {assignees.map((u) => {
-                      const tint = colorForAssignee(u.id);
-                      const onDoc = recipientIdsOnDoc.has(u.id);
-                      const count = fields.filter((f) => f.assigneeUserId === u.id).length;
-                      return (
-                        <li key={u.id}>
-                          <button
-                            type="button"
-                            className={`esign-recipient${
-                              activeRecipientId === u.id ? " active" : ""
-                            }`}
-                            style={{
-                              borderColor:
-                                activeRecipientId === u.id ? tint.border : undefined,
-                              background:
-                                activeRecipientId === u.id ? tint.fill : undefined,
-                            }}
-                            onClick={() => setActiveRecipientId(u.id)}
-                          >
-                            <span
-                              className="esign-recipient-dot"
-                              style={{ background: tint.border }}
-                              aria-hidden
-                            />
-                            <span className="esign-recipient-copy">
-                              <strong>{u.name}</strong>
-                              <span>
-                                {u.role} · {u.email}
-                                {onDoc ? ` · ${count} field${count === 1 ? "" : "s"}` : ""}
+                <div className="esign-rail-scroll dmhr-scroll">
+                  <section className="esign-rail-block">
+                    <h3>Recipients</h3>
+                    <p className="org-meta">Select who you’re placing for, then add a field.</p>
+                    <ul className="esign-recipient-list">
+                      {assignees.map((u) => {
+                        const tint = colorForAssignee(u.id);
+                        const onDoc = recipientIdsOnDoc.has(u.id);
+                        const count = fields.filter((f) => f.assigneeUserId === u.id).length;
+                        return (
+                          <li key={u.id}>
+                            <button
+                              type="button"
+                              className={`esign-recipient${
+                                activeRecipientId === u.id ? " active" : ""
+                              }`}
+                              title={`${u.role} · ${u.email}`}
+                              style={{
+                                borderColor:
+                                  activeRecipientId === u.id ? tint.border : undefined,
+                                background:
+                                  activeRecipientId === u.id ? tint.fill : undefined,
+                              }}
+                              onClick={() => setActiveRecipientId(u.id)}
+                            >
+                              <span
+                                className="esign-recipient-dot"
+                                style={{ background: tint.border }}
+                                aria-hidden
+                              />
+                              <span className="esign-recipient-copy">
+                                <strong>{u.name}</strong>
+                                <span>
+                                  {u.role}
+                                  {onDoc
+                                    ? ` · ${count} field${count === 1 ? "" : "s"}`
+                                    : ""}
+                                </span>
                               </span>
-                            </span>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </section>
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
 
-                <section className="esign-rail-block">
-                  <h3>Add field</h3>
-                  <div className="esign-palette" role="group" aria-label="Field types">
-                    {SIGNATURE_FIELD_TYPES.map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        className="esign-palette-btn"
-                        disabled={!activeRecipientId}
-                        onClick={() => addFieldOfType(t)}
-                      >
-                        {defaultLabelForType(t)}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="org-meta">Adds to page {placePage} for the selected recipient.</p>
-                </section>
-
-                <section className="esign-rail-block">
-                  <h3>Selected field</h3>
-                  {activeField ? (
-                    <div className="esign-inspector">
-                      <p className="esign-inspector-title">
-                        {activeField.label} · p{activeField.page}
-                      </p>
-                      <label className="field">
-                        <span>Type</span>
-                        <PortalSelect
-                          aria-label="Field type"
-                          value={activeField.type}
-                          options={SIGNATURE_FIELD_TYPES.map((t) => ({
-                            value: t,
-                            label: t,
-                          }))}
-                          onChange={(type) => {
-                            setFields((prev) =>
-                              prev.map((row) =>
-                                row.id === activeField.id
-                                  ? {
-                                      ...row,
-                                      type,
-                                      label:
-                                        row.label === defaultLabelForType(row.type)
-                                          ? defaultLabelForType(type)
-                                          : row.label,
-                                    }
-                                  : row
-                              )
-                            );
-                          }}
-                        />
-                      </label>
-                      <label className="field">
-                        <span>Assign to (email)</span>
-                        <PortalSelect
-                          aria-label="Assign to"
-                          value={activeField.assigneeUserId || ""}
-                          searchable
-                          placeholder="Assign to…"
-                          options={[
-                            { value: "", label: "Assign to…" },
-                            ...assignees.map((u) => ({
-                              value: u.id,
-                              label: `${u.name} (${u.role}) — ${u.email}`,
-                            })),
-                          ]}
-                          onChange={(next) => {
-                            const assigneeUserId = next || null;
-                            setFields((prev) =>
-                              prev.map((row) =>
-                                row.id === activeField.id ? { ...row, assigneeUserId } : row
-                              )
-                            );
-                            if (assigneeUserId) setActiveRecipientId(assigneeUserId);
-                          }}
-                        />
-                      </label>
-                      <label className="field">
-                        <span>Page</span>
-                        <PortalSelect
-                          aria-label="Page"
-                          value={String(Math.min(activeField.page, pdfPageCount))}
-                          options={Array.from({ length: pdfPageCount }, (_, i) => ({
-                            value: String(i + 1),
-                            label: String(i + 1),
-                          }))}
-                          onChange={(v) => {
-                            const page = Math.min(
-                              pdfPageCount,
-                              Math.max(1, Number(v) || 1)
-                            );
-                            setFields((prev) =>
-                              prev.map((row) =>
-                                row.id === activeField.id ? { ...row, page } : row
-                              )
-                            );
-                            setPlacePage(page);
-                          }}
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm danger"
-                        onClick={() => {
-                          setFields((prev) => prev.filter((f) => f.id !== activeField.id));
-                          setActiveFieldId(null);
-                        }}
-                      >
-                        Remove field
-                      </button>
+                  <section className="esign-rail-block">
+                    <h3>Add field</h3>
+                    <div className="esign-palette" role="group" aria-label="Field types">
+                      {SIGNATURE_FIELD_TYPES.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          className="esign-palette-btn"
+                          disabled={!activeRecipientId}
+                          onClick={() => addFieldOfType(t)}
+                        >
+                          {fieldTypeIcon(t)}
+                          <span>{defaultLabelForType(t)}</span>
+                        </button>
+                      ))}
                     </div>
-                  ) : (
-                    <p className="org-meta">Click a box on the PDF to edit it.</p>
-                  )}
-                </section>
+                    <p className="org-meta">
+                      Adds to page {placePage} · drag the box to position.
+                    </p>
+                  </section>
 
-                <section className="esign-rail-block">
-                  <label className="esign-cc-label" htmlFor="esign-cc-multi">
-                    CC (notify only)
-                  </label>
-                  <PortalMultiSelect
-                    id="esign-cc-multi"
-                    className="esign-cc-multi"
-                    aria-label="CC recipients"
-                    placeholder="Add CC recipients…"
-                    value={ccUserIds}
-                    options={assignees.map((u) => ({
-                      value: u.id,
-                      label: `${u.name} (${u.role}) — ${u.email}`,
-                    }))}
-                    onChange={setCcUserIds}
-                  />
-                  <p className="org-meta">CC is notified only and cannot fill boxes.</p>
-                </section>
+                  <section className="esign-rail-block">
+                    <h3>Selected field</h3>
+                    {activeField ? (
+                      <div className="esign-inspector">
+                        <p className="esign-inspector-title">
+                          {activeField.label} · p{activeField.page}
+                        </p>
+                        <label className="field">
+                          <span>Type</span>
+                          <PortalSelect
+                            aria-label="Field type"
+                            value={activeField.type}
+                            options={SIGNATURE_FIELD_TYPES.map((t) => ({
+                              value: t,
+                              label: defaultLabelForType(t),
+                            }))}
+                            onChange={(type) => {
+                              setFields((prev) =>
+                                prev.map((row) =>
+                                  row.id === activeField.id
+                                    ? {
+                                        ...row,
+                                        type,
+                                        label:
+                                          row.label === defaultLabelForType(row.type)
+                                            ? defaultLabelForType(type)
+                                            : row.label,
+                                      }
+                                    : row
+                                )
+                              );
+                            }}
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Assign to</span>
+                          <PortalSelect
+                            aria-label="Assign to"
+                            value={activeField.assigneeUserId || ""}
+                            searchable
+                            placeholder="Assign to…"
+                            options={[
+                              { value: "", label: "Assign to…" },
+                              ...assignees.map((u) => ({
+                                value: u.id,
+                                label: `${u.name} (${u.role}) — ${u.email}`,
+                              })),
+                            ]}
+                            onChange={(next) => {
+                              const assigneeUserId = next || null;
+                              setFields((prev) =>
+                                prev.map((row) =>
+                                  row.id === activeField.id
+                                    ? { ...row, assigneeUserId }
+                                    : row
+                                )
+                              );
+                              if (assigneeUserId) setActiveRecipientId(assigneeUserId);
+                            }}
+                          />
+                        </label>
+                        <label className="field">
+                          <span>Page</span>
+                          <PortalSelect
+                            aria-label="Page"
+                            value={String(Math.min(activeField.page, pdfPageCount))}
+                            options={Array.from({ length: pdfPageCount }, (_, i) => ({
+                              value: String(i + 1),
+                              label: String(i + 1),
+                            }))}
+                            onChange={(v) => {
+                              const page = Math.min(
+                                pdfPageCount,
+                                Math.max(1, Number(v) || 1)
+                              );
+                              setFields((prev) =>
+                                prev.map((row) =>
+                                  row.id === activeField.id ? { ...row, page } : row
+                                )
+                              );
+                              setPlacePage(page);
+                            }}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm danger"
+                          onClick={() => {
+                            setFields((prev) =>
+                              prev.filter((f) => f.id !== activeField.id)
+                            );
+                            setActiveFieldId(null);
+                          }}
+                        >
+                          Remove field
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="org-meta">Click a box on the PDF to edit it.</p>
+                    )}
+                  </section>
 
-                <div className="esign-actions">
+                  <section className="esign-rail-block">
+                    <button
+                      type="button"
+                      className={`esign-cc-toggle${ccOpen ? " is-open" : ""}`}
+                      aria-expanded={ccOpen}
+                      onClick={() => setCcOpen((o) => !o)}
+                    >
+                      <span>
+                        CC (notify only)
+                        {ccUserIds.length ? ` · ${ccUserIds.length}` : ""}
+                      </span>
+                      <ChevronDown size={14} strokeWidth={1.75} aria-hidden />
+                    </button>
+                    {ccOpen ? (
+                      <div className="esign-cc-panel">
+                        <PortalMultiSelect
+                          id="esign-cc-multi"
+                          className="esign-cc-multi"
+                          aria-label="CC recipients"
+                          placeholder="Add CC recipients…"
+                          value={ccUserIds}
+                          options={assignees.map((u) => ({
+                            value: u.id,
+                            label: `${u.name} (${u.role}) — ${u.email}`,
+                          }))}
+                          onChange={setCcUserIds}
+                        />
+                        <p className="org-meta">Notified only — cannot fill boxes.</p>
+                      </div>
+                    ) : null}
+                  </section>
+                </div>
+
+                <div className="esign-actions esign-actions-sticky">
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="btn btn-secondary btn-sm"
                     disabled={busy}
                     onClick={saveFields}
                   >
@@ -1108,7 +1174,7 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
                   </button>
                   <button
                     type="button"
-                    className="btn btn-primary"
+                    className="btn btn-primary btn-sm"
                     disabled={busy}
                     onClick={markReady}
                   >
@@ -1117,7 +1183,7 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
                   {request.status === "ready_for_send" ? (
                     <button
                       type="button"
-                      className="btn btn-primary"
+                      className="btn btn-primary btn-sm"
                       disabled={busy}
                       onClick={send}
                     >

@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Eye, FolderOpen, ListChecks, PenLine } from "lucide-react";
 import { AppShell } from "../../../components/AppShell";
 import { EsignSheet } from "../../../components/EsignSheet";
 import { FilePreviewSheet, type FilePreviewTarget } from "../../../components/FilePreviewSheet";
+import { IconButton } from "../../../components/IconButton";
 import { OnboardingStageList } from "../../../components/OnboardingStageList";
 import { PanelSkeleton } from "../../../components/Skeleton";
 import { useToast } from "../../../context/ToastContext";
@@ -19,7 +21,8 @@ import {
   packAwaitingAdminReview,
   packItemDone,
   packItemLabel,
-  packPreviewDoc,
+  packPreviewShowsUnsignedSource,
+  packPreviewTarget,
   paymentUrl,
   type OnboardingPackItem,
   type OnboardingRun,
@@ -39,14 +42,9 @@ export default function ClientOnboardingPage() {
   const [preview, setPreview] = useState<FilePreviewTarget | null>(null);
 
   function openPackPreview(item: OnboardingPackItem) {
-    const doc = packPreviewDoc(item);
-    if (!doc) return;
-    setPreview({
-      title: doc.title,
-      url: `${API_URL}/client/documents/${doc.id}/download`,
-      fileName: `${doc.title}.pdf`,
-      mimeType: "application/pdf",
-    });
+    const target = packPreviewTarget(item, { role: "client", apiUrl: API_URL });
+    if (!target) return;
+    setPreview(target);
   }
 
   const load = useCallback(
@@ -167,7 +165,10 @@ export default function ClientOnboardingPage() {
                       item.signatureRequest.status === "ready_for_send" ||
                       item.signatureRequest.status === "sent");
                   const awaitingReview = packAwaitingAdminReview(item);
-                  const canPreview = Boolean(packPreviewDoc(item));
+                  const canPreview = Boolean(
+                    packPreviewTarget(item, { role: "client", apiUrl: API_URL })
+                  );
+                  const unsignedPreview = packPreviewShowsUnsignedSource(item);
                   return (
                     <li key={item.id}>
                       <div>
@@ -179,39 +180,50 @@ export default function ClientOnboardingPage() {
                         </div>
                         {awaitingReview ? (
                           <div className="org-meta" style={{ marginTop: 4 }}>
-                            Signed — waiting for DM.HR to mark complete. The Signed copy appears in
-                            My Onboarding after review.
+                            Preview shows the stamped PDF. Waiting for DM.HR to mark complete — the
+                            Signed copy appears in My Onboarding after review.
+                          </div>
+                        ) : null}
+                        {unsignedPreview ? (
+                          <div className="org-meta" style={{ marginTop: 4 }}>
+                            Preview is the unsigned source — use Sign now to see signature boxes.
                           </div>
                         ) : null}
                       </div>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <div className="file-actions" style={{ gap: 6 }}>
+                        {canPreview ? (
+                          <IconButton
+                            label="Preview"
+                            aria-label={`Preview ${item.title}`}
+                            onClick={() => openPackPreview(item)}
+                          >
+                            <Eye size={15} strokeWidth={1.75} />
+                          </IconButton>
+                        ) : null}
+                        <IconButton
+                          label="My Onboarding folder"
+                          aria-label={`Open My Onboarding folder for ${item.title}`}
+                          href="/portal/documents?folder=my_onboarding"
+                        >
+                          <FolderOpen size={15} strokeWidth={1.75} />
+                        </IconButton>
+                        <IconButton
+                          label="Signatures"
+                          aria-label="Open signatures"
+                          href="/portal/signatures"
+                        >
+                          <ListChecks size={15} strokeWidth={1.75} />
+                        </IconButton>
                         {needsSign && item.signatureRequestId ? (
                           <button
                             type="button"
                             className="btn btn-primary btn-sm"
                             onClick={() => setEsignId(item.signatureRequestId)}
                           >
+                            <PenLine size={14} strokeWidth={1.75} aria-hidden />
                             Sign now
                           </button>
                         ) : null}
-                        {canPreview ? (
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => openPackPreview(item)}
-                          >
-                            Preview
-                          </button>
-                        ) : null}
-                        <Link
-                          href="/portal/documents?folder=my_onboarding"
-                          className="btn btn-secondary btn-sm"
-                        >
-                          Open folder
-                        </Link>
-                        <Link href="/portal/signatures" className="btn btn-secondary btn-sm">
-                          Signatures
-                        </Link>
                       </div>
                     </li>
                   );
