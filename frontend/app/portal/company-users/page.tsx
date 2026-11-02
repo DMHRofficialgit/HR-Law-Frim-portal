@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
+import { PortalSelect } from "../../../components/PortalSelect";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { clientNav } from "../../../lib/nav";
@@ -174,19 +175,21 @@ export default function CompanyUsersPage() {
           </div>
           <div className="field">
             <label htmlFor="cu-auth">Auth</label>
-            <select
+            <PortalSelect
               id="cu-auth"
+              aria-label="Auth"
               value={form.authMode}
-              onChange={(e) =>
+              options={[
+                { value: "invite", label: "Invite link" },
+                { value: "temporary_password", label: "Temporary password" },
+              ]}
+              onChange={(authMode) =>
                 setForm((f) => ({
                   ...f,
-                  authMode: e.target.value as "invite" | "temporary_password",
+                  authMode: authMode as "invite" | "temporary_password",
                 }))
               }
-            >
-              <option value="invite">Invite link</option>
-              <option value="temporary_password">Temporary password</option>
-            </select>
+            />
           </div>
           {form.authMode === "temporary_password" ? (
             <div className="field">

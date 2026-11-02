@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { DocumentsPanel } from "../../../components/DocumentsPanel";
 import { EsignSheet } from "../../../components/EsignSheet";
+import { PortalSelect } from "../../../components/PortalSelect";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
@@ -92,24 +93,22 @@ function AdminDocumentsInner() {
     <AppShell user={user} nav={adminNav} title="Documents">
       <div className="docs-page-toolbar">
         <div className="docs-page-toolbar-main">
-          <label htmlFor="docs-org" className="docs-page-label">
+          <span id="docs-org-label" className="docs-page-label">
             Company
-          </label>
-          <select
+          </span>
+          <PortalSelect
             id="docs-org"
             className="docs-org-select"
+            aria-label="Company"
             value={orgId}
-            onChange={(e) => {
-              setOrgId(e.target.value);
-              router.replace(`/admin/documents?org=${encodeURIComponent(e.target.value)}`);
+            options={orgs.map((o) => ({ value: o.id, label: o.name }))}
+            placeholder="Select company…"
+            searchable
+            onChange={(next) => {
+              setOrgId(next);
+              router.replace(`/admin/documents?org=${encodeURIComponent(next)}`);
             }}
-          >
-            {orgs.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
+          />
         </div>
         <p className="docs-page-hint">
           Browse folders · Drop or select files · Request signature on PDFs from the row icons

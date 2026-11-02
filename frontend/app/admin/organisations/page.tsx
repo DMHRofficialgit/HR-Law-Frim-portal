@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { AddOrganisationDialog } from "../../../components/AddOrganisationDialog";
 import { PortalSearch } from "../../../components/PortalSearch";
+import { PortalSelect } from "../../../components/PortalSelect";
 import { RowActionsMenu } from "../../../components/RowActionsMenu";
 import { useToast } from "../../../context/ToastContext";
 import {
@@ -249,42 +250,42 @@ export default function AdminOrganisationsPage() {
               aria-label="Filter organisations"
             />
           </div>
-          <select
+          <PortalSelect
             className="org-filter"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            size="sm"
             aria-label="Filter by status"
-          >
-            <option value="">All statuses</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <select
+            value={statusFilter}
+            options={[
+              { value: "", label: "All statuses" },
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+            onChange={setStatusFilter}
+          />
+          <PortalSelect
             className="org-filter"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
+            size="sm"
             aria-label="Filter by organisation type"
-          >
-            <option value="">All types</option>
-            {typeOptions.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-          <select
+            value={typeFilter}
+            searchable={typeOptions.length > 8}
+            options={[
+              { value: "", label: "All types" },
+              ...typeOptions.map((t) => ({ value: t, label: t })),
+            ]}
+            onChange={setTypeFilter}
+          />
+          <PortalSelect
             className="org-filter"
-            value={contextFilter}
-            onChange={(e) => setContextFilter(e.target.value)}
+            size="sm"
             aria-label="Filter by regulatory context"
-          >
-            <option value="">All contexts</option>
-            {contextOptions.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            value={contextFilter}
+            searchable={contextOptions.length > 8}
+            options={[
+              { value: "", label: "All contexts" },
+              ...contextOptions.map((c) => ({ value: c, label: c })),
+            ]}
+            onChange={setContextFilter}
+          />
         </div>
 
         {filtered.length === 0 && !loading ? (

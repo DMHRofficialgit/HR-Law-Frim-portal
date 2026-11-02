@@ -35,6 +35,7 @@ import { useToast } from "../context/ToastContext";
 import { DocsDropzone } from "./DocsDropzone";
 import { FilePreviewSheet, type FilePreviewTarget } from "./FilePreviewSheet";
 import { IconButton } from "./IconButton";
+import { PortalSelect } from "./PortalSelect";
 
 type DocumentsPanelProps = {
   mode: "client" | "admin";
@@ -537,25 +538,29 @@ export const DocumentsPanel = ({
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search documents in this folder"
           />
-          <select
+          <PortalSelect
             className="docs-type-filter"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as DocTypeFilter)}
+            size="sm"
             aria-label="Filter by file type"
-          >
-            <option value="all">All types</option>
-            <option value="pdf">PDF</option>
-          </select>
-          <select
+            value={typeFilter}
+            options={[
+              { value: "all", label: "All types" },
+              { value: "pdf", label: "PDF" },
+            ]}
+            onChange={(v) => setTypeFilter(v as DocTypeFilter)}
+          />
+          <PortalSelect
             className="docs-type-filter"
-            value={sortKey}
-            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            size="sm"
             aria-label="Sort files"
-          >
-            <option value="name">Name</option>
-            <option value="date">Date</option>
-            <option value="size">Size</option>
-          </select>
+            value={sortKey}
+            options={[
+              { value: "name", label: "Name" },
+              { value: "date", label: "Date" },
+              { value: "size", label: "Size" },
+            ]}
+            onChange={(v) => setSortKey(v as SortKey)}
+          />
         </div>
 
         <DocsDropzone

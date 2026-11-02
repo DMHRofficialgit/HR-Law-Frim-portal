@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
 import { EsignSheet } from "../../../components/EsignSheet";
+import { PortalSelect } from "../../../components/PortalSelect";
 import { ProfileSignaturePanel } from "../../../components/ProfileSignaturePanel";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
@@ -79,25 +80,29 @@ function AdminSignaturesInner() {
         </p>
         <div className="field" style={{ maxWidth: 420 }}>
           <label>Filter organisation</label>
-          <select value={orgFilter} onChange={(e) => setOrgFilter(e.target.value)}>
-            <option value="">All</option>
-            {orgs.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
+          <PortalSelect
+            aria-label="Filter organisation"
+            value={orgFilter}
+            searchable
+            options={[
+              { value: "", label: "All" },
+              ...orgs.map((o) => ({ value: o.id, label: o.name })),
+            ]}
+            onChange={setOrgFilter}
+          />
         </div>
         <div className="field" style={{ maxWidth: 420 }}>
           <label>Queue</label>
-          <select
+          <PortalSelect
+            aria-label="Queue"
             value={queueFilter}
-            onChange={(e) => setQueueFilter(e.target.value as QueueFilter)}
-          >
-            <option value="active">Active</option>
-            <option value="completed">Completed</option>
-            <option value="all">All</option>
-          </select>
+            options={[
+              { value: "active", label: "Active" },
+              { value: "completed", label: "Completed" },
+              { value: "all", label: "All" },
+            ]}
+            onChange={(v) => setQueueFilter(v as QueueFilter)}
+          />
         </div>
         <ul className="org-list">
           {requests

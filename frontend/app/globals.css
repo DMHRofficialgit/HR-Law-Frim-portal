@@ -2926,13 +2926,179 @@ textarea {
 }
 
 .docs-org-select {
+  min-width: 220px;
+}
+
+/* Portal-wide custom select (replaces native <select> menus) */
+.portal-select {
+  position: relative;
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+}
+
+.portal-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 11px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 8px 11px;
   background: var(--surface);
   color: var(--ink);
   font-size: 13.5px;
-  min-width: 220px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.portal-select.is-sm .portal-select-trigger {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 10px;
+}
+
+.portal-select-trigger:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.portal-select-trigger.is-open,
+.portal-select-trigger:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--blue) 45%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 14%, transparent);
+}
+
+.portal-select-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.portal-select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.portal-select-value.is-placeholder {
+  color: var(--muted);
+  font-weight: 450;
+}
+
+.portal-select-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.portal-select-trigger.is-open .portal-select-chevron {
+  transform: rotate(180deg);
+}
+
+.portal-select-panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow:
+    0 16px 40px color-mix(in srgb, var(--ink) 16%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--ink) 4%, transparent);
+  overflow: hidden;
+}
+
+.portal-select-search {
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.portal-select-search input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.portal-select-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.portal-select-empty {
+  padding: 12px 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.portal-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.portal-select-option:hover,
+.portal-select-option.is-active {
+  background: color-mix(in srgb, var(--ink) 7%, var(--surface));
+}
+
+.portal-select-option.is-selected {
+  color: var(--blue);
+}
+
+.portal-select-option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.docs-type-filter.portal-select,
+.docs-toolbar .portal-select {
+  width: auto;
+  min-width: 118px;
+}
+
+.org-filter.portal-select,
+.org-directory .org-filter.portal-select {
+  width: auto;
+  min-width: 140px;
+  flex: 0 1 auto;
+  height: auto;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.field .portal-select {
+  width: 100%;
 }
 
 .docs-page-hint {

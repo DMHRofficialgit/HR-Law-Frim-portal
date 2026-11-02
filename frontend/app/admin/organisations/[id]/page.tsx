@@ -20,6 +20,7 @@ import { AccessCredentialsBanner } from "../../../../components/AccessCredential
 import { AppShell } from "../../../../components/AppShell";
 import { FilePreviewSheet, type FilePreviewTarget } from "../../../../components/FilePreviewSheet";
 import { IconButton } from "../../../../components/IconButton";
+import { PortalSelect } from "../../../../components/PortalSelect";
 import { StatusLiquidToggle } from "../../../../components/StatusLiquidToggle";
 import {
   ProfileActivityPanel,
@@ -627,47 +628,45 @@ const AdminOrganisationProfilePage = () => {
                   </div>
                   <div className="field">
                     <label htmlFor="editType">Organisation type</label>
-                    <select
+                    <PortalSelect
                       id="editType"
+                      aria-label="Organisation type"
                       value={form.type}
-                      onChange={(e) =>
+                      placeholder="Select type"
+                      options={[
+                        { value: "", label: "Select type" },
+                        ...ORG_TYPE_OPTIONS.map((t) => ({ value: t, label: t })),
+                      ]}
+                      onChange={(type) =>
                         setForm({
                           ...form,
-                          type: e.target.value,
-                          typeOther: isOtherOption(e.target.value) ? form.typeOther : "",
+                          type,
+                          typeOther: isOtherOption(type) ? form.typeOther : "",
                         })
                       }
-                    >
-                      <option value="">Select type</option>
-                      {ORG_TYPE_OPTIONS.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   <div className="field">
                     <label htmlFor="editReg">Regulatory context</label>
-                    <select
+                    <PortalSelect
                       id="editReg"
+                      aria-label="Regulatory context"
                       value={form.regulatoryContext}
-                      onChange={(e) =>
+                      placeholder="Select context"
+                      options={[
+                        { value: "", label: "Select context" },
+                        ...ORG_REGULATORY_OPTIONS.map((t) => ({ value: t, label: t })),
+                      ]}
+                      onChange={(regulatoryContext) =>
                         setForm({
                           ...form,
-                          regulatoryContext: e.target.value,
-                          regulatoryOther: isOtherOption(e.target.value)
+                          regulatoryContext,
+                          regulatoryOther: isOtherOption(regulatoryContext)
                             ? form.regulatoryOther
                             : "",
                         })
                       }
-                    >
-                      <option value="">Select context</option>
-                      {ORG_REGULATORY_OPTIONS.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </div>
                   {isOtherOption(form.type) ? (
                     <div className="field">

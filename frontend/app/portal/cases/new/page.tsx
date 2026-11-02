@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../../../components/AppShell";
+import { PortalSelect } from "../../../../components/PortalSelect";
 import { API_URL, apiFetch, type PublicUser } from "../../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../../lib/auth";
 import { clientNav } from "../../../../lib/nav";
@@ -102,23 +103,26 @@ export default function NewCasePage() {
           <div className="form-grid">
             <div className="field">
               <label>Category</label>
-              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <PortalSelect
+                aria-label="Category"
+                value={categoryId}
+                required
+                name="categoryId"
+                options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                onChange={setCategoryId}
+              />
             </div>
             <div className="field">
               <label>Related employee</label>
-              <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} required>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </select>
+              <PortalSelect
+                aria-label="Related employee"
+                value={employeeId}
+                required
+                name="employeeId"
+                searchable={employees.length > 8}
+                options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                onChange={setEmployeeId}
+              />
             </div>
           </div>
           <div className="field">

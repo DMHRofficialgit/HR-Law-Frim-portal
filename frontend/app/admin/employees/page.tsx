@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
+import { PortalSelect } from "../../../components/PortalSelect";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
@@ -100,13 +101,14 @@ function AdminEmployeesInner() {
         <h2>Organisation</h2>
         <div className="field" style={{ maxWidth: 420, marginBottom: 0 }}>
           <label>Select company</label>
-          <select value={orgId} onChange={(e) => setOrgId(e.target.value)}>
-            {orgs.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
+          <PortalSelect
+            aria-label="Select company"
+            value={orgId}
+            searchable
+            options={orgs.map((o) => ({ value: o.id, label: o.name }))}
+            placeholder="Select company…"
+            onChange={setOrgId}
+          />
         </div>
       </section>
 

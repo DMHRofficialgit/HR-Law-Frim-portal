@@ -14,6 +14,7 @@ import {
 } from "../lib/organisations";
 import { ChoiceToggle } from "./ChoiceToggle";
 import { IconButton } from "./IconButton";
+import { PortalSelect } from "./PortalSelect";
 
 type CreateResult = {
   organisation: { id: string; name: string };
@@ -234,47 +235,45 @@ export function AddOrganisationDialog({
 
             <div className="field">
               <label htmlFor="add-org-type">Organisation type</label>
-              <select
+              <PortalSelect
                 id="add-org-type"
+                aria-label="Organisation type"
                 value={form.type}
-                onChange={(e) =>
+                placeholder="Select type"
+                options={[
+                  { value: "", label: "Select type" },
+                  ...ORG_TYPE_OPTIONS.map((t) => ({ value: t, label: t })),
+                ]}
+                onChange={(type) =>
                   setForm({
                     ...form,
-                    type: e.target.value,
-                    typeOther: isOtherOption(e.target.value) ? form.typeOther : "",
+                    type,
+                    typeOther: isOtherOption(type) ? form.typeOther : "",
                   })
                 }
-              >
-                <option value="">Select type</option>
-                {ORG_TYPE_OPTIONS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
             <div className="field">
               <label htmlFor="add-org-reg">Regulatory context</label>
-              <select
+              <PortalSelect
                 id="add-org-reg"
+                aria-label="Regulatory context"
                 value={form.regulatoryContext}
-                onChange={(e) =>
+                placeholder="Select context"
+                options={[
+                  { value: "", label: "Select context" },
+                  ...ORG_REGULATORY_OPTIONS.map((t) => ({ value: t, label: t })),
+                ]}
+                onChange={(regulatoryContext) =>
                   setForm({
                     ...form,
-                    regulatoryContext: e.target.value,
-                    regulatoryOther: isOtherOption(e.target.value)
+                    regulatoryContext,
+                    regulatoryOther: isOtherOption(regulatoryContext)
                       ? form.regulatoryOther
                       : "",
                   })
                 }
-              >
-                <option value="">Select context</option>
-                {ORG_REGULATORY_OPTIONS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
 
             {showTypeOther ? (

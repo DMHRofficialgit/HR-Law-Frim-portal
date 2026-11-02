@@ -11,6 +11,7 @@ import {
   SIGNATURE_FIELD_TYPES,
 } from "../lib/signatures";
 import { EsignPdfViewer, type LocalField } from "./EsignPdfViewer";
+import { PortalSelect } from "./PortalSelect";
 import { SignaturePad } from "./SignaturePad";
 
 type TemplateField = {
@@ -449,17 +450,16 @@ export function FirmLibraryPrepareSheet({ documentId, onClose, onSaved }: Props)
               <h3>Add field</h3>
               <div className="field">
                 <label htmlFor="tplType">Type</label>
-                <select
+                <PortalSelect
                   id="tplType"
+                  aria-label="Field type"
                   value={fieldType}
-                  onChange={(e) => setFieldType(e.target.value)}
-                >
-                  {SIGNATURE_FIELD_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                  options={SIGNATURE_FIELD_TYPES.map((t) => ({
+                    value: t,
+                    label: t,
+                  }))}
+                  onChange={setFieldType}
+                />
               </div>
               <button
                 type="button"
@@ -492,10 +492,15 @@ export function FirmLibraryPrepareSheet({ documentId, onClose, onSaved }: Props)
                 </div>
                 <div className="field">
                   <label>Role</label>
-                  <select
+                  <PortalSelect
+                    aria-label="Role"
                     value={active.role}
-                    onChange={(e) => {
-                      const role = e.target.value as "client" | "admin";
+                    options={[
+                      { value: "client", label: "Client" },
+                      { value: "admin", label: "Admin" },
+                    ]}
+                    onChange={(next) => {
+                      const role = next as "client" | "admin";
                       setFields((prev) =>
                         prev.map((f) =>
                           f.id === active.id
@@ -513,10 +518,7 @@ export function FirmLibraryPrepareSheet({ documentId, onClose, onSaved }: Props)
                       );
                       setActiveRole(role);
                     }}
-                  >
-                    <option value="client">Client</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                  />
                 </div>
 
                 {active.role === "admin" ? (
@@ -571,16 +573,15 @@ export function FirmLibraryPrepareSheet({ documentId, onClose, onSaved }: Props)
                           <>
                             <div className="field">
                               <label>Profile signature</label>
-                              <select
+                              <PortalSelect
+                                aria-label="Profile signature"
                                 value={selectedProfileId || ""}
-                                onChange={(e) => setSelectedProfileId(e.target.value || null)}
-                              >
-                                {profileSigs.map((s) => (
-                                  <option key={s.id} value={s.id}>
-                                    {s.isDefault ? "Default" : s.id.slice(0, 8)}
-                                  </option>
-                                ))}
-                              </select>
+                                options={profileSigs.map((s) => ({
+                                  value: s.id,
+                                  label: s.isDefault ? "Default" : s.id.slice(0, 8),
+                                }))}
+                                onChange={(v) => setSelectedProfileId(v || null)}
+                              />
                             </div>
                             <button
                               type="button"

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
+import { PortalSelect } from "../../../components/PortalSelect";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
@@ -141,19 +142,21 @@ export default function AdminOnboardingPage() {
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
           <div className="field" style={{ flex: "1 1 240px", marginBottom: 0 }}>
             <label htmlFor="startOrg">Company</label>
-            <select
+            <PortalSelect
               id="startOrg"
+              aria-label="Company"
               value={startOrgId}
-              onChange={(e) => setStartOrgId(e.target.value)}
-            >
-              <option value="">Select…</option>
-              {startableOrgs.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                  {o.ref ? ` (${o.ref})` : ""}
-                </option>
-              ))}
-            </select>
+              searchable
+              placeholder="Select…"
+              options={[
+                { value: "", label: "Select…" },
+                ...startableOrgs.map((o) => ({
+                  value: o.id,
+                  label: o.ref ? `${o.name} (${o.ref})` : o.name,
+                })),
+              ]}
+              onChange={setStartOrgId}
+            />
           </div>
           <button
             type="button"

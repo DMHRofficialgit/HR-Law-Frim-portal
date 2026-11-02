@@ -211,6 +211,7 @@
 - **Look:** **clean Apple-like UI** — do **not** copy navy/gold mockup colours or dense chrome.
 - Prefer **21st.dev MCP** components where useful.
 - **Icon tooltips (locked 2026-11-02):** Icon-only controls show a designed hover/focus tooltip with the action name via shared `IconButton` / `.ui-tooltip`. Keep `aria-label` for accessibility. Do not rely on native `title` as the primary label.
+- **Portal selects (locked 2026-11-02):** Use shared `PortalSelect` (token-styled trigger + portaled menu, keyboard a11y, search when lists are long) instead of native `<select>` open menus. Exception: true multi-select lists (e.g. e-sign CC) may stay native until a multi picker exists.
 - Site reference (footer/contact optional): phone `07493 392481`, email `dave@dmhrgroup.com`, Falcon Point, Park Plaza, Heath Hayes, Cannock, WS12 2DE.
 
 ### Client / Admin IA to mirror (from HTML — functional)
@@ -377,3 +378,4 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-02 | **Documents upload UX:** 21st-inspired dropzone + Select files; multi-upload; icon row actions; sort + multi-select download/delete. |
 | 2026-11-02 | **Portal icon tooltips:** shared `IconButton` + `.ui-tooltip`; Documents, shell, profile, sheets, ⋮ trigger. |
 | 2026-11-02 | **Uploads PDF only:** remove Word from default/allowed types so upload matches e-sign and avoids misleading UX. |
+| 2026-11-02 | **PortalSelect:** replace native dropdown menus portal-wide (company pickers, filters, forms, e-sign/firm library). |

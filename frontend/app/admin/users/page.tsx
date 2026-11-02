@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
+import { PortalSelect } from "../../../components/PortalSelect";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
@@ -200,47 +201,52 @@ export default function AdminUsersPage() {
           </div>
           <div className="field">
             <label>Role</label>
-            <select
+            <PortalSelect
+              aria-label="Role"
               value={form.role}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, role: e.target.value as "admin" | "client" }))
+              options={[
+                { value: "admin", label: "Admin (DM.HR)" },
+                { value: "client", label: "Company user" },
+              ]}
+              onChange={(role) =>
+                setForm((f) => ({ ...f, role: role as "admin" | "client" }))
               }
-            >
-              <option value="admin">Admin (DM.HR)</option>
-              <option value="client">Company user</option>
-            </select>
+            />
           </div>
           {form.role === "client" ? (
             <div className="field">
               <label>Organisation</label>
-              <select
+              <PortalSelect
+                aria-label="Organisation"
                 value={form.organisationId}
-                onChange={(e) => setForm((f) => ({ ...f, organisationId: e.target.value }))}
+                searchable
                 required
-              >
-                <option value="">Select company</option>
-                {orgs.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
+                name="organisationId"
+                placeholder="Select company"
+                options={[
+                  { value: "", label: "Select company" },
+                  ...orgs.map((o) => ({ value: o.id, label: o.name })),
+                ]}
+                onChange={(organisationId) => setForm((f) => ({ ...f, organisationId }))}
+              />
             </div>
           ) : null}
           <div className="field">
             <label>Auth</label>
-            <select
+            <PortalSelect
+              aria-label="Auth"
               value={form.authMode}
-              onChange={(e) =>
+              options={[
+                { value: "invite", label: "Invite link" },
+                { value: "temporary_password", label: "Temporary password" },
+              ]}
+              onChange={(authMode) =>
                 setForm((f) => ({
                   ...f,
-                  authMode: e.target.value as "invite" | "temporary_password",
+                  authMode: authMode as "invite" | "temporary_password",
                 }))
               }
-            >
-              <option value="invite">Invite link</option>
-              <option value="temporary_password">Temporary password</option>
-            </select>
+            />
           </div>
           {form.authMode === "temporary_password" ? (
             <div className="field">

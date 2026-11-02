@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "../../../components/AppShell";
+import { PortalSelect } from "../../../components/PortalSelect";
 import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { statusLabel } from "../../../lib/cases";
@@ -72,14 +73,16 @@ function AdminCasesInner() {
         <h2>Filter</h2>
         <div className="field" style={{ maxWidth: 420, marginBottom: 0 }}>
           <label>Organisation</label>
-          <select value={orgId} onChange={(e) => setOrgId(e.target.value)}>
-            <option value="">All organisations</option>
-            {orgs.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
+          <PortalSelect
+            aria-label="Organisation"
+            value={orgId}
+            searchable
+            options={[
+              { value: "", label: "All organisations" },
+              ...orgs.map((o) => ({ value: o.id, label: o.name })),
+            ]}
+            onChange={setOrgId}
+          />
         </div>
       </section>
 

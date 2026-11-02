@@ -3,6 +3,7 @@
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "../../../../components/AppShell";
+import { PortalSelect } from "../../../../components/PortalSelect";
 import { API_URL, apiFetch, type PublicUser } from "../../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../../lib/auth";
 import { CASE_STATUSES, statusLabel } from "../../../../lib/cases";
@@ -156,13 +157,15 @@ function AdminCaseDetailInner() {
             <form onSubmit={onStatus} className="form-grid">
               <div className="field">
                 <label>Status</label>
-                <select value={status} onChange={(e) => setStatus(e.target.value)}>
-                  {CASE_STATUSES.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
+                <PortalSelect
+                  aria-label="Status"
+                  value={status}
+                  options={CASE_STATUSES.map((s) => ({
+                    value: s.value,
+                    label: s.label,
+                  }))}
+                  onChange={setStatus}
+                />
               </div>
               <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
                 <button className="btn btn-secondary" type="submit">
@@ -215,15 +218,17 @@ function AdminCaseDetailInner() {
             <form onSubmit={onMessage}>
               <div className="field">
                 <label>Visibility</label>
-                <select
+                <PortalSelect
+                  aria-label="Visibility"
                   value={visibility}
-                  onChange={(e) =>
-                    setVisibility(e.target.value as "client_visible" | "admin_only")
+                  options={[
+                    { value: "client_visible", label: "Visible to client" },
+                    { value: "admin_only", label: "Admin-only private note" },
+                  ]}
+                  onChange={(v) =>
+                    setVisibility(v as "client_visible" | "admin_only")
                   }
-                >
-                  <option value="client_visible">Visible to client</option>
-                  <option value="admin_only">Admin-only private note</option>
-                </select>
+                />
               </div>
               <div className="field">
                 <label>Message</label>

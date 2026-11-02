@@ -18,6 +18,7 @@ import {
   type SignatureRequestRow,
 } from "../lib/signatures";
 import { EsignPdfViewer, type LocalField } from "./EsignPdfViewer";
+import { PortalSelect } from "./PortalSelect";
 import { SignaturePad } from "./SignaturePad";
 
 type EsignSheetProps = {
@@ -896,10 +897,14 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
                       </p>
                       <label className="field">
                         <span>Type</span>
-                        <select
+                        <PortalSelect
+                          aria-label="Field type"
                           value={activeField.type}
-                          onChange={(e) => {
-                            const type = e.target.value;
+                          options={SIGNATURE_FIELD_TYPES.map((t) => ({
+                            value: t,
+                            label: t,
+                          }))}
+                          onChange={(type) => {
                             setFields((prev) =>
                               prev.map((row) =>
                                 row.id === activeField.id
@@ -915,20 +920,24 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
                               )
                             );
                           }}
-                        >
-                          {SIGNATURE_FIELD_TYPES.map((t) => (
-                            <option key={t} value={t}>
-                              {t}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </label>
                       <label className="field">
                         <span>Assign to (email)</span>
-                        <select
+                        <PortalSelect
+                          aria-label="Assign to"
                           value={activeField.assigneeUserId || ""}
-                          onChange={(e) => {
-                            const assigneeUserId = e.target.value || null;
+                          searchable
+                          placeholder="Assign to…"
+                          options={[
+                            { value: "", label: "Assign to…" },
+                            ...assignees.map((u) => ({
+                              value: u.id,
+                              label: `${u.name} (${u.role}) — ${u.email}`,
+                            })),
+                          ]}
+                          onChange={(next) => {
+                            const assigneeUserId = next || null;
                             setFields((prev) =>
                               prev.map((row) =>
                                 row.id === activeField.id ? { ...row, assigneeUserId } : row
@@ -936,23 +945,21 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
                             );
                             if (assigneeUserId) setActiveRecipientId(assigneeUserId);
                           }}
-                        >
-                          <option value="">Assign to…</option>
-                          {assignees.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name} ({u.role}) — {u.email}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </label>
                       <label className="field">
                         <span>Page</span>
-                        <select
-                          value={Math.min(activeField.page, pdfPageCount)}
-                          onChange={(e) => {
+                        <PortalSelect
+                          aria-label="Page"
+                          value={String(Math.min(activeField.page, pdfPageCount))}
+                          options={Array.from({ length: pdfPageCount }, (_, i) => ({
+                            value: String(i + 1),
+                            label: String(i + 1),
+                          }))}
+                          onChange={(v) => {
                             const page = Math.min(
                               pdfPageCount,
-                              Math.max(1, Number(e.target.value) || 1)
+                              Math.max(1, Number(v) || 1)
                             );
                             setFields((prev) =>
                               prev.map((row) =>
@@ -961,13 +968,7 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
                             );
                             setPlacePage(page);
                           }}
-                        >
-                          {Array.from({ length: pdfPageCount }, (_, i) => i + 1).map((p) => (
-                            <option key={p} value={p}>
-                              {p}
-                            </option>
-                          ))}
-                        </select>
+                        />
                       </label>
                       <button
                         type="button"
@@ -1229,21 +1230,19 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
                         <label>Saved signature</label>
                         {hasSaved ? (
                           <>
-                            <select
+                            <PortalSelect
+                              aria-label="Saved signature"
                               value={selectedSignatureId || ""}
-                              onChange={(e) => {
-                                const id = e.target.value || null;
+                              options={savedSignatures.map((s, i) => ({
+                                value: s.id,
+                                label: `Signature ${i + 1}${s.isDefault ? " (default)" : ""}`,
+                              }))}
+                              onChange={(next) => {
+                                const id = next || null;
                                 setSelectedSignatureId(id);
                                 if (id) applySavedToBox(id, false);
                               }}
-                            >
-                              {savedSignatures.map((s, i) => (
-                                <option key={s.id} value={s.id}>
-                                  Signature {i + 1}
-                                  {s.isDefault ? " (default)" : ""}
-                                </option>
-                              ))}
-                            </select>
+                            />
                             <div className="esign-actions" style={{ marginTop: 8 }}>
                               <button
                                 type="button"
