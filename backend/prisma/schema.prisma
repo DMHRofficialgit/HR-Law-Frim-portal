@@ -145,6 +145,7 @@ model User {
   loginAudits          LoginAudit[]
   uploadedDocuments    Document[]         @relation("DocumentUploader")
   uploadedVersions     DocumentVersion[]  @relation("VersionUploader")
+  firmStagingFiles     FirmStagingFile[]  @relation("FirmStagingUploader")
   createdEmployees     Employee[]         @relation("EmployeeCreator")
   createdCases         Case[]             @relation("CaseCreator")
   caseMessages         CaseMessage[]
@@ -609,4 +610,44 @@ model OnboardingPaymentLink {
   @@unique([runId, kind])
   @@index([runId])
   @@map("onboarding_payment_links")
+}
+
+/// Firm-owned staging vault folders (Room 2). Not tied to a client org.
+/// System six use keys matching FolderKey; custom folders use slug keys + isSystem=false.
+model FirmStagingFolder {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  name      String
+  sortOrder Int      @map("sort_order")
+  /// True for the six mirrored client folders — cannot delete.
+  isSystem  Boolean  @default(false) @map("is_system")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  files FirmStagingFile[]
+
+  @@index([sortOrder])
+  @@index([isSystem])
+  @@map("firm_staging_folders")
+}
+
+/// Reusable firm files waiting to be copied into client Documents.
+model FirmStagingFile {
+  id          String   @id @default(uuid())
+  folderId    String   @map("folder_id")
+  title       String
+  fileName    String   @map("file_name")
+  mimeType    String   @map("mime_type")
+  sizeBytes   Int      @map("size_bytes")
+  storagePath String   @map("storage_path")
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  folder    FirmStagingFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  createdBy User?             @relation("FirmStagingUploader", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([folderId])
+  @@index([createdById])
+  @@map("firm_staging_files")
 }

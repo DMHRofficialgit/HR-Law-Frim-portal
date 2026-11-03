@@ -34,6 +34,15 @@ export const JOURNEY_ROLE_LABELS: Record<JourneyRole, string> = {
   other: "Other",
 };
 
+/** Pill class for journey stage (not readiness / Admin ink). */
+export const journeyRolePillClass = (role: JourneyRole | string): string => {
+  const r = String(role || "other").toLowerCase();
+  if (r === "terms") return "firm-pack-role-terms";
+  if (r === "welcome") return "firm-pack-role-welcome";
+  if (r === "compliance") return "firm-pack-role-compliance";
+  return "firm-pack-role-other";
+};
+
 export function packPreviewDoc(item: OnboardingPackItem): {
   id: string;
   title: string;

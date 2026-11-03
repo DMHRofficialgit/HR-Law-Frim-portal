@@ -282,9 +282,9 @@ export default function AdminOverviewPage() {
             <strong>Organisations</strong>
             <span>Client directory and add company</span>
           </Link>
-          <Link href="/admin/firm-library" className="overview-quick-tile">
+          <Link href="/admin/firm-library/onboarding" className="overview-quick-tile">
             <strong>Firm Library</strong>
-            <span>Templates and onboarding pack</span>
+            <span>Onboarding pack templates · firm staging</span>
           </Link>
           <Link href="/admin/signatures" className="overview-quick-tile">
             <strong>Signatures</strong>

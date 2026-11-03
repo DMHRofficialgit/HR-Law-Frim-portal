@@ -2,6 +2,7 @@ import { PrismaClient, OnboardingStatus, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { ensureSystemCaseCategories } from "../src/lib/caseCategories";
 import { ensureFoldersForOrganisation } from "../src/lib/folders";
+import { ensureFirmStagingFolders } from "../src/lib/firmStagingFolders";
 import { DEFAULT_UPLOAD_SETTINGS } from "../src/lib/uploadSettings";
 
 const prisma = new PrismaClient();
@@ -33,6 +34,7 @@ async function main() {
   });
 
   await ensureSystemCaseCategories();
+  await ensureFirmStagingFolders(prisma);
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@dmhr.local" },

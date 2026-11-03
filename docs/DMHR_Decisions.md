@@ -141,6 +141,11 @@
 - No multi-admin permission model required yet.
 - Admin also sees client **My Onboarding** (to issue and track pack).
 
+### DMHR Firm Library (hub — locked 2026-11-03)
+- **Landing** `/admin/firm-library`: two rooms — **Onboarding pack** + **Firm staging**.
+- **Onboarding pack** `/admin/firm-library/onboarding`: pack templates (journey role, boxes, Admin ink, issue from Onboarding). Tables: `firm_library_documents` / `firm_library_fields`.
+- **Firm staging** `/admin/firm-library/staging` (live): firm-owned six-folder vault + **copy** into any client Documents folder (six operational keys only — not My Onboarding). Tables: `firm_staging_folders` / `firm_staging_files`. APIs under `/admin/firm-staging`. **Not** Admin personal/Private Space; Room 1 pack/e-sign unchanged.
+
 ### DMHR Firm Library (planned — prioritize with onboarding)
 - **Yes — we will build this** (with / just before functional onboarding issue flow).
 - **What it is:** Admin-only **firm library** for templates + staging (Terms of Business, Welcome Pack, Compliance pack, reusable policies, drafts).
@@ -430,4 +435,8 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-03 | **Onboarding chrome:** list KPIs/table/Start dialog; detail hub + Complete confirm; client stage polish; tighter `journeyStages`. |
 | 2026-11-03 | **Onboarding pack UX + journey roles:** Pack Preview + signed-review hint; Mark complete → My Onboarding link; Firm Library `journeyRole` (terms/welcome/compliance/other) snapshotted on issue; checklist uses role. |
 | 2026-11-03 | **E-sign ink reliability:** Admin pack Preview uses org-scoped document download; stamp fails loud on bad pages / missing values; sheet keeps overlays until stamped PDF loads (fallback to source); pack Admin ink matched by geometry/role not sort index. |
+| 2026-11-03 | **Firm Library hub:** two-room landing (Onboarding pack + Firm staging stub); pack templates moved to `/admin/firm-library/onboarding` with denser UI + Eye preview; APIs unchanged. |
+| 2026-11-03 | **Firm staging (Room 2):** separate `firm_staging_*` tables; six vault folders; upload + Eye/rename/delete; copy-to-client into six Documents folders; 21st-adapted folder tiles + DocsDropzone; hub Soon removed. |
+| 2026-11-03 | **Firm staging multi:** multi PDF upload; checkbox select bar (download / send / remove); bulk `POST /admin/firm-staging/copy-to-client` with `fileIds` (one org + folder). |
+| 2026-11-03 | **Firm staging custom folders:** vault folder `key` is string + `isSystem`; New folder API; horizontal folder strip scroll; send still targets six client folders only. |
 

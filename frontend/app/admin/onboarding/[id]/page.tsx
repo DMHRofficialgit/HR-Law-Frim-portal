@@ -379,7 +379,7 @@ function AdminOnboardingDetailInner() {
               {library.length === 0 ? (
                 <p className="org-meta">
                   Firm Library is empty.{" "}
-                  <Link href="/admin/firm-library">Add templates</Link> first.
+                  <Link href="/admin/firm-library/onboarding">Add templates</Link> first.
                 </p>
               ) : (
                 <ul className="check-list">

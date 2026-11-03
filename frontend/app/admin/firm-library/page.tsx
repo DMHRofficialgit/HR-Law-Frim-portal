@@ -1,63 +1,18 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ClipboardCheck, FolderKanban } from "lucide-react";
 import { AppShell } from "../../../components/AppShell";
-import { DocsDropzone } from "../../../components/DocsDropzone";
-import { FirmLibraryPrepareSheet } from "../../../components/FirmLibraryPrepareSheet";
-import { PortalSelect } from "../../../components/PortalSelect";
-import { apiFetch, apiUpload, type PublicUser } from "../../../lib/api";
+import { apiFetch, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
-import { useConfirm } from "../../../context/ConfirmContext";
 import { adminNav } from "../../../lib/nav";
-import {
-  JOURNEY_ROLE_LABELS,
-  type JourneyRole,
-} from "../../../lib/onboarding";
-import { isPdfDocument } from "../../../lib/signatures";
 
-type LibraryDoc = {
-  id: string;
-  title: string;
-  fileName: string;
-  mimeType: string;
-  sizeBytes: number;
-  requiresSignature: boolean;
-  journeyRole?: JourneyRole | string;
-  sortOrder: number;
-  createdAt: string;
-  fieldCount?: number;
-  adminInkReady?: boolean;
-};
-
-const JOURNEY_ROLE_OPTIONS = (
-  Object.keys(JOURNEY_ROLE_LABELS) as JourneyRole[]
-).map((value) => ({
-  value,
-  label: JOURNEY_ROLE_LABELS[value],
-}));
-
-export default function AdminFirmLibraryPage() {
+export default function AdminFirmLibraryLandingPage() {
   const router = useRouter();
-  const { confirm } = useConfirm();
   const [user, setUser] = useState<PublicUser | null>(null);
-  const [docs, setDocs] = useState<LibraryDoc[]>([]);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [title, setTitle] = useState("");
-  const [requiresSignature, setRequiresSignature] = useState(true);
-  const [journeyRole, setJourneyRole] = useState<JourneyRole>("other");
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [prepareId, setPrepareId] = useState<string | null>(null);
-
-  async function load(token: string | null) {
-    const result = await apiFetch<{ documents: LibraryDoc[] }>("/admin/firm-library", {
-      token,
-    });
-    if (result.success) setDocs(result.data.documents);
-    else setError(result.error.message);
-  }
+  const [templateCount, setTemplateCount] = useState<number | null>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -67,262 +22,48 @@ export default function AdminFirmLibraryPage() {
       return;
     }
     setUser(stored);
-    load(token);
+    void (async () => {
+      const result = await apiFetch<{ documents: unknown[] }>("/admin/firm-library", { token });
+      if (result.success) setTemplateCount(result.data.documents.length);
+    })();
   }, [router]);
-
-  async function onUpload(e: FormEvent) {
-    e.preventDefault();
-    if (!file) {
-      setError("Choose a file to add to Firm Library.");
-      return;
-    }
-    setError("");
-    setNotice("");
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      if (title.trim()) fd.append("title", title.trim());
-      fd.append("requiresSignature", requiresSignature ? "true" : "false");
-      fd.append("journeyRole", journeyRole);
-      const result = await apiUpload<{ document: LibraryDoc }>(
-        "/admin/firm-library",
-        fd,
-        getToken()
-      );
-      if (!result.success) {
-        setError(result.error.message);
-        return;
-      }
-      setNotice(`Added “${result.data.document.title}” to Firm Library.`);
-      setTitle("");
-      setFile(null);
-      setRequiresSignature(true);
-      setJourneyRole("other");
-      await load(getToken());
-      if (
-        result.data.document.requiresSignature &&
-        isPdfDocument(result.data.document.mimeType, result.data.document.fileName)
-      ) {
-        setPrepareId(result.data.document.id);
-      }
-    } catch {
-      setError("Upload failed.");
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function toggleSign(doc: LibraryDoc) {
-    setError("");
-    const result = await apiFetch<{ document: LibraryDoc }>(`/admin/firm-library/${doc.id}`, {
-      method: "PATCH",
-      token: getToken(),
-      body: JSON.stringify({ requiresSignature: !doc.requiresSignature }),
-    });
-    if (!result.success) {
-      setError(result.error.message);
-      return;
-    }
-    await load(getToken());
-  }
-
-  async function setDocJourneyRole(doc: LibraryDoc, next: JourneyRole) {
-    setError("");
-    const result = await apiFetch<{ document: LibraryDoc }>(`/admin/firm-library/${doc.id}`, {
-      method: "PATCH",
-      token: getToken(),
-      body: JSON.stringify({ journeyRole: next }),
-    });
-    if (!result.success) {
-      setError(result.error.message);
-      return;
-    }
-    await load(getToken());
-  }
-
-  async function remove(doc: LibraryDoc) {
-    const ok = await confirm({
-      title: "Remove from Firm Library?",
-      description: `Remove “${doc.title}” from Firm Library?`,
-      confirmLabel: "Remove",
-      tone: "danger",
-    });
-    if (!ok) return;
-    setError("");
-    const result = await apiFetch(`/admin/firm-library/${doc.id}`, {
-      method: "DELETE",
-      token: getToken(),
-    });
-    if (!result.success) {
-      setError(result.error.message);
-      return;
-    }
-    setNotice("Removed from Firm Library.");
-    await load(getToken());
-  }
 
   if (!user) return null;
 
   return (
     <AppShell user={user} nav={adminNav} title="Firm Library">
-      {error ? <div className="error-banner">{error}</div> : null}
-      {notice ? <div className="success-banner">{notice}</div> : null}
-
-      <section className="panel" style={{ marginBottom: 20 }}>
-        <h2>Add template</h2>
-        <p className="lead">
-          Upload once. Place boxes with Client or Admin roles. Sign Admin boxes here forever —
-          every new client pack reuses layout + Admin ink automatically. Set the onboarding stage
-          so Welcome pack / Compliance progress updates when you issue the pack.
+      <section className="panel" style={{ marginBottom: 16 }}>
+        <h1 style={{ margin: "0 0 6px", fontSize: "1.2rem", letterSpacing: "-0.02em" }}>
+          Firm Library
+        </h1>
+        <p className="lead" style={{ margin: 0 }}>
+          Admin templates and firm staging. Onboarding pack powers issue → My Onboarding. Firm
+          staging copies reusable files into client Documents.
         </p>
-        <form onSubmit={onUpload} className="form-compact">
-          <div className="field">
-            <label htmlFor="libTitle">Title (optional)</label>
-            <input
-              id="libTitle"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Terms of Business"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="libJourneyRole">Onboarding stage</label>
-            <PortalSelect
-              id="libJourneyRole"
-              value={journeyRole}
-              onChange={(v) => setJourneyRole((v as JourneyRole) || "other")}
-              options={JOURNEY_ROLE_OPTIONS}
-              aria-label="Onboarding stage"
-            />
-          </div>
-          <div className="field">
-            <label>PDF template</label>
-            <DocsDropzone
-              multiple={false}
-              busy={uploading}
-              accept=".pdf,application/pdf"
-              hint="PDF only · drag and drop or select"
-              title="Drop a PDF template here"
-              selectLabel="Select PDF"
-              onFiles={(picked) => setFile(picked[0] || null)}
-            />
-            {file ? (
-              <ul className="docs-file-chips">
-                <li className="docs-file-chip-item">
-                  <span>{file.name}</span>
-                  <button
-                    type="button"
-                    className="docs-file-chip-remove"
-                    aria-label={`Remove ${file.name}`}
-                    onClick={() => setFile(null)}
-                    disabled={uploading}
-                  >
-                    ×
-                  </button>
-                </li>
-              </ul>
-            ) : null}
-          </div>
-          <label className="check-inline" style={{ display: "flex", gap: 8, margin: "12px 0" }}>
-            <input
-              type="checkbox"
-              checked={requiresSignature}
-              onChange={(e) => setRequiresSignature(e.target.checked)}
-            />
-            Requires client / admin signature (default on)
-          </label>
-          <button className="btn btn-primary" type="submit" disabled={uploading}>
-            {uploading ? "Uploading…" : "Add to Firm Library"}
-          </button>
-        </form>
       </section>
 
-      <section className="panel">
-        <h2>Library</h2>
-        <p className="lead">{docs.length} template(s)</p>
-        {docs.length === 0 ? (
-          <p className="org-meta">No templates yet. Add Terms of Business and welcome materials.</p>
-        ) : (
-          <ul className="org-list">
-            {docs.map((doc) => {
-              const pdf = isPdfDocument(doc.mimeType, doc.fileName);
-              const ready =
-                !doc.requiresSignature ||
-                (doc.fieldCount !== undefined &&
-                  doc.fieldCount > 0 &&
-                  doc.adminInkReady !== false);
-              const roleKey = (String(doc.journeyRole || "other").toLowerCase() ||
-                "other") as JourneyRole;
-              return (
-                <li key={doc.id}>
-                  <div>
-                    <div className="org-name">{doc.title}</div>
-                    <div className="org-meta">
-                      {JOURNEY_ROLE_LABELS[roleKey] || "Other"} · {doc.fileName} ·{" "}
-                      {doc.requiresSignature
-                        ? ready
-                          ? `${doc.fieldCount} box(es) · Admin ink ready`
-                          : doc.fieldCount
-                            ? "Boxes placed — sign Admin ink"
-                            : "Signature required — prepare boxes"
-                        : "No signature"}
-                    </div>
-                    <div className="field" style={{ marginTop: 8, maxWidth: 280 }}>
-                      <label className="sr-only" htmlFor={`role-${doc.id}`}>
-                        Onboarding stage for {doc.title}
-                      </label>
-                      <PortalSelect
-                        id={`role-${doc.id}`}
-                        value={roleKey}
-                        onChange={(v) =>
-                          void setDocJourneyRole(doc, (v as JourneyRole) || "other")
-                        }
-                        options={JOURNEY_ROLE_OPTIONS}
-                        size="sm"
-                        aria-label={`Onboarding stage for ${doc.title}`}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {doc.requiresSignature && pdf ? (
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-sm"
-                        onClick={() => setPrepareId(doc.id)}
-                      >
-                        {doc.fieldCount ? "Edit boxes / Admin ink" : "Prepare boxes"}
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => toggleSign(doc)}
-                    >
-                      {doc.requiresSignature ? "Mark no signature" : "Require signature"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => remove(doc)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      <div className="firm-lib-rooms" role="navigation" aria-label="Firm Library rooms">
+        <Link href="/admin/firm-library/onboarding" className="firm-lib-room">
+          <span className="firm-lib-room-icon" aria-hidden>
+            <ClipboardCheck size={22} strokeWidth={1.75} />
+          </span>
+          <strong>Onboarding pack</strong>
+          <span>
+            Terms, Welcome, Compliance templates · boxes + Admin ink · issue from Onboarding
+            {templateCount !== null ? ` · ${templateCount} template${templateCount === 1 ? "" : "s"}` : ""}
+          </span>
+        </Link>
 
-      {prepareId ? (
-        <FirmLibraryPrepareSheet
-          documentId={prepareId}
-          onClose={() => setPrepareId(null)}
-          onSaved={() => load(getToken())}
-        />
-      ) : null}
+        <Link href="/admin/firm-library/staging" className="firm-lib-room">
+          <span className="firm-lib-room-icon" aria-hidden>
+            <FolderKanban size={22} strokeWidth={1.75} />
+          </span>
+          <strong>Firm staging</strong>
+          <span>
+            Firm folder vault · copy files into any of the six client Documents folders
+          </span>
+        </Link>
+      </div>
     </AppShell>
   );
 }
