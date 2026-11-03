@@ -18,7 +18,7 @@ Read `docs/DMHR_Decisions.md` for product locks. This skill covers **visual syst
   - `frontend/public/logo/dmhr_transparent_logo.png` — light chrome / headers
   - `frontend/public/logo/dmhr_logo.png` — solid / dark or dense backgrounds
 - **Remote fallback only:** `https://www.dmhrgroup.com/wp-content/uploads/2025/06/DMHR-LOGO-LARGE.jpg`
-- **Look:** Ignore the old HTML mockup **chrome** (navy/gold) — Apple-like only
+- **Look:** Apple-like **content** chrome; **brand navy sidebar** is intentional (not full navy/gold mockup theme)
 - **Structure / journeys:** Match `DMHR_Group_Portal_Signatures_and_Multiuser.html` IA and user flows (see `docs/DMHR_Decisions.md`). Make flows functional; e-sign uses Part 4.1 (not in the mock)
 - **My Onboarding:** dedicated client folder for one-time pack to sign; not My Documents; Firm Library templates hold signature boxes (Client/Admin roles) once; issue pack auto-wires + sends; Admin Complete = full client
 - Site phone / email / Cannock address: footer or contact reference only — not mandatory in every chrome
@@ -30,7 +30,8 @@ Read `docs/DMHR_Decisions.md` for product locks. This skill covers **visual syst
 - One coherent **shell** (nav, header, content frame); **extend** with new sections per part — do not redesign from scratch each feature
 - Calm neutrals, clear hierarchy, generous spacing, rounded controls, soft separation
 - Avoid: purple/indigo AI cliché, cream+terracotta editorial cliché, broadsheet newspaper layout, card soup, neon glow stacks
-- Avoid: copying navy/gold mockup theme; copying HTML multi-user
+- Avoid: gold nav fills / full navy-gold mockup content theme; copying HTML multi-user
+- **Brand sidebar (locked):** Fixed navy vertical `background-image` gradient on rail + drawer in both themes; muted/white nav type; active = white wash + blue left bar; logo = 40×40 centered white badge (aligned when collapsed)
 
 ## Component stack (priority order)
 
@@ -53,7 +54,7 @@ Do not install every library blindly. Add a dependency only when a concrete comp
 - **IA / nav groups:** Overview ≠ Organisations. Admin `/admin` = metrics hub; `/admin/organisations` = client directory + add. Sidebar headings: Clients / Workspace / System (from `lib/nav.ts` `NAV_GROUP_*`) — visible whenever rail is expanded
 - **Buttons:** Primary = blue bg + white text (both themes). Secondary = `var(--surface)` + blue text/border — never hardcoded `#f0f0f2`
 - **Portal search:** `components/PortalSearch.tsx` — shell header trigger + ⌘/Ctrl+K palette (pages / orgs / cases); use `mode="inline"` for section filters. Inspired by 21st command-palette patterns; no extra deps
-- **Themes:** light + dark via `data-theme` / `lib/theme.ts`; dark uses charcoal + blue highlights (`--blue` / `--blue-soft`) — not purple, not navy-gold
+- **Themes:** light + dark via `data-theme` / `lib/theme.ts`; light = cooler grey `--bg` + white panels; dark = layered charcoal + blue highlights (`--blue` / `--blue-soft`) — not purple. Sidebar/drawer + top bar stay brand navy family regardless of theme (top = same navy, light→dark L→R; light type + translucent search). Banners / e-sign chrome / chips use tokens (no light-only hex). PDF + signature pad stay white. Change tokens first; avoid per-page hex.
 - Empty states for future sections until that part ships
 - 21st.dev refs: hover rail + mature dashboard header patterns; adapt into `AppShell` — do not require full shadcn install for chrome
 

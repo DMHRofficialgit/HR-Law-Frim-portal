@@ -80,7 +80,7 @@
 ### UX structure & user journeys (locked 2026-10-31)
 - **Source of structure / IA / user flows:** `DMHR_Group_Portal_Signatures_and_Multiuser.html` (prototype).
 - **Copy the same user-flow structure** (nav emphasis, overview hubs, document spaces, onboarding stages, case journey). Make it **functional** against real APIs.
-- **Visual system:** **Apple-like** components (light shell, calm neutrals, 21st.dev first) — **do not** copy navy/gold mockup chrome.
+- **Visual system:** **Apple-like** content chrome (calm neutrals, 21st.dev first) + **brand navy sidebar** (fixed both themes) — not a full navy/gold mockup theme.
 - **E-signature:** Not implemented in the HTML mock — use **Part 4.1** in-portal side sheet (document-based). Wire onboarding “Terms of Business” into that real signature flow.
 - **Do copy from HTML (now locked):** User Management / Company Users multi-login structure.
 - **Do not copy from HTML:** navy/gold theme; fake e-sign modal statuses (use Part 4.1 / 4.2 real sheet).
@@ -258,7 +258,12 @@ Locked 2026-11-03 as optional follow-ons (not Phase A–C).
   Prefer local: `frontend/public/logo/dmhr_transparent_logo.png` / `dmhr_logo.png`.
 - **Display name:** DMHR Group / DM.HR Group.
 - **Structure / journeys:** match HTML prototype IA (see **UX structure & user journeys**).
-- **Look:** **clean Apple-like UI** — do **not** copy navy/gold mockup colours or dense chrome.
+- **Look:** **clean Apple-like UI** for content chrome. Logo + **brand navy sidebar** carry identity; page accents stay **blue** (`--blue` / `--blue-soft`) — do **not** fill content with navy/gold.
+- **Theme separation (locked 2026-11-04):** Light page `--bg` cooler grey (`#e8ebf0`) so white `--surface` panels don’t blend; stronger `--line`. Dark: layered charcoal (`--bg` / `--surface`) + clearer blue accents. Content theme flips independently of the rail.
+- **Brand sidebar (locked 2026-11-04):** Fixed navy rail in **both** light and dark — same desktop sidebar + mobile drawer. Vertical navy `background-image` gradient (`#1E5080` → `#0B1F3A` → `#040C16`); light inset top edge. Idle text `--shell-rail-muted` `#C8D0DC`; labels `#8A96A8`; active = white wash + white type + soft blue left bar. Logo = **40×40** centered white badge (`object-fit: contain`) aligned with collapsed icons — not a wide sticker. No gold nav fills.
+- **Top bar (locked 2026-11-04):** Same **navy family** as sidebar in both themes — L→R light→dark (`#1E5080` → `#123456` → `#0B1F3A`); left stop matches rail top. Crumbs / icons / search use rail light type; search trigger = soft white translucent fill. Content canvas still theme-flips under the header.
+- **Theme polish (locked 2026-11-04):** Token-safe banners; `var(--ink)` not `--text`; e-sign ink toggle + selects + needs-you badge; field boxes use `--ok`/`--blue`; signature tiles on `--surface` (pad/PDF stay white); progress-track + status-chip + warn pills; removed unused `--shell-bg`.
+- **Panel scroll hug (locked 2026-11-04):** Shared list/table scroll regions (`directory-table-scroll`, docs folders/files, notify/sig queues, profile activity) use `height: fit-content` + `max-height`. **Firm pack Templates** has no scroll well (short lists; `overflow: visible`) so the panel hugs the last row. Settings tab panels: no `min-height: 240px`. `scrollbar-gutter: auto`.
 - Prefer **21st.dev MCP** components where useful.
 - **Icon tooltips (locked 2026-11-02):** Icon-only controls show a designed hover/focus tooltip with the action name via shared `IconButton` / `.ui-tooltip`. Keep `aria-label` for accessibility. Do not rely on native `title` as the primary label.
 - **Portal selects (locked 2026-11-02):** Use shared `PortalSelect` (token-styled trigger + portaled menu, keyboard a11y, search when lists are long) instead of native `<select>` open menus. Multi-value lists use `PortalMultiSelect` (e.g. e-sign CC).
@@ -488,4 +493,10 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-03 | **Settings Phase C:** email_templates seed + Admin editor + wire all product mail. |
 | 2026-11-03 | **Email templates ops:** View / Edit / Reset / Deactivate / Send test (sample tokens); no system Delete. |
 | 2026-11-03 | **Settings backlog locked:** polish 1–4 (categories UI, storage PDF lock, Account→ink link, Admin notify prefs) + Phase D optional list; do when asked. |
+| 2026-11-04 | **Theme separation:** cooler light bg + white panels; dark layered charcoal; blue content accents. |
+| 2026-11-04 | **Brand sidebar:** fixed navy rail (+ drawer) both themes; soft navy gradient + inset highlight; soft slate/white nav type; blue left bar on active. |
+| 2026-11-04 | **Top bar:** same navy family as rail (both themes); light→dark L→R; light type + translucent search. |
+| 2026-11-04 | **Theme polish A–C:** banners, --ink, chrome joint, e-sign dark leftovers, progress/status chips; drop --shell-bg. |
+| 2026-11-04 | **Sidebar logo:** 40×40 centered white badge; collapses centered with icon column. |
+| 2026-11-04 | **Panel scroll hug:** shared fit-content list scrollers portal-wide; drop settings min-height empty band. |
 

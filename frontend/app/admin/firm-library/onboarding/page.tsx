@@ -330,7 +330,7 @@ export default function AdminFirmLibraryOnboardingPage() {
             </p>
           </div>
         ) : (
-          <div className="firm-pack-templates-body dmhr-scroll">
+          <div className="firm-pack-templates-body">
             <ul className="firm-pack-list">
               {docs.map((doc) => {
                 const pdf = isPdfDocument(doc.mimeType, doc.fileName);
