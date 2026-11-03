@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { API_URL, apiFetch } from "../lib/api";
+import { API_URL, apiFetch, authHeaders } from "../lib/api";
 import { getToken } from "../lib/auth";
 import { renderTypedSignaturePng } from "../lib/render-typed-signature";
 import {
@@ -107,7 +107,7 @@ async function fetchInkDataUrl(
   try {
     const res = await fetch(
       `${API_URL}/admin/firm-library/${documentId}/fields/${fieldId}/ink`,
-      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      { headers: authHeaders(token) }
     );
     if (!res.ok) return null;
     return blobToDataUrl(await res.blob());
@@ -234,7 +234,7 @@ export function FirmLibraryPrepareSheet({ documentId, onClose, onSaved }: Props)
   async function applySavedToActive() {
     if (!active || active.role !== "admin" || !selectedProfileId) return;
     const res = await fetch(`${API_URL}/me/signature/${selectedProfileId}/image`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: authHeaders(token),
     });
     if (!res.ok) {
       setError("Could not load saved signature.");

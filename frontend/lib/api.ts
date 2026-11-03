@@ -52,18 +52,28 @@ async function parseJson<T>(res: Response): Promise<ApiSuccess<T> | ApiError> {
   return body;
 }
 
+/** Build fetch headers without `Authorization` / `HeadersInit` union issues. */
+export function authHeaders(
+  token?: string | null,
+  extra?: HeadersInit
+): Headers {
+  const headers = new Headers(extra);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  return headers;
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit & { token?: string | null } = {}
 ): Promise<ApiSuccess<T> | ApiError> {
   const { token, headers, ...rest } = options;
+  const merged = authHeaders(token, headers);
+  if (!merged.has("Content-Type")) {
+    merged.set("Content-Type", "application/json");
+  }
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
+    headers: merged,
   });
   return parseJson<T>(res);
 }
@@ -76,9 +86,7 @@ export async function apiUpload<T>(
 ): Promise<ApiSuccess<T> | ApiError> {
   const res = await fetch(`${API_URL}${path}`, {
     method: "POST",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers: authHeaders(token),
     body: formData,
   });
   return parseJson<T>(res);
@@ -86,9 +94,7 @@ export async function apiUpload<T>(
 
 export async function apiDownload(path: string, token: string | null) {
   const res = await fetch(`${API_URL}${path}`, {
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers: authHeaders(token),
   });
   if (!res.ok) {
     let message = "Download failed";

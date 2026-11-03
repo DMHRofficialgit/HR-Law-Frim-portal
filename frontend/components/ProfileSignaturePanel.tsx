@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useConfirm } from "../context/ConfirmContext";
-import { API_URL, apiFetch, apiUpload } from "../lib/api";
+import { API_URL, apiFetch, apiUpload, authHeaders } from "../lib/api";
 import { getToken } from "../lib/auth";
 import { DocsDropzone } from "./DocsDropzone";
 import { SignaturePad } from "./SignaturePad";
@@ -36,7 +36,7 @@ export function ProfileSignaturePanel() {
     const token = getToken();
     if (!token) return null;
     const res = await fetch(`${API_URL}/me/signature/${id}/image`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: authHeaders(token),
     });
     if (!res.ok) return null;
     const imageBlob = await res.blob();

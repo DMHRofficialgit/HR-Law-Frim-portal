@@ -9,7 +9,7 @@ import {
 } from "react";
 import { X } from "lucide-react";
 import { useToast } from "../context/ToastContext";
-import { API_URL, apiFetch } from "../lib/api";
+import { API_URL, apiFetch, authHeaders } from "../lib/api";
 import { getToken } from "../lib/auth";
 import {
   caseToFormValues,
@@ -213,7 +213,7 @@ export const CaseFormDialog = ({
         const path = role === "admin" ? "/admin/cases" : "/client/cases";
         const res = await fetch(`${API_URL}${path}`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${getToken()}` },
+          headers: authHeaders(getToken()),
           body,
         });
         const json = await res.json();

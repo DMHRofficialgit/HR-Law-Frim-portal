@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Download, X } from "lucide-react";
 import { useToast } from "../context/ToastContext";
+import { authHeaders } from "../lib/api";
 import { getToken } from "../lib/auth";
 import {
   fetchAuthenticatedDownload,
@@ -90,7 +91,7 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
       try {
         const token = getToken();
         const res = await fetch(target!.url, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: authHeaders(token),
         });
         if (!res.ok) throw new Error("Unable to load file");
         const blob = await res.blob();

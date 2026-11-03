@@ -135,7 +135,6 @@ export default function AdminOnboardingPage() {
       if (!needle) return true;
       const hay = [
         run.organisation.name,
-        run.organisation.ref,
         onboardingOrgLabel(run.organisation.onboardingStatus),
         onboardingRunLabel(run.status),
         termsStatus(run),

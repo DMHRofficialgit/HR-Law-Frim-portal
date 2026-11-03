@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { authHeaders } from "../lib/api";
 import type { SignatureField } from "../lib/signatures";
 
 type LocalField = Omit<
@@ -90,7 +91,7 @@ export function EsignPdfViewer({
         pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
         const res = await fetch(pdfUrl, {
-          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+          headers: authHeaders(authToken),
         });
         if (!res.ok) throw new Error("Unable to load PDF");
         const data = await res.arrayBuffer();

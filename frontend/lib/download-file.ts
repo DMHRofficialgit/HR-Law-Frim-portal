@@ -1,3 +1,5 @@
+import { authHeaders } from "./api";
+
 /**
  * Portal-wide blob download helper.
  * Delays revoke so the browser can start the download (immediate revoke can no-op).
@@ -36,7 +38,7 @@ export const fetchAuthenticatedDownload = async (
   token: string | null
 ): Promise<void> => {
   const res = await fetch(url, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: authHeaders(token),
   });
   if (!res.ok) {
     throw new Error("Download failed");

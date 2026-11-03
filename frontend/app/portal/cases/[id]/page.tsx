@@ -12,7 +12,7 @@ import { IconButton } from "../../../../components/IconButton";
 import { PanelSkeleton } from "../../../../components/Skeleton";
 import { useConfirm } from "../../../../context/ConfirmContext";
 import { useToast } from "../../../../context/ToastContext";
-import { API_URL, apiFetch, type PublicUser } from "../../../../lib/api";
+import { API_URL, apiFetch, authHeaders, type PublicUser } from "../../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../../lib/auth";
 import { triggerBlobDownload } from "../../../../lib/download-file";
 import {
@@ -110,7 +110,7 @@ function ClientCaseDetailInner() {
       files.forEach((f) => form.append("files", f));
       const res = await fetch(`${API_URL}/client/cases/${id}/messages`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: authHeaders(getToken()),
         body: form,
       });
       const json = await res.json();
@@ -132,7 +132,7 @@ function ClientCaseDetailInner() {
   async function download(attId: string, fileName: string) {
     try {
       const res = await fetch(`${API_URL}/client/case-attachments/${attId}/download`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: authHeaders(getToken()),
       });
       if (!res.ok) throw new Error("Download failed");
       const blob = await res.blob();

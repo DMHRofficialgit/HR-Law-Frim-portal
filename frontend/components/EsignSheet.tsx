@@ -13,7 +13,7 @@ import {
   User,
   X,
 } from "lucide-react";
-import { API_URL, apiDownload, apiFetch, apiUpload } from "../lib/api";
+import { API_URL, apiDownload, apiFetch, apiUpload, authHeaders } from "../lib/api";
 import { triggerBlobDownload } from "../lib/download-file";
 import { getStoredUser, getToken } from "../lib/auth";
 import { renderTypedSignaturePng } from "../lib/render-typed-signature";
@@ -251,7 +251,7 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
           if (!f.signedImagePath) return;
 
           const url = `${API_URL}${base}/signature-requests/${reqId}/fields/${f.id}/image`;
-          const headers = auth ? { Authorization: `Bearer ${auth}` } : {};
+          const headers = authHeaders(auth);
 
           async function fetchOnce() {
             const res = await fetch(url, { headers });
@@ -653,7 +653,7 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
     setError("");
     try {
       const res = await fetch(`${API_URL}/me/signature/${signatureId}/image`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
+        headers: authHeaders(getToken()),
       });
       if (!res.ok) {
         setError("Could not load saved signature.");
