@@ -195,13 +195,49 @@
 
 ### Notifications
 - **Bidirectional:** Admin update → notify client; client upload / e-sign / case activity → notify Admin.
+- **Documents folder upload (locked 2026-11-03):** Plain Documents (and firm-staging copy-to-client) call `notifyUsers` — Admin upload → active company users (`/portal/documents?folder=`); client upload → active Admins (`/admin/documents?org=&folder=`). Same in-app + SMTP-if-configured path. **Silent:** `isSignedCopy` publish (e-sign already notifies) and onboarding issue-pack (`silent: true`; one pack alert).
 - Case alerts intended for David’s ops mailbox preference: **`case@dmhrgroup.com`** (configured via SMTP Settings — not hard-coded).
 - **Internal / personal Admin notes:** Admin-only — never shown on client screens or in client emails.
+- **Notifications chrome (locked 2026-11-03):** Shared `NotificationsPanel` (Admin + Client) = activity feed (21st item-19 / activity-3 inspired). Icon tiles + kind pill inferred from `href`/title (no DB `type` yet). Compact Unread/All segment (no visible Show label; soft-blue active; unread count on Unread); unread blue dot; relative time; icon actions (`ArrowUpRight` View, `Check` Mark read); Mark all in panel head; max-height inner scroll. Shell bell badge unchanged. No Demo-as / prototype banners.
 
 ### Email / mail sending
 - **Product (locked):** Provider-agnostic **SMTP Settings** in Admin — host, port, TLS/SSL, username, password/app password, from address, from display name. Compatible with Outlook/M365, Google, Hostinger, or any SMTP. **Do not hard-code a provider or mailbox in code.** Stored in DB. Settings UI: **Save**, **Test form** (current fields + verify + send), **Test saved** (DB). Test recipient field required for product verification.
 - **David’s current preference (defaults / docs only):** Outlook; portal/case mail from **`case@dmhrgroup.com`**. Prefill or document as suggested defaults; Admin can change anytime in Settings.
 - Source: David Matthews direct answers (2026-10-30), reconciled with build preference to keep SMTP generalised.
+
+### Settings (locked 2026-11-03 — phased)
+- **IA:** Horizontal **icon + label tabs** (DocuSign/transactPro-inspired structure; DMHR blue tokens — not orange). Firm Library / Users / e-sign ceremony stay out of Settings.
+- **Admin `/admin/settings` tabs:** `templates` · `smtp` · `storage` · `categories` · `account`. Deep link `?tab=`.
+- **Client `/portal/settings` (Phase B):** `account` · `notifications` (email prefs per event group).
+- **Phase A (shipped):** Admin tab chrome; migrate SMTP / Storage (uploads) / Categories; Account = editable name + read-only email/role + change password.
+- **Phase B (shipped):** Client `/portal/settings` (`account` · `notifications`, `?tab=`) + nav. Account = org summary (read-only) + name + password. Notifications = email opt-in for cases / documents / signatures / onboarding (`notification_preferences`; in-app always). `notifyUsers({ emailGroup })` skips email when opted out.
+- **Phase C (shipped):** `email_templates` + seed on boot; Admin Email templates: **View · Edit · Reset · Deactivate/Activate · Send test** (no Delete on system keys); Insert token; wired into access-mail, notifyUsers (`templateKey` + tokens), welcome default, SMTP test. Inactive → built-in default.
+- **Not Settings tabs:** Team Members (Users), Permission profiles, DocuSign, Onboarding pack (Firm Library).
+- **Email template keys (system — Admin editable after Phase C):**  
+  Access: `invite`, `temp_password`, `password_reset`.  
+  Onboarding: `welcome_default`, `onboarding_started`, `onboarding_pack`, `onboarding_complete`.  
+  Cases: `case_opened_client`, `case_opened_admin`, `case_status_updated`, `case_update`, `case_client_reply`.  
+  E-sign: `esign_ready`, `esign_fully_signed`, `esign_reviewed`, `esign_revision`.  
+  Documents: `document_new_client`, `document_new_admin`.  
+  Ops: `smtp_test` (optional). Tokens e.g. `{{recipient_name}}`, `{{org_name}}`, `{{invite_link}}`, `{{case_ref}}`, `{{document_title}}`, `{{portal_link}}`.
+
+#### Settings backlog — polish (do when asked; suggested order)
+Locked 2026-11-03. Not blocking go-live; ship on request.
+
+1. **Categories tab:** Soft-deactivate / Activate custom categories in UI (API `PATCH /admin/case-categories/:id` already supports `active` / rename). Optional rename for custom. System categories stay non-deletable.
+2. **Storage tab:** Lock extensions + MIME to PDF in the UI (read-only / product lock); keep **max upload size (MB)** editable only — so Settings cannot undo PDF-only.
+3. **Account (Admin + Client):** Deep link / CTA “Manage signature ink” → Admin/Client Signatures queue (profile ink lives there; do not rebuild PNG editor in Settings).
+4. **Admin Account — notification prefs:** Same email opt-in groups as Client (`cases` / `documents` / `signatures` / `onboarding`) so firm admins can mute mail; in-app still always on.
+
+#### Settings Phase D (optional — do when asked)
+Locked 2026-11-03 as optional follow-ons (not Phase A–C).
+
+1. **Personal email signature** — rich/plain block appended to outbound product mail (or link-only); per-user, optional blank = none.
+2. **Richer HTML template editor** — beyond plain textarea (toolbar / safe HTML); keep tokens.
+3. **Firm-wide notify kill-switches** — Admin Settings toggles to disable email (or in-app) for an event group firm-wide, above per-user prefs.
+4. **Template card polish** — show last-updated; optional sample-token live preview pane beside View.
+5. **Integrations strip (Account)** — thin “Email (SMTP) → Configure” shortcut only; no DocuSign / third-party e-sign.
+6. **Custom template clone (later)** — Duplicate system key as optional custom variant + Delete custom only; system keys still never hard-deleted.
 
 ### Existing clients
 - **David/Admin will add** clients **one-by-one** for now (no spreadsheet import in this phase).
@@ -230,7 +266,7 @@
 
 ### Client / Admin IA to mirror (from HTML — functional)
 - **Client:** Overview/home with document-space tiles (**6 operational + My Onboarding** for new clients); strong **Add / Check a Case** path; Employees; Onboarding journey; Signatures queue; Notifications; Account/settings as needed.
-- **Admin:** Overview metrics + attention lists; Clients/Organisations with **client profile hub**; Documents; Firm Library; Employees; Cases; Onboarding journey; Signatures queue; Notifications; Settings (incl. SMTP).
+- **Admin:** Overview metrics + attention lists; Clients/Organisations with **client profile hub**; Documents; Firm Library; Employees; Cases; Onboarding journey; Signatures queue; Notifications; Settings (tabbed: templates · SMTP · storage · categories · account).
 - **Routes (locked 2026-11-01):** Admin **Overview** = `/admin` (dashboard only). **Organisations / clients directory + add** = `/admin/organisations` — never conflate the two. Client home = `/portal`.
 - **Sidebar groups:** Admin `home` (Overview) → `Clients` (Organisations) → `Workspace` (Documents, Firm Library, Employees, Cases, Onboarding, Signatures) → `System` (Users, Notifications, Settings, Payments). Client: Overview → Workspace → System. Collapsed rail shows thin dividers between groups.
 - **Organisations journey:** Directory (search/filters/table + **Open profile**) → **Client profile hub** `/admin/organisations/[id]`. Mock = journey ideas; we own data flow + components (Apple shell). No fake “view as client”.
@@ -444,4 +480,12 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-03 | **Signatures chrome:** Admin/Client queue KPIs + directory table; compact profile ink panel + toasts; sheet ceremony unchanged. |
 | 2026-11-03 | **Users chrome:** Admin/Client directories + `UserFormDialog`; credentials banner; invite/reset; disable confirm; org hub `?org=`. |
 | 2026-11-03 | **Users polish:** Employees-style create footer + auth hint; table ⋮-only (no Edit / no duplicate access button). |
+| 2026-11-03 | **Notifications chrome:** activity feed rows (icons/kind/relative time); Unread/All; scroll; shared Admin+Client panel. |
+| 2026-11-03 | **Documents upload notify:** bidirectional on plain upload / firm-staging copy; silent for signed publish + onboarding issue pack. |
+| 2026-11-03 | **Notifications polish:** compact Show segment + icon View/Mark-read actions. |
+| 2026-11-03 | **Settings plan locked:** Admin tabs (templates/smtp/storage/categories/account); Client Phase B; template keys listed; Phase A = Admin tab chrome + Account. |
+| 2026-11-03 | **Settings Phase B:** Client Settings + notification_preferences + emailGroup on notifyUsers. |
+| 2026-11-03 | **Settings Phase C:** email_templates seed + Admin editor + wire all product mail. |
+| 2026-11-03 | **Email templates ops:** View / Edit / Reset / Deactivate / Send test (sample tokens); no system Delete. |
+| 2026-11-03 | **Settings backlog locked:** polish 1–4 (categories UI, storage PDF lock, Account→ink link, Admin notify prefs) + Phase D optional list; do when asked. |
 

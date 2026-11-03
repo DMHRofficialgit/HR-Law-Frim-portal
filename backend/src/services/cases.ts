@@ -234,6 +234,9 @@ export async function createCase(params: {
       title: "New employment case opened",
       body: `${ref}: ${params.title.trim()}`,
       href: `/portal/cases/${created.id}`,
+      emailGroup: "cases",
+      templateKey: "case_opened_client",
+      tokens: { case_ref: ref, case_title: params.title.trim() },
     });
   } else {
     const admins = await adminUserIds();
@@ -243,6 +246,9 @@ export async function createCase(params: {
       title: "New employment case submitted",
       body: `${ref}: ${params.title.trim()}`,
       href: `/admin/cases/${created.id}`,
+      emailGroup: "cases",
+      templateKey: "case_opened_admin",
+      tokens: { case_ref: ref, case_title: params.title.trim() },
     });
   }
 
@@ -383,12 +389,16 @@ export async function updateCaseStatus(params: {
   const updated = await getCase(params.caseId);
 
   const clients = await clientUserIdsForOrg(existing.organisationId);
+  const statusLabel = params.status.replace(/_/g, " ");
   await notifyUsers({
     userIds: clients,
     organisationId: existing.organisationId,
     title: "Case status updated",
-    body: `${existing.ref}: ${params.status.replace(/_/g, " ")}`,
+    body: `${existing.ref}: ${statusLabel}`,
     href: `/portal/cases/${existing.id}`,
+    emailGroup: "cases",
+    templateKey: "case_status_updated",
+    tokens: { case_ref: existing.ref, status: statusLabel },
   });
 
   return { case: updated };
@@ -456,15 +466,22 @@ export async function addCaseMessage(params: {
         title: "Case update",
         body: `${existing.ref}: new update from DMHR`,
         href: `/portal/cases/${existing.id}`,
+        emailGroup: "cases",
+        templateKey: "case_update",
+        tokens: { case_ref: existing.ref },
       });
     } else {
       const admins = await adminUserIds();
+      const replyPreview = params.body.slice(0, 120);
       await notifyUsers({
         userIds: admins,
         organisationId: existing.organisationId,
         title: "Client replied on case",
-        body: `${existing.ref}: ${params.body.slice(0, 120)}`,
+        body: `${existing.ref}: ${replyPreview}`,
         href: `/admin/cases/${existing.id}`,
+        emailGroup: "cases",
+        templateKey: "case_client_reply",
+        tokens: { case_ref: existing.ref, detail: replyPreview },
       });
     }
   }

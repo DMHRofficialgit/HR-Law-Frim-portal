@@ -47,9 +47,26 @@ export type DocumentRow = {
   } | null;
 };
 
+const NETWORK_ERROR: ApiError = {
+  success: false,
+  error: {
+    code: "NETWORK_ERROR",
+    message: "Unable to reach the API. Check that the backend is running.",
+  },
+};
+
 async function parseJson<T>(res: Response): Promise<ApiSuccess<T> | ApiError> {
-  const body = (await res.json()) as ApiSuccess<T> | ApiError;
-  return body;
+  try {
+    return (await res.json()) as ApiSuccess<T> | ApiError;
+  } catch {
+    return {
+      success: false,
+      error: {
+        code: "BAD_RESPONSE",
+        message: `API returned an invalid response (${res.status})`,
+      },
+    };
+  }
 }
 
 /** Build fetch headers without `Authorization` / `HeadersInit` union issues. */
@@ -71,11 +88,15 @@ export async function apiFetch<T>(
   if (!merged.has("Content-Type")) {
     merged.set("Content-Type", "application/json");
   }
-  const res = await fetch(`${API_URL}${path}`, {
-    ...rest,
-    headers: merged,
-  });
-  return parseJson<T>(res);
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      ...rest,
+      headers: merged,
+    });
+    return parseJson<T>(res);
+  } catch {
+    return NETWORK_ERROR;
+  }
 }
 
 /** Multipart upload — do not set Content-Type (browser sets boundary). */
@@ -84,12 +105,16 @@ export async function apiUpload<T>(
   formData: FormData,
   token: string | null
 ): Promise<ApiSuccess<T> | ApiError> {
-  const res = await fetch(`${API_URL}${path}`, {
-    method: "POST",
-    headers: authHeaders(token),
-    body: formData,
-  });
-  return parseJson<T>(res);
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      headers: authHeaders(token),
+      body: formData,
+    });
+    return parseJson<T>(res);
+  } catch {
+    return NETWORK_ERROR;
+  }
 }
 
 export async function apiDownload(path: string, token: string | null) {

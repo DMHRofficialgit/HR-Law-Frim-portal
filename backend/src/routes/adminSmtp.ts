@@ -147,19 +147,26 @@ router.post("/smtp-settings/test", async (req, res) => {
     });
   }
 
+  const { renderEmailTemplate } = await import("../lib/emailTemplates");
+  const testDetail =
+    data.source === "form" ? "current form values" : "saved settings in database";
+  const rendered = await renderEmailTemplate("smtp_test", {
+    detail: testDetail,
+    sent_at: new Date().toISOString(),
+  });
   const result = await sendMailWithConfig(config, {
     to: [to],
-    subject: "DM.HR Portal — SMTP test email",
-    text: [
-      "This is a product test email from the DM.HR Group client portal.",
-      "",
-      "If you received this, SMTP is working and invite / notify emails can use these settings.",
-      "",
-      `Test source: ${data.source === "form" ? "current form values" : "saved settings in database"}`,
-      `Sent at: ${new Date().toISOString()}`,
-      "",
-      "— DM.HR Group portal",
-    ].join("\n"),
+    subject: rendered?.subject || "DM.HR Portal — SMTP test email",
+    text:
+      rendered?.body ||
+      [
+        "This is a product test email from the DM.HR Group client portal.",
+        "",
+        `Test source: ${testDetail}`,
+        `Sent at: ${new Date().toISOString()}`,
+        "",
+        "— DM.HR Group portal",
+      ].join("\n"),
   });
 
   if (result.status === "skipped") {

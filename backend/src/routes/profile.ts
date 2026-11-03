@@ -1,4 +1,9 @@
 import { Router } from "express";
+import { z } from "zod";
+import {
+  getNotificationPrefs,
+  upsertNotificationPrefs,
+} from "../lib/notifications";
 import { prisma } from "../lib/prisma";
 import { publicUser } from "../lib/tokens";
 import { requireAuth, requirePasswordSettled } from "../middleware/auth";
@@ -16,6 +21,13 @@ import {
 const router = Router();
 router.use(requireAuth, requirePasswordSettled);
 
+const notifyPrefsSchema = z.object({
+  emailCases: z.boolean().optional(),
+  emailDocuments: z.boolean().optional(),
+  emailSignatures: z.boolean().optional(),
+  emailOnboarding: z.boolean().optional(),
+});
+
 function serviceError(err: unknown, res: import("express").Response) {
   const e = err as { status?: number; code?: string; message?: string };
   return res.status(e.status || 500).json({
@@ -26,6 +38,30 @@ function serviceError(err: unknown, res: import("express").Response) {
     },
   });
 }
+
+router.get("/me/notification-preferences", async (req, res) => {
+  const preferences = await getNotificationPrefs(req.auth!.id);
+  return res.status(200).json({ success: true, data: { preferences } });
+});
+
+router.patch("/me/notification-preferences", async (req, res) => {
+  const parsed = notifyPrefsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsed.error.issues[0]?.message || "Invalid preferences",
+      },
+    });
+  }
+  const preferences = await upsertNotificationPrefs(req.auth!.id, parsed.data);
+  return res.status(200).json({
+    success: true,
+    data: { preferences },
+    message: "Notification preferences saved",
+  });
+});
 
 router.get("/me/signature", async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.auth!.id } });

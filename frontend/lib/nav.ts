@@ -60,6 +60,7 @@ export const clientNav: NavItem[] = [
   { href: "/portal/signatures", label: "Signatures", icon: PenLine, group: "workspace" },
   { href: "/portal/company-users", label: "Company Users", icon: UserPlus, group: "workspace" },
   { href: "/portal/notifications", label: "Notifications", icon: Bell, group: "system" },
+  { href: "/portal/settings", label: "Settings", icon: Settings, group: "system" },
   { href: "/portal/payments", label: "Payments", icon: Wallet, group: "system", soon: true },
 ];
 

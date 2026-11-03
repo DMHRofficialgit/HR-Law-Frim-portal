@@ -1,3 +1,4 @@
+import { renderEmailTemplate } from "./emailTemplates";
 import { sendMail } from "./mail";
 
 export type AccessMailStatus = "sent" | "skipped" | "failed";
@@ -24,58 +25,29 @@ export async function sendAccessCredentialsMail(
   const orgBit = params.organisationName
     ? ` for ${params.organisationName}`
     : "";
-  const greeting = params.recipientName ? `Hi ${params.recipientName},` : "Hello,";
+  const recipientName = params.recipientName?.trim() || "there";
   const purpose = params.purpose || "invite";
+  const baseTokens = {
+    recipient_name: recipientName,
+    org_name: params.organisationName || "",
+    org_bit: orgBit,
+    login_url: params.loginUrl,
+    email: to,
+    invite_link: params.inviteUrl || "",
+    temporary_password: params.temporaryPassword || "",
+  };
 
   if (params.authMode === "invite" && params.inviteUrl) {
-    if (purpose === "reset") {
-      const subject = `Reset your DM.HR Group portal password${orgBit}`;
-      const text = `${greeting}
-
-A password reset was requested for your DM.HR Group portal account${orgBit}.
-
-Use this secure link to choose a new password:
-${params.inviteUrl}
-
-If you did not ask for this, contact your DM.HR adviser.
-
-Login page: ${params.loginUrl}
-
-— DM.HR Group`;
-      return sendMail({ to: [to], subject, text });
-    }
-
-    const subject = `Set your DM.HR Group portal password${orgBit}`;
-    const text = `${greeting}
-
-Your DM.HR Group client portal account is ready${orgBit}.
-
-Use this secure link to set your password:
-${params.inviteUrl}
-
-If the link expires, ask your DM.HR adviser to resend the invite.
-
-Login page: ${params.loginUrl}
-
-— DM.HR Group`;
-    return sendMail({ to: [to], subject, text });
+    const key = purpose === "reset" ? "password_reset" : "invite";
+    const rendered = await renderEmailTemplate(key, baseTokens);
+    if (!rendered) return "skipped";
+    return sendMail({ to: [to], subject: rendered.subject, text: rendered.body });
   }
 
   if (params.authMode === "temporary_password" && params.temporaryPassword) {
-    const subject = `Your DM.HR Group portal temporary password${orgBit}`;
-    const text = `${greeting}
-
-Your DM.HR Group client portal account is ready${orgBit}.
-
-Sign in with:
-Email: ${to}
-Temporary password: ${params.temporaryPassword}
-
-You will be asked to change this password on first login.
-Login page: ${params.loginUrl}
-
-— DM.HR Group`;
-    return sendMail({ to: [to], subject, text });
+    const rendered = await renderEmailTemplate("temp_password", baseTokens);
+    if (!rendered) return "skipped";
+    return sendMail({ to: [to], subject: rendered.subject, text: rendered.body });
   }
 
   return "skipped";

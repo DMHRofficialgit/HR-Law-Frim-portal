@@ -13,6 +13,8 @@ type ChoiceToggleProps<T extends string> = {
   options: readonly ChoiceOption<T>[];
   onChange: (value: T) => void;
   name?: string;
+  /** Keep label for a11y but hide visually (compact segment controls). */
+  hideLabel?: boolean;
 };
 
 export const ChoiceToggle = <T extends string>({
@@ -21,16 +23,22 @@ export const ChoiceToggle = <T extends string>({
   options,
   onChange,
   name,
+  hideLabel = false,
 }: ChoiceToggleProps<T>): ReactElement => {
+  const labelId = name ? `${name}-label` : undefined;
   return (
-    <div className="field field-full">
-      <span className="field-label" id={name ? `${name}-label` : undefined}>
+    <div className={`field field-full${hideLabel ? " choice-toggle-field-compact" : ""}`}>
+      <span
+        className={`field-label${hideLabel ? " sr-only" : ""}`}
+        id={labelId}
+      >
         {label}
       </span>
       <div
         className="choice-toggle"
         role="group"
-        aria-labelledby={name ? `${name}-label` : undefined}
+        aria-labelledby={labelId}
+        aria-label={hideLabel ? label : undefined}
       >
         {options.map((opt) => {
           const active = opt.value === value;

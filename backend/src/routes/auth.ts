@@ -22,6 +22,10 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8, "Password must be at least 8 characters"),
 });
 
+const updateProfileSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(120),
+});
+
 function clientIp(req: { headers: Record<string, unknown>; socket: { remoteAddress?: string } }) {
   const forwarded = req.headers["x-forwarded-for"];
   if (typeof forwarded === "string" && forwarded.length > 0) {
@@ -101,6 +105,39 @@ router.get("/auth/me", requireAuth, async (req, res) => {
   return res.status(200).json({
     success: true,
     data: { user: publicUser(user) },
+  });
+});
+
+/** Update signed-in profile (name). Email / role stay identity fields. */
+router.patch("/auth/me", requireAuth, async (req, res) => {
+  const parsed = updateProfileSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsed.error.issues[0]?.message || "Invalid profile payload",
+      },
+    });
+  }
+
+  const existing = await prisma.user.findUnique({ where: { id: req.auth!.id } });
+  if (!existing || existing.status !== "active") {
+    return res.status(401).json({
+      success: false,
+      error: { code: "UNAUTHORIZED", message: "Authentication required" },
+    });
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: existing.id },
+    data: { name: parsed.data.name },
+  });
+
+  return res.status(200).json({
+    success: true,
+    data: { user: publicUser(updated) },
+    message: "Profile updated",
   });
 });
 

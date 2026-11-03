@@ -134,23 +134,22 @@ function packStatusFromSignatureStatus(
   return null;
 }
 
-export function defaultWelcomeEmail(org: {
+export async function defaultWelcomeEmail(org: {
   name: string;
   contactName: string | null;
 }) {
+  const { renderEmailTemplate } = await import("../lib/emailTemplates");
   const first = (org.contactName || "there").split(" ")[0];
-  const subject = `Welcome to DM.HR Group | Your Client Onboarding`;
-  const body = `Hello ${first},
-
-Welcome to DM.HR Group. We look forward to supporting ${org.name}.
-
-Please sign in to the client portal to review your onboarding checklist in My Onboarding, complete any documents that require your signature, and follow the payment links when they are provided.
-
-Portal: ${env.FRONTEND_URL}/portal/onboarding
-
-Kind regards,
-DM.HR Group`;
-  return { subject, body };
+  const rendered = await renderEmailTemplate("welcome_default", {
+    recipient_name: first,
+    org_name: org.name,
+    portal_link: `${env.FRONTEND_URL}/portal/onboarding`,
+  });
+  if (rendered) return rendered;
+  return {
+    subject: "Welcome to DM.HR Group | Your Client Onboarding",
+    body: `Hello ${first},\n\nWelcome to DM.HR Group. We look forward to supporting ${org.name}.\n\nPortal: ${env.FRONTEND_URL}/portal/onboarding\n\nKind regards,\nDM.HR Group`,
+  };
 }
 
 export async function listOnboardingRuns() {
@@ -241,7 +240,7 @@ export async function startOnboarding(params: {
     });
   }
 
-  const welcome = defaultWelcomeEmail(org);
+  const welcome = await defaultWelcomeEmail(org);
   try {
     return await prisma.onboardingRun.create({
       data: {
@@ -321,6 +320,9 @@ export async function sendWelcomeEmail(params: {
     title: "Welcome — onboarding started",
     body: `Your onboarding with DM.HR Group has started. Open My Onboarding to continue.`,
     href: `/portal/onboarding`,
+    emailGroup: "onboarding",
+    templateKey: "onboarding_started",
+    tokens: { org_name: run.organisation.name },
   });
 
   return updated;
@@ -420,6 +422,7 @@ export async function issuePackFromLibrary(params: {
         organisationId: run.organisationId,
         folderId: folder.id,
         userId: params.issuedById,
+        silent: true,
         file: {
           originalName: lib.fileName,
           mimeType: lib.mimeType,
@@ -618,15 +621,19 @@ export async function issuePackFromLibrary(params: {
   const refreshed = await getOnboardingRunById(run.id);
   if (newlyIssued > 0) {
     const userIds = await clientUserIdsForOrg(run.organisationId);
+    const packDetail =
+      issuedSignCount > 0
+        ? `${issuedSignCount} document(s) are ready to sign in My Onboarding.`
+        : `New documents were added to My Onboarding for ${run.organisation.name}.`;
     await notifyUsers({
       userIds,
       organisationId: run.organisationId,
       title: "Onboarding documents ready",
-      body:
-        issuedSignCount > 0
-          ? `${issuedSignCount} document(s) are ready to sign in My Onboarding.`
-          : `New documents were added to My Onboarding for ${run.organisation.name}.`,
+      body: packDetail,
       href: `/portal/onboarding`,
+      emailGroup: "onboarding",
+      templateKey: "onboarding_pack",
+      tokens: { org_name: run.organisation.name, detail: packDetail },
     });
   }
 
@@ -796,6 +803,9 @@ export async function completeOnboarding(params: {
     title: "Onboarding complete",
     body: `${run.organisation.name} is now a full DM.HR client. Thank you.`,
     href: `/portal/onboarding`,
+    emailGroup: "onboarding",
+    templateKey: "onboarding_complete",
+    tokens: { org_name: run.organisation.name },
   });
 
   return getOnboardingRunById(run.id);

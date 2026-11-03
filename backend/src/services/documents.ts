@@ -1,4 +1,9 @@
 import path from "path";
+import {
+  adminUserIds,
+  clientUserIdsForOrg,
+  notifyUsers,
+} from "../lib/notifications";
 import { prisma } from "../lib/prisma";
 import { removeStoredFile, writeStoredFile } from "../lib/storage";
 import { extensionOf, getUploadSettings } from "../lib/uploadSettings";
@@ -103,6 +108,58 @@ export async function validateUpload(file: UploadedFileInput) {
   return { ok: true as const, settings };
 }
 
+async function notifyPlainDocumentUpload(params: {
+  organisationId: string;
+  folderKey: string;
+  folderName: string;
+  documentTitle: string;
+  uploaderId: string;
+  created: boolean;
+}) {
+  const uploader = await prisma.user.findUnique({
+    where: { id: params.uploaderId },
+    select: { id: true, name: true, role: true },
+  });
+  if (!uploader) return;
+
+  const who = uploader.name?.trim() || "Someone";
+  const action = params.created ? "uploaded" : "updated";
+  const body = `${who} ${action} “${params.documentTitle}” in ${params.folderName}.`;
+
+  if (uploader.role === "admin") {
+    const clients = await clientUserIdsForOrg(params.organisationId);
+    const subjectLine = params.created ? "New document available" : "Document updated";
+    await notifyUsers({
+      userIds: clients,
+      organisationId: params.organisationId,
+      title: subjectLine,
+      body,
+      href: `/portal/documents?folder=${encodeURIComponent(params.folderKey)}`,
+      emailGroup: "documents",
+      templateKey: "document_new_client",
+      tokens: { subject_line: subjectLine, detail: body, document_title: params.documentTitle },
+    });
+    return;
+  }
+
+  if (uploader.role === "client") {
+    const admins = (await adminUserIds()).filter((id) => id !== uploader.id);
+    const subjectLine = params.created
+      ? "Client uploaded a document"
+      : "Client updated a document";
+    await notifyUsers({
+      userIds: admins,
+      organisationId: params.organisationId,
+      title: subjectLine,
+      body,
+      href: `/admin/documents?org=${encodeURIComponent(params.organisationId)}&folder=${encodeURIComponent(params.folderKey)}`,
+      emailGroup: "documents",
+      templateKey: "document_new_admin",
+      tokens: { subject_line: subjectLine, detail: body, document_title: params.documentTitle },
+    });
+  }
+}
+
 export async function uploadDocument(params: {
   organisationId: string;
   folderId: string;
@@ -113,6 +170,11 @@ export async function uploadDocument(params: {
   title?: string;
   isSignedCopy?: boolean;
   signatureRequestId?: string | null;
+  /**
+   * Skip in-app + email. Use for system publishes that already notify
+   * elsewhere (onboarding issue pack). Signed copies are always silent.
+   */
+  silent?: boolean;
 }) {
   const folder = await assertFolderAccess(params.organisationId, params.folderId);
   if (!folder) {
@@ -215,6 +277,24 @@ export async function uploadDocument(params: {
   ]);
 
   const full = await getDocumentForOrg(params.organisationId, document.id);
+
+  // Plain Documents / firm-staging copy: bidirectional notify. Skip signed
+  // library publishes and callers that batch their own alerts (onboarding).
+  if (!params.silent && !isSignedCopy) {
+    try {
+      await notifyPlainDocumentUpload({
+        organisationId: params.organisationId,
+        folderKey: folder.key,
+        folderName: folder.name,
+        documentTitle: title,
+        uploaderId: params.userId,
+        created,
+      });
+    } catch (err) {
+      console.error("[notify:document-upload]", err);
+    }
+  }
+
   return { document: full, version, created };
 }
 

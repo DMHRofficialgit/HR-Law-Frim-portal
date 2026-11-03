@@ -151,6 +151,7 @@ model User {
   caseMessages         CaseMessage[]
   caseAttachments      CaseAttachment[]
   notifications        Notification[]
+  notificationPreference NotificationPreference?
   signatures           UserSignature[]
   createdSignatureRequests SignatureRequest[] @relation("SignatureCreator")
   reviewedSignatureRequests SignatureRequest[] @relation("SignatureReviewer")
@@ -161,6 +162,21 @@ model User {
 
   @@index([organisationId])
   @@map("users")
+}
+
+/// Per-user email opt-in for notify groups. Missing row = all true.
+model NotificationPreference {
+  id               String   @id @default(uuid())
+  userId           String   @unique @map("user_id")
+  emailCases       Boolean  @default(true) @map("email_cases")
+  emailDocuments   Boolean  @default(true) @map("email_documents")
+  emailSignatures  Boolean  @default(true) @map("email_signatures")
+  emailOnboarding  Boolean  @default(true) @map("email_onboarding")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
 }
 
 /// Profile signature PNGs (draw or upload). Cap enforced in service (max 5).
@@ -412,6 +428,22 @@ model SmtpSettings {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("smtp_settings")
+}
+
+/// Admin-editable product email copy (Phase C). Seeded system keys.
+model EmailTemplate {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  name      String
+  audience  String
+  groupName String   @map("group_name")
+  subject   String
+  body      String   @db.Text
+  active    Boolean  @default(true)
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("email_templates")
 }
 
 model SignatureRequest {

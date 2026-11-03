@@ -562,6 +562,12 @@ export async function sendForSignature(id: string) {
       title: "Document ready to sign",
       body: `"${updated.title}" is awaiting signature.`,
       href: `/admin/signatures/${updated.id}`,
+      emailGroup: "signatures",
+      templateKey: "esign_ready",
+      tokens: {
+        document_title: updated.title,
+        detail: "is awaiting signature.",
+      },
     });
   }
   if (clientAssignees.length || clientCc.length) {
@@ -571,6 +577,12 @@ export async function sendForSignature(id: string) {
       title: "Document ready to sign",
       body: `"${updated.title}" is awaiting your signature.`,
       href: `/portal/signatures/${updated.id}`,
+      emailGroup: "signatures",
+      templateKey: "esign_ready",
+      tokens: {
+        document_title: updated.title,
+        detail: "is awaiting your signature.",
+      },
     });
   }
 
@@ -709,6 +721,9 @@ async function completeRequestStamp(params: {
     title: "Document fully signed",
     body: `"${updated.title}" was completed by all assignees.`,
     href: `/admin/signatures/${updated.id}`,
+    emailGroup: "signatures",
+    templateKey: "esign_fully_signed",
+    tokens: { document_title: updated.title },
   });
 
   try {
@@ -1028,6 +1043,9 @@ export async function reviewSignatureRequest(params: {
       title: "Signature reviewed",
       body: `"${updated.title}" has been marked complete. A signed copy is now in Documents.`,
       href: `/portal/signatures/${updated.id}`,
+      emailGroup: "signatures",
+      templateKey: "esign_reviewed",
+      tokens: { document_title: updated.title },
     });
   }
 
@@ -1116,6 +1134,9 @@ export async function requestRevision(params: {
       title: "Signature revision requested",
       body,
       href: `/admin/signatures/${updated.id}`,
+      emailGroup: "signatures",
+      templateKey: "esign_revision",
+      tokens: { document_title: updated.title, detail: body },
     });
   }
   if (clientAssignees.length) {
@@ -1125,6 +1146,9 @@ export async function requestRevision(params: {
       title: "Signature revision requested",
       body,
       href: `/portal/signatures/${updated.id}`,
+      emailGroup: "signatures",
+      templateKey: "esign_revision",
+      tokens: { document_title: updated.title, detail: body },
     });
   }
 

@@ -9,6 +9,7 @@ import adminFirmLibraryRoutes from "./routes/adminFirmLibrary";
 import adminFirmStagingRoutes from "./routes/adminFirmStaging";
 import adminOnboardingRoutes from "./routes/adminOnboarding";
 import adminSignaturesRoutes from "./routes/adminSignatures";
+import adminEmailTemplatesRoutes from "./routes/adminEmailTemplates";
 import adminSmtpRoutes from "./routes/adminSmtp";
 import adminUsersRoutes from "./routes/adminUsers";
 import authRoutes from "./routes/auth";
@@ -56,6 +57,7 @@ export function createApp() {
   app.use("/admin", adminFirmStagingRoutes);
   app.use("/admin", adminOnboardingRoutes);
   app.use("/admin", adminSmtpRoutes);
+  app.use("/admin", adminEmailTemplatesRoutes);
   app.use("/client", clientRoutes);
   app.use("/client", clientUsersRoutes);
   app.use("/client", clientDocumentRoutes);
