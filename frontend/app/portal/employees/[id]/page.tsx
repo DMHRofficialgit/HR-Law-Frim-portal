@@ -356,7 +356,15 @@ function PortalEmployeeDetailInner() {
 
 export default function PortalEmployeeDetailPage() {
   return (
-    <Suspense fallback={<main className="auth-shell">Loading…</main>}>
+    <Suspense
+      fallback={
+        <main className="auth-shell">
+          <div className="panel">
+            <PanelSkeleton lines={6} />
+          </div>
+        </main>
+      }
+    >
       <PortalEmployeeDetailInner />
     </Suspense>
   );

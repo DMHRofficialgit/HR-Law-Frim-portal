@@ -3820,7 +3820,8 @@ textarea {
 }
 
 .confirm-dialog-root {
-  z-index: 95;
+  /* Above e-sign sheet (120) so confirms work while the sheet is open */
+  z-index: 130;
 }
 
 .confirm-dialog-panel.org-dialog,

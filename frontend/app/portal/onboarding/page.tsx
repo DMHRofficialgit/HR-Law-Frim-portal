@@ -191,6 +191,16 @@ export default function ClientOnboardingPage() {
                         ) : null}
                       </div>
                       <div className="file-actions" style={{ gap: 6 }}>
+                        {needsSign && item.signatureRequestId ? (
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            onClick={() => setEsignId(item.signatureRequestId)}
+                          >
+                            <PenLine size={14} strokeWidth={1.75} aria-hidden />
+                            Sign now
+                          </button>
+                        ) : null}
                         {canPreview ? (
                           <IconButton
                             label="Preview"
@@ -214,16 +224,6 @@ export default function ClientOnboardingPage() {
                         >
                           <ListChecks size={15} strokeWidth={1.75} />
                         </IconButton>
-                        {needsSign && item.signatureRequestId ? (
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            onClick={() => setEsignId(item.signatureRequestId)}
-                          >
-                            <PenLine size={14} strokeWidth={1.75} aria-hidden />
-                            Sign now
-                          </button>
-                        ) : null}
                       </div>
                     </li>
                   );

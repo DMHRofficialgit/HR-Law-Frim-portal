@@ -161,10 +161,6 @@ export function EsignSheet({ role, requestId, onClose, onChanged }: EsignSheetPr
 
   useEffect(() => {
     window.dispatchEvent(new Event("dmhr:dismiss-tooltips"));
-    document.body.classList.add("esign-sheet-open");
-    return () => {
-      document.body.classList.remove("esign-sheet-open");
-    };
   }, []);
 
   useEffect(() => {
