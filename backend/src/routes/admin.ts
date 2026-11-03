@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { OnboardingStatus, UserRole } from "@prisma/client";
+import { OnboardingRunStatus, OnboardingStatus, UserRole } from "@prisma/client";
 import { z } from "zod";
 import { env } from "../config/env";
 import {
@@ -392,6 +392,26 @@ router.patch("/organisations/:id/onboarding", async (req, res) => {
       success: false,
       error: { code: "NOT_FOUND", message: "Organisation not found" },
     });
+  }
+
+  if (parsed.data.onboardingStatus === OnboardingStatus.existing_skip) {
+    const activeRun = await prisma.onboardingRun.findFirst({
+      where: {
+        organisationId: existing.id,
+        status: OnboardingRunStatus.in_progress,
+      },
+      select: { id: true },
+    });
+    if (activeRun) {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: "INVALID_STATUS",
+          message:
+            "Cannot mark Already onboarded while an onboarding run is in progress — complete or wait for the run to finish first",
+        },
+      });
+    }
   }
 
   const organisation = await prisma.organisation.update({

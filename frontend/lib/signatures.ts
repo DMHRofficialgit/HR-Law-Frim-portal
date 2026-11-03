@@ -1,14 +1,47 @@
 export function signatureStatusLabel(status: string) {
   const labels: Record<string, string> = {
-    draft: "draft",
-    ready_for_send: "ready to send",
-    awaiting_signature: "awaiting signature",
-    signed_returned: "signed",
-    reviewed: "reviewed",
-    revision_requested: "revision",
-    sent: "awaiting signature",
+    draft: "Draft",
+    ready_for_send: "Ready to send",
+    awaiting_signature: "Awaiting signature",
+    signed_returned: "Signed",
+    reviewed: "Reviewed",
+    revision_requested: "Revision",
+    sent: "Awaiting signature",
   };
   return labels[status] || status.replace(/_/g, " ");
+}
+
+export type SignatureKpiKey =
+  | "all"
+  | "needs_you"
+  | "ready"
+  | "awaiting"
+  | "review"
+  | "completed";
+
+export type ClientSignatureKpiKey = "all" | "needs_you" | "waiting" | "completed";
+
+export function signatureBadgeTone(
+  status: string
+): "ok" | "progress" | "warn" | "muted" {
+  if (status === "reviewed") return "ok";
+  if (status === "signed_returned" || status === "ready_for_send") return "warn";
+  if (
+    status === "awaiting_signature" ||
+    status === "sent" ||
+    status === "revision_requested"
+  ) {
+    return "progress";
+  }
+  return "muted";
+}
+
+export function isAwaitingSignatureStatus(status: string): boolean {
+  return (
+    status === "awaiting_signature" ||
+    status === "sent" ||
+    status === "revision_requested"
+  );
 }
 
 export function onboardingLabel(status: string) {
@@ -230,6 +263,97 @@ export function esignQueueAction(params: {
 
   if (canFillFields(status) && minePending) return { action: "sign", label: "Sign" };
   return { action: "view", label: "View" };
+}
+
+export function signatureNeedsYou(params: {
+  status: string;
+  role: "admin" | "client";
+  userId: string;
+  fields: SignatureField[];
+}): boolean {
+  return esignQueueAction(params).action === "sign";
+}
+
+export function signatureMatchesKpi(
+  r: SignatureRequestRow,
+  kpi: SignatureKpiKey,
+  role: "admin" | "client",
+  userId: string
+): boolean {
+  if (kpi === "all") return true;
+  const needsYou = signatureNeedsYou({
+    status: r.status,
+    role,
+    userId,
+    fields: r.fields || [],
+  });
+  if (kpi === "needs_you") return needsYou;
+  if (kpi === "ready") return r.status === "ready_for_send" && !needsYou;
+  if (kpi === "awaiting") return isAwaitingSignatureStatus(r.status);
+  if (kpi === "review") return r.status === "signed_returned";
+  if (kpi === "completed") return r.status === "reviewed";
+  return true;
+}
+
+export function countSignaturesByKpi(
+  requests: SignatureRequestRow[],
+  role: "admin" | "client",
+  userId: string
+): Record<SignatureKpiKey, number> {
+  const counts: Record<SignatureKpiKey, number> = {
+    all: requests.length,
+    needs_you: 0,
+    ready: 0,
+    awaiting: 0,
+    review: 0,
+    completed: 0,
+  };
+  for (const r of requests) {
+    if (signatureMatchesKpi(r, "needs_you", role, userId)) counts.needs_you += 1;
+    if (signatureMatchesKpi(r, "ready", role, userId)) counts.ready += 1;
+    if (signatureMatchesKpi(r, "awaiting", role, userId)) counts.awaiting += 1;
+    if (signatureMatchesKpi(r, "review", role, userId)) counts.review += 1;
+    if (signatureMatchesKpi(r, "completed", role, userId)) counts.completed += 1;
+  }
+  return counts;
+}
+
+export function clientSignatureMatchesKpi(
+  r: SignatureRequestRow,
+  kpi: ClientSignatureKpiKey,
+  userId: string
+): boolean {
+  if (kpi === "all") return true;
+  const needsYou = signatureNeedsYou({
+    status: r.status,
+    role: "client",
+    userId,
+    fields: r.fields || [],
+  });
+  if (kpi === "needs_you") return needsYou;
+  if (kpi === "completed") return r.status === "reviewed";
+  if (kpi === "waiting") {
+    return !needsYou && r.status !== "reviewed";
+  }
+  return true;
+}
+
+export function countClientSignaturesByKpi(
+  requests: SignatureRequestRow[],
+  userId: string
+): Record<ClientSignatureKpiKey, number> {
+  const counts: Record<ClientSignatureKpiKey, number> = {
+    all: requests.length,
+    needs_you: 0,
+    waiting: 0,
+    completed: 0,
+  };
+  for (const r of requests) {
+    if (clientSignatureMatchesKpi(r, "needs_you", userId)) counts.needs_you += 1;
+    if (clientSignatureMatchesKpi(r, "waiting", userId)) counts.waiting += 1;
+    if (clientSignatureMatchesKpi(r, "completed", userId)) counts.completed += 1;
+  }
+  return counts;
 }
 
 export function esignStageLabel(status: string): string {

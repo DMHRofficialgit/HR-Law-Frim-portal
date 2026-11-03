@@ -566,6 +566,7 @@ model OnboardingRun {
 
   @@index([organisationId])
   @@index([status])
+  /// Partial unique index (one in_progress run per org) added in migration SQL.
   @@map("onboarding_runs")
 }
 
@@ -589,6 +590,7 @@ model OnboardingPackItem {
   clientDocument   Document               @relation(fields: [clientDocumentId], references: [id], onDelete: Cascade)
   signatureRequest SignatureRequest?      @relation(fields: [signatureRequestId], references: [id], onDelete: SetNull)
 
+  @@unique([runId, libraryDocumentId])
   @@index([runId])
   @@index([clientDocumentId])
   @@index([signatureRequestId])

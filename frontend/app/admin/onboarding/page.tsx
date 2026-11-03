@@ -108,7 +108,10 @@ export default function AdminOnboardingPage() {
           (r) =>
             r.status === "in_progress" &&
             r.packItems.some(
-              (p) => p.status === "awaiting_signature" || p.status === "issued"
+              (p) =>
+                p.status === "awaiting_signature" ||
+                p.status === "issued" ||
+                p.status === "signed"
             )
         )
         .map((r) => r.id)
@@ -168,8 +171,8 @@ export default function AdminOnboardingPage() {
     },
     {
       key: "awaiting",
-      label: "Awaiting client",
-      hint: "Client action required",
+      label: "Needs attention",
+      hint: "Client sign or Admin review",
       icon: Inbox,
     },
     {

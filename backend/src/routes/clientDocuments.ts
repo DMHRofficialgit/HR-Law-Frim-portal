@@ -27,10 +27,21 @@ router.get("/folders", async (req, res) => {
     select: { onboardingStatus: true },
   });
   const folders = await listFolders(organisationId);
-  const visible =
+  const activeRun =
     org?.onboardingStatus === OnboardingStatus.existing_skip
-      ? folders.filter((f) => f.key !== FolderKey.my_onboarding)
-      : folders;
+      ? await prisma.onboardingRun.findFirst({
+          where: {
+            organisationId,
+            status: "in_progress",
+          },
+          select: { id: true },
+        })
+      : null;
+  const hideOnboarding =
+    org?.onboardingStatus === OnboardingStatus.existing_skip && !activeRun;
+  const visible = hideOnboarding
+    ? folders.filter((f) => f.key !== FolderKey.my_onboarding)
+    : folders;
   return res.status(200).json({
     success: true,
     data: {

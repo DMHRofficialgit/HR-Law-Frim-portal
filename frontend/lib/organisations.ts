@@ -143,8 +143,9 @@ export function orgInitials(name: string): string {
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+/** Align with onboarding.packItemDone — signed alone is not complete (needs Admin review). */
 const packItemDone = (status: string): boolean =>
-  status === "done" || status === "signed" || status === "reviewed";
+  status === "done" || status === "reviewed";
 
 /** Directory onboarding cell: short label + optional pack progress. */
 export function orgOnboardingSummary(org: OrgListRow): {
@@ -168,7 +169,7 @@ export function orgOnboardingSummary(org: OrgListRow): {
       percent: 100,
     };
   }
-  if (org.onboardingStatus === "existing_skip") {
+  if (org.onboardingStatus === "existing_skip" && run?.status !== "in_progress") {
     return { tone: "skip", label: "Skipped", done: 0, total: 0, percent: 0 };
   }
   if (run && run.packItems.length > 0) {

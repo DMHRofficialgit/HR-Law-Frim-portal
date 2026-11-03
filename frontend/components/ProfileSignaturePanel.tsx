@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useConfirm } from "../context/ConfirmContext";
+import { useToast } from "../context/ToastContext";
 import { API_URL, apiFetch, apiUpload, authHeaders } from "../lib/api";
 import { getToken } from "../lib/auth";
 import { DocsDropzone } from "./DocsDropzone";
@@ -20,15 +21,21 @@ type ListPayload = {
   hasSignature: boolean;
 };
 
-export function ProfileSignaturePanel() {
+type ProfileSignaturePanelProps = {
+  /** Denser layout for queue pages (tiles + tools side by side on wide screens). */
+  compact?: boolean;
+};
+
+export function ProfileSignaturePanel({ compact = false }: ProfileSignaturePanelProps) {
   const { confirm } = useConfirm();
+  const { success: toastSuccess, error: toastError } = useToast();
   const [signatures, setSignatures] = useState<SignatureMeta[]>([]);
   const [max, setMax] = useState(5);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [blob, setBlob] = useState<Blob | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
+  const [openAdd, setOpenAdd] = useState(false);
   const previewsRef = useRef(previews);
   previewsRef.current = previews;
 
@@ -74,22 +81,24 @@ export function ProfileSignaturePanel() {
   async function saveBlob(fileBlob: Blob, fileName = "signature.png") {
     setSaving(true);
     setError("");
-    setNotice("");
     try {
       const fd = new FormData();
       fd.append("file", fileBlob, fileName);
       const result = await apiUpload<ListPayload>("/me/signature", fd, getToken());
       if (!result.success) {
         setError(result.error.message);
+        toastError(result.error.message);
         return;
       }
-      setNotice("Signature saved to your profile.");
+      toastSuccess("Signature saved");
       setSignatures(result.data.signatures);
       setMax(result.data.max);
       await load();
       setBlob(null);
+      if (compact) setOpenAdd(false);
     } catch {
       setError("Unable to save signature.");
+      toastError("Unable to save signature.");
     } finally {
       setSaving(false);
     }
@@ -110,6 +119,7 @@ export function ProfileSignaturePanel() {
       file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
     if (!isPng) {
       setError("Upload a PNG file only.");
+      toastError("Upload a PNG file only.");
       return;
     }
     await saveBlob(file, file.name);
@@ -124,16 +134,16 @@ export function ProfileSignaturePanel() {
     });
     if (!ok) return;
     setError("");
-    setNotice("");
     const result = await apiFetch<ListPayload>(`/me/signature/${id}`, {
       method: "DELETE",
       token: getToken(),
     });
     if (!result.success) {
       setError(result.error.message);
+      toastError(result.error.message);
       return;
     }
-    setNotice("Signature removed.");
+    toastSuccess("Signature removed");
     setSignatures(result.data.signatures);
     setMax(result.data.max);
     await load();
@@ -147,23 +157,41 @@ export function ProfileSignaturePanel() {
     });
     if (!result.success) {
       setError(result.error.message);
+      toastError(result.error.message);
       return;
     }
     setSignatures(result.data.signatures);
-    setNotice("Default signature updated.");
+    toastSuccess("Default signature updated");
   }
 
   const atMax = signatures.length >= max;
+  const showComposer = !compact || openAdd || signatures.length === 0;
 
   return (
-    <section className="panel" style={{ marginBottom: 16 }}>
-      <h2>Your signature</h2>
-      <p className="lead">
-        Draw or upload PNG signatures for e-sign (up to {max}). You can still draw a new one when
-        signing a document.
-      </p>
+    <section
+      className={`panel signature-profile-panel${compact ? " is-compact" : ""}`}
+      style={{ marginBottom: 16 }}
+    >
+      <div className="signature-profile-head">
+        <div>
+          <h2>Your signature</h2>
+          <p className="lead">
+            Draw or upload PNG signatures for e-sign (up to {max}). You can still draw a new one
+            when signing a document.
+          </p>
+        </div>
+        {compact && !atMax && signatures.length > 0 ? (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setOpenAdd((v) => !v)}
+            aria-expanded={openAdd}
+          >
+            {openAdd ? "Hide add" : "+ Add signature"}
+          </button>
+        ) : null}
+      </div>
       {error ? <div className="error-banner">{error}</div> : null}
-      {notice ? <div className="success-banner">{notice}</div> : null}
 
       {signatures.length === 0 ? (
         <p className="org-meta">No saved signatures yet.</p>
@@ -171,7 +199,7 @@ export function ProfileSignaturePanel() {
         <ul className="signature-tile-grid">
           {signatures.map((s) => (
             <li key={s.id} className={`signature-tile${s.isDefault ? " is-default" : ""}`}>
-              <TooltipAnchor label="Remove">
+              <TooltipAnchor label="Remove" className="signature-tile-remove">
                 <button
                   type="button"
                   className="signature-tile-x"
@@ -181,14 +209,16 @@ export function ProfileSignaturePanel() {
                   ×
                 </button>
               </TooltipAnchor>
-              {previews[s.id] ? (
-                <img src={previews[s.id]} alt="Saved signature" className="signature-preview" />
-              ) : (
-                <div className="signature-preview signature-preview-empty">…</div>
-              )}
+              <div className="signature-preview-frame">
+                {previews[s.id] ? (
+                  <img src={previews[s.id]} alt="Saved signature" className="signature-preview" />
+                ) : (
+                  <div className="signature-preview signature-preview-empty">…</div>
+                )}
+              </div>
               <div className="signature-tile-actions">
                 {s.isDefault ? (
-                  <span className="org-meta">Default</span>
+                  <span className="signature-default-pill">Default</span>
                 ) : (
                   <button
                     type="button"
@@ -204,34 +234,45 @@ export function ProfileSignaturePanel() {
         </ul>
       )}
 
-      <form onSubmit={onSaveDraw}>
-        <div className="field">
-          <label>Draw signature</label>
-          <SignaturePad onChange={setBlob} />
-        </div>
-        <div className="esign-actions" style={{ marginBottom: 12 }}>
-          <button className="btn btn-primary" type="submit" disabled={saving || !blob || atMax}>
-            {saving ? "Saving…" : "Save drawing"}
-          </button>
-        </div>
-        <div className="field" style={{ marginBottom: 8 }}>
-          <label>Or upload a PNG</label>
-          <DocsDropzone
-            compact
-            multiple={false}
-            disabled={atMax}
-            busy={saving}
-            accept="image/png,.png"
-            hint="PNG only · drag and drop or select"
-            title="Drop a signature PNG here"
-            selectLabel="Select PNG"
-            onFiles={(picked) => onUploadFile(picked[0] || null)}
-          />
-        </div>
-        {atMax ? (
-          <p className="org-meta">Maximum of {max} signatures reached. Remove one to add another.</p>
-        ) : null}
-      </form>
+      {showComposer ? (
+        <form
+          onSubmit={onSaveDraw}
+          className={compact ? "signature-profile-composer" : undefined}
+        >
+          <div className="field">
+            <label>Draw signature</label>
+            <SignaturePad onChange={setBlob} />
+          </div>
+          <div className="esign-actions" style={{ marginBottom: 12 }}>
+            <button
+              className="btn btn-primary btn-sm"
+              type="submit"
+              disabled={saving || !blob || atMax}
+            >
+              {saving ? "Saving…" : "Save drawing"}
+            </button>
+          </div>
+          <div className="field" style={{ marginBottom: 8 }}>
+            <label>Or upload a PNG</label>
+            <DocsDropzone
+              compact
+              multiple={false}
+              disabled={atMax}
+              busy={saving}
+              accept="image/png,.png"
+              hint="PNG only · drag and drop or select"
+              title="Drop a signature PNG here"
+              selectLabel="Select PNG"
+              onFiles={(picked) => onUploadFile(picked[0] || null)}
+            />
+          </div>
+          {atMax ? (
+            <p className="org-meta">
+              Maximum of {max} signatures reached. Remove one to add another.
+            </p>
+          ) : null}
+        </form>
+      ) : null}
     </section>
   );
 }

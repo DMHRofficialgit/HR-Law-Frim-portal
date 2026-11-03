@@ -16,7 +16,7 @@ import { sendMail } from "../lib/mail";
 import { clientUserIdsForOrg, notifyUsers } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
 import { absoluteStoragePath } from "../lib/storage";
-import { uploadDocument } from "./documents";
+import { deleteDocument, uploadDocument } from "./documents";
 import { firmLibraryFieldHasAdminInk } from "./firmLibrary";
 import {
   createDraftFromDocument,
@@ -91,6 +91,49 @@ function httpError(message: string, status: number, code: string) {
   return Object.assign(new Error(message), { status, code });
 }
 
+function isPrismaUniqueViolation(err: unknown): boolean {
+  return Boolean(
+    err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code?: string }).code === "P2002"
+  );
+}
+
+async function assertOrganisationActive(organisationId: string) {
+  const org = await prisma.organisation.findUnique({
+    where: { id: organisationId },
+  });
+  if (!org) throw httpError("Organisation not found", 404, "NOT_FOUND");
+  if (String(org.status || "").toLowerCase() !== "active") {
+    throw httpError(
+      "Organisation is inactive — reactivate before continuing onboarding",
+      400,
+      "VALIDATION_ERROR"
+    );
+  }
+  return org;
+}
+
+function packStatusFromSignatureStatus(
+  status: SignatureStatus
+): OnboardingPackItemStatus | null {
+  if (status === SignatureStatus.reviewed) return OnboardingPackItemStatus.reviewed;
+  if (status === SignatureStatus.signed_returned) return OnboardingPackItemStatus.signed;
+  if (
+    status === SignatureStatus.awaiting_signature ||
+    status === SignatureStatus.sent ||
+    status === SignatureStatus.revision_requested
+  ) {
+    return OnboardingPackItemStatus.awaiting_signature;
+  }
+  // draft / ready_for_send — linked but not yet sent to client
+  if (status === SignatureStatus.draft || status === SignatureStatus.ready_for_send) {
+    return OnboardingPackItemStatus.issued;
+  }
+  return null;
+}
+
 export function defaultWelcomeEmail(org: {
   name: string;
   contactName: string | null;
@@ -142,12 +185,15 @@ export async function getClientJourney(organisationId: string) {
   });
   if (!org) throw httpError("Organisation not found", 404, "NOT_FOUND");
 
-  if (org.onboardingStatus === OnboardingStatus.existing_skip) {
+  const activeRun = await getActiveRunForOrg(organisationId);
+
+  // Prefer an active run over existing_skip so clients are not locked out mid-journey
+  if (org.onboardingStatus === OnboardingStatus.existing_skip && !activeRun) {
     return { organisation: org, run: null, skipped: true as const };
   }
 
   const run =
-    (await getActiveRunForOrg(organisationId)) ||
+    activeRun ||
     (await prisma.onboardingRun.findFirst({
       where: { organisationId },
       orderBy: { startedAt: "desc" },
@@ -171,10 +217,7 @@ export async function startOnboarding(params: {
   organisationId: string;
   startedById: string;
 }) {
-  const org = await prisma.organisation.findUnique({
-    where: { id: params.organisationId },
-  });
-  if (!org) throw httpError("Organisation not found", 404, "NOT_FOUND");
+  const org = await assertOrganisationActive(params.organisationId);
   if (org.onboardingStatus === OnboardingStatus.existing_skip) {
     throw httpError(
       "This company is marked already onboarded — change status to Needs onboarding first",
@@ -199,17 +242,24 @@ export async function startOnboarding(params: {
   }
 
   const welcome = defaultWelcomeEmail(org);
-  const created = await prisma.onboardingRun.create({
-    data: {
-      organisationId: org.id,
-      status: OnboardingRunStatus.in_progress,
-      welcomeEmailSubject: welcome.subject,
-      welcomeEmailBody: welcome.body,
-    },
-    include: runInclude,
-  });
-
-  return created;
+  try {
+    return await prisma.onboardingRun.create({
+      data: {
+        organisationId: org.id,
+        status: OnboardingRunStatus.in_progress,
+        welcomeEmailSubject: welcome.subject,
+        welcomeEmailBody: welcome.body,
+      },
+      include: runInclude,
+    });
+  } catch (err) {
+    // Concurrent start: partial unique index — return the winner
+    if (isPrismaUniqueViolation(err)) {
+      const raced = await getActiveRunForOrg(params.organisationId);
+      if (raced) return raced;
+    }
+    throw err;
+  }
 }
 
 export async function sendWelcomeEmail(params: {
@@ -222,6 +272,7 @@ export async function sendWelcomeEmail(params: {
   if (run.status !== OnboardingRunStatus.in_progress) {
     throw httpError("Onboarding is not in progress", 409, "INVALID_STATUS");
   }
+  await assertOrganisationActive(run.organisationId);
 
   const subject = (params.subject || run.welcomeEmailSubject || "").trim();
   const body = (params.body || run.welcomeEmailBody || "").trim();
@@ -285,6 +336,7 @@ export async function issuePackFromLibrary(params: {
   if (run.status !== OnboardingRunStatus.in_progress) {
     throw httpError("Onboarding is not in progress", 409, "INVALID_STATUS");
   }
+  await assertOrganisationActive(run.organisationId);
   if (!params.libraryDocumentIds.length) {
     throw httpError("Select at least one library document", 400, "VALIDATION_ERROR");
   }
@@ -341,202 +393,242 @@ export async function issuePackFromLibrary(params: {
     .map((id) => libraryDocs.find((d) => d.id === id)!)
     .filter(Boolean);
 
+  // Fresh DB check — avoids duplicate issue after concurrent / stale UI
+  const existingLinks = await prisma.onboardingPackItem.findMany({
+    where: {
+      runId: run.id,
+      libraryDocumentId: { in: ordered.map((d) => d.id) },
+    },
+    select: { libraryDocumentId: true },
+  });
+  const alreadyIssued = new Set(
+    existingLinks.map((p) => p.libraryDocumentId).filter(Boolean) as string[]
+  );
+
   let sortBase = run.packItems.length;
   let issuedSignCount = 0;
+  let newlyIssued = 0;
+
   for (const lib of ordered) {
-    const already = run.packItems.find((p) => p.libraryDocumentId === lib.id);
-    if (already) continue;
+    if (alreadyIssued.has(lib.id)) continue;
+    if (run.packItems.some((p) => p.libraryDocumentId === lib.id)) continue;
 
-    const bytes = await fs.readFile(absoluteStoragePath(lib.storagePath));
-    const uploaded = await uploadDocument({
-      organisationId: run.organisationId,
-      folderId: folder.id,
-      userId: params.issuedById,
-      file: {
-        originalName: lib.fileName,
-        mimeType: lib.mimeType,
-        size: lib.sizeBytes,
-        buffer: bytes,
-      },
-    });
-    if (uploaded.error || !uploaded.document) {
-      throw httpError(
-        uploaded.error?.message || "Failed to issue document",
-        uploaded.error?.status || 500,
-        uploaded.error?.code || "SERVER_ERROR"
-      );
-    }
-
-    // Prefer library title on the client copy
-    await prisma.document.update({
-      where: { id: uploaded.document.id },
-      data: { title: lib.title },
-    });
-
-    let signatureRequestId: string | null = null;
-    let packStatus: OnboardingPackItemStatus = lib.requiresSignature
-      ? OnboardingPackItemStatus.issued
-      : OnboardingPackItemStatus.done;
-
-    if (lib.requiresSignature && lib.fields.length > 0) {
-      const { request } = await createDraftFromDocument({
+    let uploadedDocId: string | null = null;
+    try {
+      const bytes = await fs.readFile(absoluteStoragePath(lib.storagePath));
+      const uploaded = await uploadDocument({
         organisationId: run.organisationId,
-        sourceDocumentId: uploaded.document.id,
-        createdById: params.issuedById,
-        title: lib.title,
+        folderId: folder.id,
+        userId: params.issuedById,
+        file: {
+          originalName: lib.fileName,
+          mimeType: lib.mimeType,
+          size: lib.sizeBytes,
+          buffer: bytes,
+        },
       });
-
-      await replaceFields({
-        id: request.id,
-        fields: lib.fields.map((f, i) => ({
-          type: f.type,
-          page: f.page,
-          x: f.x,
-          y: f.y,
-          width: f.width,
-          height: f.height,
-          label: f.label,
-          required: f.required,
-          sortOrder: f.sortOrder ?? i,
-          assigneeUserId:
-            f.role === FirmLibraryFieldRole.admin
-              ? params.issuedById
-              : primaryClient.id,
-        })),
-      });
-
-      await markReady(request.id);
-
-      const readyReq = await getSignatureRequestById(request.id);
-      if (!readyReq) throw httpError("Signature request missing after Mark Ready", 500, "SERVER_ERROR");
-
-      const adminTpl = lib.fields.filter((f) => f.role === FirmLibraryFieldRole.admin);
-      if (adminTpl.length > 0) {
-        const fieldImages: Record<string, Buffer> = {};
-        const fieldTexts: Record<string, string> = {};
-        const liveByGeom = new Map(
-          readyReq.fields.map((f) => [fieldGeomKey(f), f] as const)
+      if (uploaded.error || !uploaded.document) {
+        throw httpError(
+          uploaded.error?.message || "Failed to issue document",
+          uploaded.error?.status || 500,
+          uploaded.error?.code || "SERVER_ERROR"
         );
-        const usedLiveIds = new Set<string>();
+      }
+      uploadedDocId = uploaded.document.id;
 
-        for (const tpl of adminTpl) {
-          const geom = fieldGeomKey(tpl);
-          let live =
-            liveByGeom.get(geom) ||
-            readyReq.fields.find(
-              (f) =>
-                !usedLiveIds.has(f.id) &&
-                f.assigneeUserId === params.issuedById &&
-                f.type === tpl.type &&
-                f.sortOrder === tpl.sortOrder
-            ) ||
-            readyReq.fields.find(
-              (f) =>
-                !usedLiveIds.has(f.id) &&
-                f.assigneeUserId === params.issuedById &&
-                f.type === tpl.type &&
-                f.page === tpl.page
-            );
+      await prisma.document.update({
+        where: { id: uploaded.document.id },
+        data: { title: lib.title },
+      });
 
-          if (!live) {
+      let signatureRequestId: string | null = null;
+      let packStatus: OnboardingPackItemStatus = lib.requiresSignature
+        ? OnboardingPackItemStatus.issued
+        : OnboardingPackItemStatus.done;
+
+      if (lib.requiresSignature && lib.fields.length > 0) {
+        const { request } = await createDraftFromDocument({
+          organisationId: run.organisationId,
+          sourceDocumentId: uploaded.document.id,
+          createdById: params.issuedById,
+          title: lib.title,
+        });
+
+        await replaceFields({
+          id: request.id,
+          fields: lib.fields.map((f, i) => ({
+            type: f.type,
+            page: f.page,
+            x: f.x,
+            y: f.y,
+            width: f.width,
+            height: f.height,
+            label: f.label,
+            required: f.required,
+            sortOrder: f.sortOrder ?? i,
+            assigneeUserId:
+              f.role === FirmLibraryFieldRole.admin
+                ? params.issuedById
+                : primaryClient.id,
+          })),
+        });
+
+        await markReady(request.id);
+
+        const readyReq = await getSignatureRequestById(request.id);
+        if (!readyReq) {
+          throw httpError("Signature request missing after Mark Ready", 500, "SERVER_ERROR");
+        }
+
+        const adminTpl = lib.fields.filter((f) => f.role === FirmLibraryFieldRole.admin);
+        if (adminTpl.length > 0) {
+          const fieldImages: Record<string, Buffer> = {};
+          const fieldTexts: Record<string, string> = {};
+          const liveByGeom = new Map(
+            readyReq.fields.map((f) => [fieldGeomKey(f), f] as const)
+          );
+          const usedLiveIds = new Set<string>();
+
+          for (const tpl of adminTpl) {
+            const geom = fieldGeomKey(tpl);
+            const live =
+              liveByGeom.get(geom) ||
+              readyReq.fields.find(
+                (f) =>
+                  !usedLiveIds.has(f.id) &&
+                  f.assigneeUserId === params.issuedById &&
+                  f.type === tpl.type &&
+                  f.sortOrder === tpl.sortOrder
+              ) ||
+              readyReq.fields.find(
+                (f) =>
+                  !usedLiveIds.has(f.id) &&
+                  f.assigneeUserId === params.issuedById &&
+                  f.type === tpl.type &&
+                  f.page === tpl.page
+              );
+
+            if (!live) {
+              throw httpError(
+                `Could not map Admin field “${tpl.label}” onto the issued signature request`,
+                500,
+                "SERVER_ERROR"
+              );
+            }
+            usedLiveIds.add(live.id);
+
+            if (tpl.signedImagePath) {
+              fieldImages[live.id] = await fs.readFile(absoluteStoragePath(tpl.signedImagePath));
+            }
+            if (tpl.valueText?.trim()) {
+              fieldTexts[live.id] = tpl.valueText.trim();
+            }
+
+            if (tpl.required && !fieldImages[live.id] && !fieldTexts[live.id]) {
+              throw httpError(
+                `Admin ink missing for “${tpl.label}” — save Admin ink in Firm Library, then issue again`,
+                400,
+                "VALIDATION_ERROR"
+              );
+            }
+          }
+
+          await signSignatureRequest({
+            id: request.id,
+            organisationId: run.organisationId,
+            signedById: issuer.id,
+            typedName: issuer.name || "DM.HR Admin",
+            ip: null,
+            fieldImages,
+            fieldTexts,
+          });
+        }
+
+        const afterAdmin = await getSignatureRequestById(request.id);
+        if (!afterAdmin) {
+          throw httpError("Signature request missing after admin ink", 500, "SERVER_ERROR");
+        }
+
+        if (adminTpl.length > 0) {
+          const adminLive = afterAdmin.fields.filter(
+            (f) => f.assigneeUserId === params.issuedById
+          );
+          const incompleteAdmin = adminLive.filter((f) => f.required && !fieldIsComplete(f));
+          if (incompleteAdmin.length) {
             throw httpError(
-              `Could not map Admin field “${tpl.label}” onto the issued signature request`,
+              `Admin ink did not apply to ${incompleteAdmin.length} field(s) — check Firm Library layout and re-issue`,
               500,
               "SERVER_ERROR"
             );
           }
-          usedLiveIds.add(live.id);
-
-          if (tpl.signedImagePath) {
-            fieldImages[live.id] = await fs.readFile(absoluteStoragePath(tpl.signedImagePath));
-          }
-          if (tpl.valueText?.trim()) {
-            fieldTexts[live.id] = tpl.valueText.trim();
-          }
-
-          if (tpl.required && !fieldImages[live.id] && !fieldTexts[live.id]) {
-            throw httpError(
-              `Admin ink missing for “${tpl.label}” — save Admin ink in Firm Library, then issue again`,
-              400,
-              "VALIDATION_ERROR"
-            );
-          }
         }
 
-        await signSignatureRequest({
-          id: request.id,
-          organisationId: run.organisationId,
-          signedById: issuer.id,
-          typedName: issuer.name || "DM.HR Admin",
-          ip: null,
-          fieldImages,
-          fieldTexts,
-        });
-      }
-
-      const afterAdmin = await getSignatureRequestById(request.id);
-      if (!afterAdmin) {
-        throw httpError("Signature request missing after admin ink", 500, "SERVER_ERROR");
-      }
-
-      if (adminTpl.length > 0) {
-        const adminLive = afterAdmin.fields.filter(
-          (f) => f.assigneeUserId === params.issuedById
-        );
-        const incompleteAdmin = adminLive.filter((f) => f.required && !fieldIsComplete(f));
-        if (incompleteAdmin.length) {
-          throw httpError(
-            `Admin ink did not apply to ${incompleteAdmin.length} field(s) — check Firm Library layout and re-issue`,
-            500,
-            "SERVER_ERROR"
-          );
-        }
-      }
-
-      if (
-        afterAdmin.status === SignatureStatus.signed_returned ||
-        afterAdmin.status === SignatureStatus.reviewed
-      ) {
-        signatureRequestId = afterAdmin.id;
-        packStatus =
+        if (
+          afterAdmin.status === SignatureStatus.signed_returned ||
           afterAdmin.status === SignatureStatus.reviewed
-            ? OnboardingPackItemStatus.reviewed
-            : OnboardingPackItemStatus.signed;
-      } else {
-        const sent = await sendForSignature(request.id);
-        signatureRequestId = sent.id;
-        packStatus = OnboardingPackItemStatus.awaiting_signature;
+        ) {
+          signatureRequestId = afterAdmin.id;
+          packStatus =
+            afterAdmin.status === SignatureStatus.reviewed
+              ? OnboardingPackItemStatus.reviewed
+              : OnboardingPackItemStatus.signed;
+        } else {
+          const sent = await sendForSignature(request.id);
+          signatureRequestId = sent.id;
+          packStatus = OnboardingPackItemStatus.awaiting_signature;
+        }
+        issuedSignCount += 1;
       }
-      issuedSignCount += 1;
-    }
 
-    await prisma.onboardingPackItem.create({
-      data: {
-        runId: run.id,
-        libraryDocumentId: lib.id,
-        clientDocumentId: uploaded.document.id,
-        title: lib.title,
-        requiresSignature: lib.requiresSignature,
-        journeyRole: lib.journeyRole,
-        status: packStatus,
-        signatureRequestId,
-        sortOrder: sortBase++,
-      },
-    });
+      try {
+        await prisma.onboardingPackItem.create({
+          data: {
+            runId: run.id,
+            libraryDocumentId: lib.id,
+            clientDocumentId: uploaded.document.id,
+            title: lib.title,
+            requiresSignature: lib.requiresSignature,
+            journeyRole: lib.journeyRole,
+            status: packStatus,
+            signatureRequestId,
+            sortOrder: sortBase++,
+          },
+        });
+      } catch (err) {
+        if (isPrismaUniqueViolation(err)) {
+          // Race: another request linked this library doc — drop orphan client copy
+          if (uploadedDocId) {
+            await deleteDocument(run.organisationId, uploadedDocId).catch(() => undefined);
+          }
+          continue;
+        }
+        throw err;
+      }
+
+      alreadyIssued.add(lib.id);
+      newlyIssued += 1;
+    } catch (err) {
+      if (uploadedDocId) {
+        await deleteDocument(run.organisationId, uploadedDocId).catch(() => undefined);
+      }
+      throw err;
+    }
   }
 
   const refreshed = await getOnboardingRunById(run.id);
-  const userIds = await clientUserIdsForOrg(run.organisationId);
-  await notifyUsers({
-    userIds,
-    organisationId: run.organisationId,
-    title: "Onboarding documents ready",
-    body:
-      issuedSignCount > 0
-        ? `${issuedSignCount} document(s) are ready to sign in My Onboarding.`
-        : `New documents were added to My Onboarding for ${run.organisation.name}.`,
-    href: `/portal/onboarding`,
-  });
+  if (newlyIssued > 0) {
+    const userIds = await clientUserIdsForOrg(run.organisationId);
+    await notifyUsers({
+      userIds,
+      organisationId: run.organisationId,
+      title: "Onboarding documents ready",
+      body:
+        issuedSignCount > 0
+          ? `${issuedSignCount} document(s) are ready to sign in My Onboarding.`
+          : `New documents were added to My Onboarding for ${run.organisation.name}.`,
+      href: `/portal/onboarding`,
+    });
+  }
 
   return refreshed;
 }
@@ -550,6 +642,7 @@ export async function linkPackItemSignature(params: {
     include: { run: true },
   });
   if (!item) throw httpError("Pack item not found", 404, "NOT_FOUND");
+  await assertOrganisationActive(item.run.organisationId);
 
   const req = await prisma.signatureRequest.findUnique({
     where: { id: params.signatureRequestId },
@@ -558,16 +651,12 @@ export async function linkPackItemSignature(params: {
     throw httpError("Signature request not found for this organisation", 404, "NOT_FOUND");
   }
 
+  const mapped = packStatusFromSignatureStatus(req.status);
   return prisma.onboardingPackItem.update({
     where: { id: item.id },
     data: {
       signatureRequestId: req.id,
-      status:
-        req.status === SignatureStatus.reviewed
-          ? OnboardingPackItemStatus.reviewed
-          : req.status === SignatureStatus.signed_returned
-            ? OnboardingPackItemStatus.signed
-            : OnboardingPackItemStatus.awaiting_signature,
+      ...(mapped ? { status: mapped } : {}),
     },
   });
 }
@@ -590,18 +679,7 @@ export async function syncPackItemFromSignatureRequest(signatureRequestId: strin
   });
   if (!items.length) return;
 
-  let status: OnboardingPackItemStatus | null = null;
-  if (req.status === SignatureStatus.reviewed) status = OnboardingPackItemStatus.reviewed;
-  else if (req.status === SignatureStatus.signed_returned) {
-    status = OnboardingPackItemStatus.signed;
-  } else if (
-    req.status === SignatureStatus.awaiting_signature ||
-    req.status === SignatureStatus.sent ||
-    req.status === SignatureStatus.revision_requested ||
-    req.status === SignatureStatus.ready_for_send
-  ) {
-    status = OnboardingPackItemStatus.awaiting_signature;
-  }
+  const status = packStatusFromSignatureStatus(req.status);
 
   for (const item of items) {
     await prisma.onboardingPackItem.update({
@@ -630,6 +708,7 @@ export async function setPaymentLink(params: {
   if (run.status !== OnboardingRunStatus.in_progress) {
     throw httpError("Onboarding is not in progress", 409, "INVALID_STATUS");
   }
+  await assertOrganisationActive(run.organisationId);
   const url = params.url.trim();
   if (!url || !/^https?:\/\//i.test(url)) {
     throw httpError("Enter a valid http(s) URL", 400, "VALIDATION_ERROR");
@@ -691,6 +770,7 @@ export async function completeOnboarding(params: {
   if (run.status !== OnboardingRunStatus.in_progress) {
     throw httpError("Onboarding is not in progress", 409, "INVALID_STATUS");
   }
+  await assertOrganisationActive(run.organisationId);
 
   const gate = canCompleteOnboarding(run);
   if (!gate.ok) throw httpError(gate.reason, 400, "VALIDATION_ERROR");

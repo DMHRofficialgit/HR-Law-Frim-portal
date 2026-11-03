@@ -3776,6 +3776,141 @@ textarea {
   pointer-events: none;
 }
 
+.signature-profile-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.signature-profile-head h2 {
+  margin: 0 0 4px;
+}
+
+.signature-profile-panel.is-compact .lead {
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+}
+
+.signature-profile-panel.is-compact .signature-tile-grid {
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.signature-profile-panel.is-compact .signature-tile {
+  flex: 0 0 auto;
+  width: 220px;
+  padding: 10px;
+  border-radius: 12px;
+}
+
+.signature-profile-panel.is-compact .signature-tile .signature-preview-frame {
+  display: block;
+  width: 100%;
+  height: 96px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, #fff);
+}
+
+.signature-profile-panel.is-compact .signature-tile .signature-preview,
+.signature-profile-panel.is-compact .signature-preview-empty {
+  display: block;
+  width: 100%;
+  height: 96px;
+  max-height: none;
+  object-fit: contain;
+  object-position: center;
+  /* Saved PNGs often have empty margins — zoom ink so strokes stay readable */
+  transform: scale(1.45);
+  transform-origin: center center;
+  border: none;
+  border-radius: 0;
+  background: #fff;
+}
+
+.signature-profile-panel.is-compact .signature-preview-empty {
+  transform: none;
+  display: grid;
+  place-items: center;
+}
+
+.signature-profile-panel.is-compact .signature-tile-remove {
+  top: 6px;
+  right: 6px;
+  opacity: 1;
+}
+
+.signature-profile-panel.is-compact .signature-tile-x {
+  width: 22px;
+  height: 22px;
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.95);
+  color: #c62828;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+.signature-profile-panel.is-compact .signature-tile-x:hover {
+  background: rgba(198, 40, 40, 0.12);
+  color: #a11;
+}
+
+.signature-profile-panel.is-compact .signature-tile-actions {
+  margin-top: 4px;
+  min-height: 20px;
+}
+
+.signature-default-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--blue);
+  line-height: 1.2;
+}
+
+.signature-profile-panel.is-compact .signature-default-pill {
+  font-size: 0.68rem;
+}
+
+.signature-profile-panel.is-compact .signature-tile-actions .btn {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  min-height: 0;
+}
+
+.signature-profile-composer {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+@media (min-width: 900px) {
+  .signature-profile-panel.is-compact .signature-profile-composer {
+    display: grid;
+    grid-template-columns: 1.2fr 0.8fr;
+    gap: 16px 20px;
+    align-items: start;
+  }
+
+  .signature-profile-panel.is-compact .signature-profile-composer .esign-actions {
+    grid-column: 1;
+  }
+
+  .signature-profile-panel.is-compact .signature-profile-composer .field:last-of-type {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
 .signature-tile-grid {
   list-style: none;
   margin: 0 0 16px;
@@ -3794,28 +3929,42 @@ textarea {
   background: #fff;
 }
 
+[data-theme="dark"] .signature-tile {
+  background: var(--surface);
+}
+
 .signature-tile.is-default {
   border-color: var(--blue);
 }
 
-.signature-tile-x {
+/* Tooltip wrapper must be the positioned box — not the inner button */
+.signature-tile-remove {
   position: absolute;
   top: 4px;
   right: 4px;
+  z-index: 2;
+}
+
+.signature-tile-x {
+  position: relative;
   width: 28px;
   height: 28px;
   border: none;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.06);
-  color: var(--ink);
+  background: rgba(255, 255, 255, 0.95);
+  color: #c62828;
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
-  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
 }
 
 .signature-tile-x:hover {
-  background: rgba(180, 40, 40, 0.12);
+  background: rgba(198, 40, 40, 0.12);
   color: #a11;
 }
 
@@ -3839,6 +3988,64 @@ textarea {
 .signature-tile-actions {
   margin-top: 8px;
   min-height: 28px;
+}
+
+/* Signatures queue: one-line KPIs + scrollable table */
+.metrics-row.sig-metrics-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  grid-template-columns: none;
+}
+
+.sig-metrics-row .case-metric-card {
+  flex: 1 1 0;
+  min-width: 112px;
+  padding: 10px 12px;
+}
+
+.sig-metrics-row .metric-value {
+  font-size: 1.25rem;
+  line-height: 1.15;
+}
+
+.sig-metrics-row .metric-label {
+  font-size: 0.8125rem;
+  margin-top: 2px;
+}
+
+.sig-metrics-row .metric-hint {
+  display: none;
+}
+
+.sig-metrics-row .case-metric-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.sig-queue-scroll {
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.sig-queue-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+@media (max-width: 640px) {
+  .sig-metrics-row .case-metric-card {
+    flex: 0 0 auto;
+    min-width: 128px;
+  }
 }
 
 .confirm-dialog {

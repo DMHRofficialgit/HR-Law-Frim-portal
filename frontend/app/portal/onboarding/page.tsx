@@ -162,7 +162,6 @@ export default function ClientOnboardingPage() {
                     item.signatureRequest &&
                     (item.signatureRequest.status === "awaiting_signature" ||
                       item.signatureRequest.status === "revision_requested" ||
-                      item.signatureRequest.status === "ready_for_send" ||
                       item.signatureRequest.status === "sent");
                   const awaitingReview = packAwaitingAdminReview(item);
                   const canPreview = Boolean(

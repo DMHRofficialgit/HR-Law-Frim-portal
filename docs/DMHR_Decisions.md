@@ -101,6 +101,7 @@
 - **Client UX:** **My Onboarding** folder + journey page with progress + CTAs (Sign → Signatures; open pack files in My Onboarding).
 - Stages are **functional** (e-sign, My Onboarding files, payment links) — not a dead checklist mock.
 - **Onboarding chrome (locked 2026-11-03):** Admin list = Cases/Orgs density (`metrics-row` KPIs + `org-directory` / `org-table` / `PortalSearch` / status pills / `RowActionsMenu`). **Start** = thin `StartOnboardingDialog` (select client only — not mock 5-step wizard). Detail = profile-hub head + shared `OnboardingStageList` + existing welcome/pack/payment/Complete panels; `useConfirm` before Mark Complete; toasts + skeletons. Client journey reuses stage list + pills. No mock marketing checklist.
+- **Signatures chrome (locked 2026-11-03):** Queue pages match Cases/Onboarding density. Admin: KPI strip (All / Needs you / Ready to send / Awaiting / Review / Completed) + `org-directory` table (`PortalSearch`, org filter, status pills, progress, primary CTA from `esignQueueAction`, ⋮ → open request / client documents). Client: KPI strip (All / Needs you / In progress / Completed) + same table density. Compact `ProfileSignaturePanel` above queue (tiles default; add draw/PNG expands; toasts). Still queue-only — start from Documents → Request signature. `EsignSheet` ceremony unchanged. Deep link `?open=`.
 
 ### Welcome pack / compliance tracking
 - Delivered into **My Onboarding** + stage status (Issued / Awaiting / Done style).
@@ -439,4 +440,5 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-03 | **Firm staging (Room 2):** separate `firm_staging_*` tables; six vault folders; upload + Eye/rename/delete; copy-to-client into six Documents folders; 21st-adapted folder tiles + DocsDropzone; hub Soon removed. |
 | 2026-11-03 | **Firm staging multi:** multi PDF upload; checkbox select bar (download / send / remove); bulk `POST /admin/firm-staging/copy-to-client` with `fileIds` (one org + folder). |
 | 2026-11-03 | **Firm staging custom folders:** vault folder `key` is string + `isSystem`; New folder API; horizontal folder strip scroll; send still targets six client folders only. |
+| 2026-11-03 | **Signatures chrome:** Admin/Client queue KPIs + directory table; compact profile ink panel + toasts; sheet ceremony unchanged. |
 
