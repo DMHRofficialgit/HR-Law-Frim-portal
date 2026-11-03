@@ -2804,6 +2804,27 @@ textarea {
   color: #92400e;
 }
 
+/* Current logged-in user marker in directories */
+.user-you-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 6px;
+  vertical-align: middle;
+  background: var(--blue);
+  color: #fff;
+  line-height: 1.3;
+}
+
+[data-theme="light"] .user-you-pill {
+  background: color-mix(in srgb, var(--blue) 18%, #fff);
+  color: color-mix(in srgb, var(--blue) 85%, #000);
+  border: 1px solid color-mix(in srgb, var(--blue) 35%, transparent);
+}
+
 .esign-zoom {
   display: flex;
   align-items: center;
@@ -4027,12 +4048,15 @@ textarea {
   height: 14px;
 }
 
+/* Directory / queue tables: fixed max height + sticky header (signatures, users, …) */
+.directory-table-scroll,
 .sig-queue-scroll {
   max-height: min(52vh, 420px);
   overflow: auto;
   scrollbar-width: thin;
 }
 
+.directory-table-scroll thead th,
 .sig-queue-scroll thead th {
   position: sticky;
   top: 0;

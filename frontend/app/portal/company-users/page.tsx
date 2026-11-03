@@ -1,47 +1,56 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Ban, CircleCheck, KeyRound, UserPlus, Users } from "lucide-react";
+import { AccessCredentialsBanner } from "../../../components/AccessCredentialsBanner";
 import { AppShell } from "../../../components/AppShell";
+import { PortalSearch } from "../../../components/PortalSearch";
 import { PortalSelect } from "../../../components/PortalSelect";
+import { RowActionsMenu } from "../../../components/RowActionsMenu";
+import { MetricSkeleton, TableSkeleton } from "../../../components/Skeleton";
+import { UserFormDialog } from "../../../components/UserFormDialog";
+import { useConfirm } from "../../../context/ConfirmContext";
+import { useToast } from "../../../context/ToastContext";
 import { apiFetch, type PublicUser } from "../../../lib/api";
+import {
+  storeAccessCredentials,
+  type AccessCredentialsPayload,
+} from "../../../lib/access-credentials";
 import { getStoredUser, getToken, homeForUser } from "../../../lib/auth";
 import { clientNav } from "../../../lib/nav";
-
-type PortalUser = {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-  status: string;
-  mustChangePassword: boolean;
-};
-
-type CreateResult = {
-  user: PortalUser;
-  inviteUrl: string | null;
-  temporaryPassword: string | null;
-  authMode: string;
-};
+import {
+  countClientUsersByKpi,
+  clientUserMatchesKpi,
+  userAccessActionLabel,
+  userInitials,
+  userNeedsAccess,
+  userStatusLabel,
+  userStatusPillTone,
+  type ClientUserKpiKey,
+  type PortalUserRow,
+  type UserCreateCredentials,
+} from "../../../lib/users";
 
 export default function CompanyUsersPage() {
   const router = useRouter();
+  const { confirm } = useConfirm();
+  const { success: toastSuccess, error: toastError } = useToast();
+
   const [user, setUser] = useState<PublicUser | null>(null);
-  const [users, setUsers] = useState<PortalUser[]>([]);
+  const [users, setUsers] = useState<PortalUserRow[]>([]);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    authMode: "invite" as "invite" | "temporary_password",
-    temporaryPassword: "",
-  });
+  const [filter, setFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [kpi, setKpi] = useState<ClientUserKpiKey>("all");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [credentials, setCredentials] = useState<AccessCredentialsPayload | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const result = await apiFetch<{ users: PortalUser[] }>("/client/users", {
+    const result = await apiFetch<{ users: PortalUserRow[] }>("/client/users", {
       token: getToken(),
     });
     if (result.success) {
@@ -49,9 +58,10 @@ export default function CompanyUsersPage() {
       setError("");
     } else {
       setError(result.error.message);
+      toastError(result.error.message);
     }
     setLoading(false);
-  }, []);
+  }, [toastError]);
 
   useEffect(() => {
     const token = getToken();
@@ -68,183 +78,313 @@ export default function CompanyUsersPage() {
     load();
   }, [router, load]);
 
-  async function onCreate(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const body: Record<string, unknown> = {
-        name: form.name,
-        email: form.email,
-        authMode: form.authMode,
-      };
-      if (form.authMode === "temporary_password") {
-        body.temporaryPassword = form.temporaryPassword;
-      }
-      const result = await apiFetch<CreateResult>("/client/users", {
-        method: "POST",
-        token: getToken(),
-        body: JSON.stringify(body),
-      });
-      if (!result.success) {
-        setError(result.error.message);
-        return;
-      }
-      const bits = [`Added ${result.data.user.email}.`];
-      if (result.data.inviteUrl) bits.push(`Invite: ${result.data.inviteUrl}`);
-      if (result.data.temporaryPassword) {
-        bits.push(`Temporary password: ${result.data.temporaryPassword}`);
-      }
-      setNotice(bits.join(" "));
-      setForm({
-        name: "",
-        email: "",
-        authMode: "invite",
-        temporaryPassword: "",
-      });
-      await load();
-    } finally {
-      setBusy(false);
-    }
+  const kpiCounts = useMemo(() => countClientUsersByKpi(users), [users]);
+
+  const filtered = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    return users.filter((u) => {
+      if (!clientUserMatchesKpi(u, kpi)) return false;
+      if (statusFilter && u.status !== statusFilter) return false;
+      if (!needle) return true;
+      const hay = [u.name, u.email, userStatusLabel(u.status)].join(" ").toLowerCase();
+      return hay.includes(needle);
+    });
+  }, [users, filter, kpi, statusFilter]);
+
+  function onCreated(result: UserCreateCredentials) {
+    const payload: AccessCredentialsPayload = {
+      organisationId: user?.organisationId || "org",
+      organisationName: "Your company",
+      clientEmail: result.user.email,
+      clientName: result.user.name,
+      authMode: result.authMode,
+      purpose: "invite",
+      inviteUrl: result.inviteUrl,
+      temporaryPassword: result.temporaryPassword,
+      mailStatus: result.mailStatus || "skipped",
+      createdAt: new Date().toISOString(),
+    };
+    storeAccessCredentials(payload);
+    setCredentials(payload);
+    toastSuccess(`Added ${result.user.email}`);
+    load();
   }
 
-  async function toggleStatus(u: PortalUser) {
-    setError("");
-    setNotice("");
+  async function toggleStatus(u: PortalUserRow) {
     const next = u.status === "active" ? "disabled" : "active";
-    const result = await apiFetch<{ user: PortalUser }>(`/client/users/${u.id}/status`, {
+    if (next === "disabled") {
+      const ok = await confirm({
+        title: `Disable ${u.name}?`,
+        description: "They will not be able to sign in until enabled again.",
+        confirmLabel: "Disable",
+        tone: "danger",
+      });
+      if (!ok) return;
+    }
+    setBusyId(u.id);
+    const result = await apiFetch<{ user: PortalUserRow }>(`/client/users/${u.id}/status`, {
       method: "PATCH",
       token: getToken(),
       body: JSON.stringify({ status: next }),
     });
+    setBusyId(null);
     if (!result.success) {
-      setError(result.error.message);
+      toastError(result.error.message);
       return;
     }
-    setNotice(`${u.email} is now ${next}.`);
+    toastSuccess(`${u.email} is now ${next}`);
     await load();
   }
 
-  async function resendInvite(u: PortalUser) {
-    setError("");
-    setNotice("");
-    const result = await apiFetch<{ inviteUrl: string }>(`/client/users/${u.id}/invite`, {
+  async function resendInvite(u: PortalUserRow) {
+    const isReset = Boolean(u.passwordChangedAt);
+    if (isReset) {
+      const ok = await confirm({
+        title: "Send password reset?",
+        description: `Send a password reset link to ${u.email}?`,
+        confirmLabel: "Send reset",
+      });
+      if (!ok) return;
+    }
+    setBusyId(u.id);
+    const result = await apiFetch<{
+      inviteUrl: string;
+      purpose?: "invite" | "reset";
+      mailStatus?: string;
+    }>(`/client/users/${u.id}/invite`, {
       method: "POST",
       token: getToken(),
     });
+    setBusyId(null);
     if (!result.success) {
-      setError(result.error.message);
+      toastError(result.error.message);
       return;
     }
-    setNotice(`Invite for ${u.email}: ${result.data.inviteUrl}`);
+    const purpose = result.data.purpose || (isReset ? "reset" : "invite");
+    const payload: AccessCredentialsPayload = {
+      organisationId: user?.organisationId || "org",
+      organisationName: "Your company",
+      clientEmail: u.email,
+      clientName: u.name,
+      authMode: "invite",
+      purpose,
+      inviteUrl: result.data.inviteUrl,
+      temporaryPassword: null,
+      mailStatus: result.data.mailStatus || "skipped",
+      createdAt: new Date().toISOString(),
+    };
+    storeAccessCredentials(payload);
+    setCredentials(payload);
+    toastSuccess(purpose === "reset" ? "Password reset link ready" : "Invite link refreshed");
   }
 
   if (!user) return null;
 
+  const kpiCards: Array<{
+    key: ClientUserKpiKey;
+    label: string;
+    hint: string;
+    icon: typeof Users;
+  }> = [
+    { key: "all", label: "All", hint: "Everyone in your company", icon: Users },
+    { key: "needs_access", label: "Needs access", hint: "Invite pending or must set password", icon: KeyRound },
+    { key: "active", label: "Active", hint: "Can sign in", icon: CircleCheck },
+  ];
+
   return (
     <AppShell user={user} nav={clientNav} title="Company Users">
       {error ? <div className="error-banner">{error}</div> : null}
-      {notice ? <div className="success-banner">{notice}</div> : null}
 
-      <section className="panel" style={{ marginBottom: 16 }}>
-        <h2>Invite a colleague</h2>
-        <p className="lead">
-          Each person uses their own email login. Later, signature boxes can be assigned to specific
-          users.
-        </p>
-        <form onSubmit={onCreate} className="form-grid">
-          <div className="field">
-            <label htmlFor="cu-name">Full name</label>
-            <input
-              id="cu-name"
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              required
+      {credentials ? (
+        <div style={{ marginBottom: 16 }}>
+          <AccessCredentialsBanner
+            credentials={credentials}
+            onDismiss={() => setCredentials(null)}
+          />
+        </div>
+      ) : null}
+
+      {loading ? (
+        <MetricSkeleton count={3} />
+      ) : (
+        <div className="metrics-row case-metrics-row" role="group" aria-label="Company users summary">
+          {kpiCards.map(({ key, label, hint, icon: Icon }) => (
+            <button
+              key={key}
+              type="button"
+              className={`metric-card metric-card-link case-metric-card${
+                kpi === key ? " is-active" : ""
+              }`}
+              onClick={() => setKpi((prev) => (prev === key && key !== "all" ? "all" : key))}
+              aria-pressed={kpi === key}
+            >
+              <Icon className="case-metric-icon" size={16} strokeWidth={1.75} aria-hidden />
+              <div className="metric-value">{kpiCounts[key]}</div>
+              <div className="metric-label">{label}</div>
+              <p className="metric-hint">{hint}</p>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <section className="panel org-directory">
+        <div className="org-directory-head">
+          <div>
+            <h2>Users in your company</h2>
+            <p className="lead">
+              {loading
+                ? "…"
+                : `${filtered.length} user${filtered.length === 1 ? "" : "s"}`}
+              {!loading && users.length !== filtered.length ? ` · ${users.length} total` : ""}
+              {" · "}
+              Each login can be assigned e-sign fields later.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => setDialogOpen(true)}
+          >
+            <UserPlus size={14} strokeWidth={1.75} aria-hidden />
+            Add company user
+          </button>
+        </div>
+
+        <div className="org-toolbar org-directory-toolbar">
+          <div className="org-toolbar-search">
+            <PortalSearch
+              mode="inline"
+              nav={clientNav}
+              role="client"
+              value={filter}
+              onQueryChange={setFilter}
+              placeholder="Search name or email…"
+              aria-label="Filter company users"
             />
           </div>
-          <div className="field">
-            <label htmlFor="cu-email">Email</label>
-            <input
-              id="cu-email"
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="cu-auth">Auth</label>
-            <PortalSelect
-              id="cu-auth"
-              aria-label="Auth"
-              value={form.authMode}
-              options={[
-                { value: "invite", label: "Invite link" },
-                { value: "temporary_password", label: "Temporary password" },
-              ]}
-              onChange={(authMode) =>
-                setForm((f) => ({
-                  ...f,
-                  authMode: authMode as "invite" | "temporary_password",
-                }))
-              }
-            />
-          </div>
-          {form.authMode === "temporary_password" ? (
-            <div className="field">
-              <label htmlFor="cu-temp">Temporary password</label>
-              <input
-                id="cu-temp"
-                value={form.temporaryPassword}
-                onChange={(e) => setForm((f) => ({ ...f, temporaryPassword: e.target.value }))}
-                minLength={8}
-                required
-              />
-            </div>
-          ) : null}
-          <div className="field" style={{ alignSelf: "end" }}>
-            <button className="btn btn-primary" type="submit" disabled={busy}>
-              {busy ? "Creating…" : "Add company user"}
+          <PortalSelect
+            className="org-filter"
+            size="sm"
+            aria-label="Filter by status"
+            value={statusFilter}
+            options={[
+              { value: "", label: "All statuses" },
+              { value: "active", label: "Active" },
+              { value: "disabled", label: "Disabled" },
+            ]}
+            onChange={setStatusFilter}
+          />
+        </div>
+
+        {loading ? (
+          <TableSkeleton rows={5} cols={3} />
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <p>
+              {users.length === 0
+                ? "No company users yet."
+                : "No users match these filters."}
+            </p>
+            <p className="lead">Add a colleague so they can sign in with their own email.</p>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => setDialogOpen(true)}
+            >
+              Add company user
             </button>
           </div>
-        </form>
+        ) : (
+          <div className="table-wrap directory-table-scroll">
+            <table className="data-table org-table">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Status</th>
+                  <th className="org-table-actions-col">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((u) => {
+                  const isSelf = u.id === user.id;
+                  return (
+                    <tr key={u.id} className={u.status !== "active" ? "is-inactive" : undefined}>
+                      <td>
+                        <div className="org-table-company">
+                          <span className="org-table-avatar" aria-hidden>
+                            {userInitials(u.name)}
+                          </span>
+                          <div>
+                            <div className="primary-cell">
+                              {u.name}
+                              {isSelf ? (
+                                <span className="user-you-pill">You</span>
+                              ) : null}
+                              {userNeedsAccess(u) ? (
+                                <span
+                                  className="esign-queue-badge needs-you"
+                                  style={{ marginLeft: 6 }}
+                                >
+                                  Needs access
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="secondary-cell">{u.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          className={`status-pill status-pill-${userStatusPillTone(u.status)}`}
+                        >
+                          {userStatusLabel(u.status)}
+                        </span>
+                      </td>
+                      <td className="org-table-actions-col">
+                        <RowActionsMenu
+                          label={`Actions for ${u.name}`}
+                          items={[
+                            {
+                              id: "access",
+                              label: userAccessActionLabel(u),
+                              icon: <KeyRound size={14} strokeWidth={1.75} />,
+                              disabled: busyId === u.id,
+                              onSelect: () => resendInvite(u),
+                            },
+                            {
+                              id: "toggle",
+                              label: u.status === "active" ? "Disable" : "Enable",
+                              icon:
+                                u.status === "active" ? (
+                                  <Ban size={14} strokeWidth={1.75} />
+                                ) : (
+                                  <CircleCheck size={14} strokeWidth={1.75} />
+                                ),
+                              tone: u.status === "active" ? "danger" : "default",
+                              disabled: isSelf || busyId === u.id,
+                              separatorBefore: true,
+                              onSelect: () => toggleStatus(u),
+                            },
+                          ]}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
-      <section className="panel">
-        <h2>Users in your company</h2>
-        {loading ? <p className="lead">Loading…</p> : null}
-        {!loading && users.length === 0 ? (
-          <p className="org-meta">No users found.</p>
-        ) : null}
-        <ul className="org-list">
-          {users.map((u) => (
-            <li key={u.id}>
-              <div>
-                <div className="org-name">{u.name}</div>
-                <div className="org-meta">
-                  {u.email} · {u.status}
-                  {u.mustChangePassword ? " · must change password" : ""}
-                  {u.id === user.id ? " · you" : ""}
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => resendInvite(u)}>
-                  Invite link
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => toggleStatus(u)}
-                  disabled={u.id === user.id}
-                >
-                  {u.status === "active" ? "Disable" : "Enable"}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <UserFormDialog
+        open={dialogOpen}
+        scope="client"
+        onClose={() => setDialogOpen(false)}
+        onCreated={onCreated}
+      />
     </AppShell>
   );
 }

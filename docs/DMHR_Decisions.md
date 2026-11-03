@@ -102,6 +102,7 @@
 - Stages are **functional** (e-sign, My Onboarding files, payment links) — not a dead checklist mock.
 - **Onboarding chrome (locked 2026-11-03):** Admin list = Cases/Orgs density (`metrics-row` KPIs + `org-directory` / `org-table` / `PortalSearch` / status pills / `RowActionsMenu`). **Start** = thin `StartOnboardingDialog` (select client only — not mock 5-step wizard). Detail = profile-hub head + shared `OnboardingStageList` + existing welcome/pack/payment/Complete panels; `useConfirm` before Mark Complete; toasts + skeletons. Client journey reuses stage list + pills. No mock marketing checklist.
 - **Signatures chrome (locked 2026-11-03):** Queue pages match Cases/Onboarding density. Admin: KPI strip (All / Needs you / Ready to send / Awaiting / Review / Completed) + `org-directory` table (`PortalSearch`, org filter, status pills, progress, primary CTA from `esignQueueAction`, ⋮ → open request / client documents). Client: KPI strip (All / Needs you / In progress / Completed) + same table density. Compact `ProfileSignaturePanel` above queue (tiles default; add draw/PNG expands; toasts). Still queue-only — start from Documents → Request signature. `EsignSheet` ceremony unchanged. Deep link `?open=`.
+- **Users chrome (locked 2026-11-03):** Admin `/admin/users` + Client `/portal/company-users` match Cases/Orgs density. KPI strip + `org-directory` table + `PortalSearch` / filters / status pills. **Create** = `UserFormDialog` (Employees-style `org-dialog-foot`; Auth hint: email if SMTP + copyable credentials). Row actions = **⋮ only** (Resend invite / Password reset · Open org · Disable/Enable) — **no Edit** (access ops, not profile CRUD); no duplicate inline invite/reset button. After create / invite / reset → `AccessCredentialsBanner` + toasts. Disable uses `useConfirm`. Admin deep link `?org=` from org hub. No per-user ACLs; no Demo-as.
 
 ### Welcome pack / compliance tracking
 - Delivered into **My Onboarding** + stage status (Issued / Awaiting / Done style).
@@ -441,4 +442,6 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-03 | **Firm staging multi:** multi PDF upload; checkbox select bar (download / send / remove); bulk `POST /admin/firm-staging/copy-to-client` with `fileIds` (one org + folder). |
 | 2026-11-03 | **Firm staging custom folders:** vault folder `key` is string + `isSystem`; New folder API; horizontal folder strip scroll; send still targets six client folders only. |
 | 2026-11-03 | **Signatures chrome:** Admin/Client queue KPIs + directory table; compact profile ink panel + toasts; sheet ceremony unchanged. |
+| 2026-11-03 | **Users chrome:** Admin/Client directories + `UserFormDialog`; credentials banner; invite/reset; disable confirm; org hub `?org=`. |
+| 2026-11-03 | **Users polish:** Employees-style create footer + auth hint; table ⋮-only (no Edit / no duplicate access button). |
 

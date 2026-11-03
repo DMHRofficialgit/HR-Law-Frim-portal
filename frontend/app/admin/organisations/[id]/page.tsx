@@ -822,10 +822,10 @@ const AdminOrganisationProfilePage = () => {
             <div className="profile-users-head">
               <h2>Company users</h2>
               <Link
-                href="/admin/users"
+                href={`/admin/users?org=${encodeURIComponent(org.id)}`}
                 className="profile-icon-link"
-                aria-label="Open user management"
-                title="User management"
+                aria-label="Open user management for this company"
+                title="Manage users"
               >
                 <Users size={15} strokeWidth={1.75} />
               </Link>
