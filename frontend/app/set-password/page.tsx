@@ -1,7 +1,10 @@
 "use client";
 
 import { FormEvent, Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AuthPasswordField } from "../../components/AuthPasswordField";
+import { AuthShell } from "../../components/AuthShell";
 import { apiFetch, type PublicUser } from "../../lib/api";
 import { homeForUser, saveSession } from "../../lib/auth";
 
@@ -89,55 +92,54 @@ function SetPasswordForm() {
     }
   }
 
+  const subtitle = checking
+    ? "Validating your invite…"
+    : name
+      ? `Welcome, ${name}. Choose a password for ${email}.`
+      : "Create a password to access your portal.";
+
   return (
-    <main className="auth-shell">
-      <section className="auth-card">
-        <img src="/logo/dmhr_transparent_logo.png" alt="DMHR Group" className="auth-logo" />
-        <p className="brand-kicker">DMHR Group</p>
-        <h1 className="auth-title">Set password</h1>
-        <p className="auth-sub">
-          {checking
-            ? "Validating your invite…"
-            : name
-              ? `Welcome, ${name}. Choose a password for ${email}.`
-              : "Create a password to access your portal."}
-        </p>
+    <AuthShell
+      title="Set password"
+      subtitle={subtitle}
+      footer={
+        !valid && !checking ? (
+          <Link href="/login" className="btn btn-ghost btn-sm">
+            Back to sign in
+          </Link>
+        ) : null
+      }
+    >
+      {error ? <div className="error-banner">{error}</div> : null}
 
-        {error ? <div className="error-banner">{error}</div> : null}
-
-        {!checking && valid ? (
-          <form onSubmit={onSubmit}>
-            <div className="field">
-              <label htmlFor="password">New password</label>
-              <input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={8}
-                required
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="confirm">Confirm password</label>
-              <input
-                id="confirm"
-                type="password"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                minLength={8}
-                required
-              />
-            </div>
-            <button className="btn btn-primary" type="submit" disabled={loading || !token}>
-              {loading ? "Saving…" : "Save and continue"}
-            </button>
-          </form>
-        ) : null}
-      </section>
-    </main>
+      {!checking && valid ? (
+        <form onSubmit={onSubmit} className="auth-form">
+          <AuthPasswordField
+            id="password"
+            label="New password"
+            value={password}
+            onChange={setPassword}
+            autoComplete="new-password"
+            minLength={8}
+          />
+          <AuthPasswordField
+            id="confirm"
+            label="Confirm password"
+            value={confirm}
+            onChange={setConfirm}
+            autoComplete="new-password"
+            minLength={8}
+          />
+          <button
+            className="btn btn-primary"
+            type="submit"
+            disabled={loading || !token}
+          >
+            {loading ? "Saving…" : "Save and continue"}
+          </button>
+        </form>
+      ) : null}
+    </AuthShell>
   );
 }
 
@@ -145,13 +147,11 @@ export default function SetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <main className="auth-shell">
-          <section className="auth-card">
-            <p className="brand-kicker">DM.HR Group</p>
-            <h1 className="auth-title">Set password</h1>
-            <p className="auth-sub">Loading…</p>
-          </section>
-        </main>
+        <AuthShell title="Set password" subtitle="Loading…">
+          <p className="lead" style={{ margin: 0 }}>
+            Please wait…
+          </p>
+        </AuthShell>
       }
     >
       <SetPasswordForm />

@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AuthPasswordField } from "../../components/AuthPasswordField";
+import { AuthShell } from "../../components/AuthShell";
 import { apiFetch, type PublicUser } from "../../lib/api";
 import { getToken, homeForUser, saveSession } from "../../lib/auth";
 
@@ -51,47 +53,36 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="auth-shell">
-      <section className="auth-card">
-        <img
-          src="/logo/dmhr_transparent_logo.png"
-          alt="DMHR Group"
-          className="auth-logo"
+    <AuthShell
+      title="Sign in"
+      subtitle="Access your organisation portal securely."
+    >
+      {error ? <div className="error-banner">{error}</div> : null}
+
+      <form onSubmit={onSubmit} className="auth-form">
+        <div className="field">
+          <label htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@company.com"
+            required
+          />
+        </div>
+        <AuthPasswordField
+          id="password"
+          label="Password"
+          value={password}
+          onChange={setPassword}
+          autoComplete="current-password"
         />
-        <p className="brand-kicker">DMHR Group</p>
-        <h1 className="auth-title">Sign in</h1>
-        <p className="auth-sub">Access your organisation portal securely.</p>
-
-        {error ? <div className="error-banner">{error}</div> : null}
-
-        <form onSubmit={onSubmit}>
-          <div className="field">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: "100%" }}>
-            {loading ? "Signing in…" : "Continue"}
-          </button>
-        </form>
-      </section>
-    </main>
+        <button className="btn btn-primary" type="submit" disabled={loading}>
+          {loading ? "Signing in…" : "Continue"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

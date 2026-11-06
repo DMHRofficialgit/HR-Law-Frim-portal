@@ -68,6 +68,11 @@
 - **Org data access (v1):** all active company users share the same org workspace (documents/cases/employees). Fine-grained per-user ACLs later.
 - **Build order:** User Management **before** E-sign Part 4.2 (per-user field assignees + CC).
 
+### Auth screens UI (locked 2026-11-06)
+- **Split layout** for `/login`, `/set-password`, `/change-password`: left brand panel (hero photo + navy overlay + logo), right form. Shared `AuthShell` + `AuthPasswordField` (show/hide).
+- **Invite-only** — no public sign-up, no OAuth / social login.
+- Hero asset: `frontend/public/auth/dmhr-auth-hero.jpg` (replaceable with a stronger dmhrgroup.com photo later). Mobile: form card + compact logo; brand photo panel hidden.
+
 ### Password / invite flow
 - Support **both**: email invite link to set password, **and** DM.HR temporary passwords.
 - **Auto email (locked 2026-11-01):** On create client / create user / resend invite, send credentials via **SMTP Settings** when configured (`sent` / `skipped` / `failed`). Always also surface a **copyable invite link or temp password** panel for Admin (session banner on org profile after create). SMTP mailbox is dynamic — test with any provider (e.g. Gmail), later swap to client mailbox in Settings.
@@ -503,4 +508,5 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-06 | **Onboarding Phase C:** Firm Library removes Onboarding stage dropdown/pills/row selects; new templates default `other`; issue-pack checkboxes drop role labels; hub copy = Welcome pack templates. |
 | 2026-11-06 | **Firm Library rename:** Onboarding pack templates use `DocsRenameDialog` + Pencil (same as Firm staging); PATCH title only — pack issue list stays checkbox-only. |
 | 2026-11-06 | **Overview D1–D3:** Admin + Client action dashboards — icon KPIs, cases attention, activity feed, onboarding progress bars, quick actions; no charts. |
+| 2026-11-06 | **Auth UI split:** `AuthShell` brand panel + form; password eye toggle; login / set-password / change-password; hero `/auth/dmhr-auth-hero.jpg`; no public register. |
 
