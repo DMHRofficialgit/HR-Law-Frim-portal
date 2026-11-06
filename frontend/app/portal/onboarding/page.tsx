@@ -20,7 +20,7 @@ import {
   onboardingRunLabel,
   packAwaitingAdminReview,
   packItemDone,
-  packItemLabel,
+  packItemStatusPill,
   packPreviewShowsUnsignedSource,
   packPreviewTarget,
   paymentUrl,
@@ -164,6 +164,7 @@ export default function ClientOnboardingPage() {
                       item.signatureRequest.status === "revision_requested" ||
                       item.signatureRequest.status === "sent");
                   const awaitingReview = packAwaitingAdminReview(item);
+                  const statusPill = packItemStatusPill(item);
                   const canPreview = Boolean(
                     packPreviewTarget(item, { role: "client", apiUrl: API_URL })
                   );
@@ -171,11 +172,14 @@ export default function ClientOnboardingPage() {
                   return (
                     <li key={item.id}>
                       <div>
-                        <div className="org-name">{item.title}</div>
-                        <div className="org-meta">
-                          {item.requiresSignature
-                            ? packItemLabel(item.status)
-                            : "For your records"}
+                        <div
+                          className="org-name"
+                          style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}
+                        >
+                          <span>{item.title}</span>
+                          <span className={`status-pill status-pill-${statusPill.tone}`}>
+                            {statusPill.label}
+                          </span>
                         </div>
                         {awaitingReview ? (
                           <div className="org-meta" style={{ marginTop: 4 }}>

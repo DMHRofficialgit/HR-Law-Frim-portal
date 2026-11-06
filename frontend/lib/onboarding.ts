@@ -207,20 +207,37 @@ export function packItemLabel(status: string): string {
   return map[status] || status.replace(/_/g, " ");
 }
 
+/** Pack row status pill (Admin + Client) — prefer over raw e-sign strings. */
+export function packItemStatusPill(item: OnboardingPackItem): {
+  label: string;
+  tone: "ok" | "progress" | "muted" | "warn";
+} {
+  if (!item.requiresSignature) {
+    return { label: "Complete", tone: "ok" };
+  }
+  if (packAwaitingAdminReview(item) || item.status === "signed") {
+    return { label: "Needs review", tone: "warn" };
+  }
+  if (item.status === "reviewed" || item.status === "done") {
+    return { label: "Complete", tone: "ok" };
+  }
+  const esign = item.signatureRequest?.status;
+  if (
+    item.status === "awaiting_signature" ||
+    esign === "awaiting_signature" ||
+    esign === "sent" ||
+    esign === "revision_requested"
+  ) {
+    return { label: "Awaiting signature", tone: "progress" };
+  }
+  return { label: "Pending", tone: "muted" };
+}
+
 export function packItemDone(item: OnboardingPackItem): boolean {
   if (!item.requiresSignature) {
     return item.status === "done" || item.status === "reviewed";
   }
   return item.status === "reviewed" || item.status === "done";
-}
-
-export function termsStatus(run: OnboardingRun): string {
-  const terms =
-    run.packItems.find(
-      (p) => p.requiresSignature && packJourneyRole(p) === "terms"
-    ) || run.packItems.find((p) => p.requiresSignature);
-  if (!terms) return "Not issued";
-  return packItemLabel(terms.status);
 }
 
 export function packProgress(run: OnboardingRun): { done: number; total: number } {
@@ -250,66 +267,61 @@ export function packJourneyRole(item: OnboardingPackItem): JourneyRole {
   return "other";
 }
 
-/** Six functional stages for journey UI (HTML structure + Decisions). */
+/** Welcome pack stage: email + all pack docs (roles are filenames, not stages). */
+export function welcomePackStage(run: OnboardingRun): {
+  status: string;
+  done: boolean;
+} {
+  const emailSent = Boolean(run.welcomeEmailSentAt);
+  const hasPack = run.packItems.length > 0;
+  const packDone = hasPack && run.packItems.every((p) => packItemDone(p));
+  const done = emailSent && packDone;
+
+  if (done) return { status: "Complete", done: true };
+  if (!emailSent && !hasPack) return { status: "Not started", done: false };
+  if (!hasPack) return { status: "Email sent · pack pending", done: false };
+  if (!emailSent) return { status: "Pack issued · email pending", done: false };
+
+  const needsReview = run.packItems.some((p) => packAwaitingAdminReview(p));
+  if (needsReview) return { status: "Needs review", done: false };
+
+  const awaiting = run.packItems.some(
+    (p) =>
+      p.requiresSignature &&
+      !packItemDone(p) &&
+      !packAwaitingAdminReview(p)
+  );
+  if (awaiting) return { status: "Awaiting signature", done: false };
+
+  return { status: "In progress", done: false };
+}
+
+/** @deprecated Prefer welcomePackStage — kept for call-site migration. */
+export function termsStatus(run: OnboardingRun): string {
+  return welcomePackStage(run).status;
+}
+
+/**
+ * Four functional stages (Phase B): Welcome pack · DD · Payment · Admin Complete.
+ * Terms / Compliance titles are pack filenames, not separate stages.
+ */
 export function journeyStages(run: OnboardingRun): Array<{
   key: string;
   name: string;
   status: string;
   done: boolean;
 }> {
-  const signable = run.packItems.filter((p) => p.requiresSignature);
-  const termsByRole = run.packItems.filter(
-    (p) => p.requiresSignature && packJourneyRole(p) === "terms"
-  );
-  // Fallback: any signable item when no template was tagged Terms (legacy packs).
-  const termsPool = termsByRole.length > 0 ? termsByRole : signable;
-  const hasTermsIssued = termsPool.length > 0;
-  const termsDone = hasTermsIssued && termsPool.every((p) => packItemDone(p));
-
-  const welcomeItems = run.packItems.filter((p) => packJourneyRole(p) === "welcome");
-  const welcomeIssued = welcomeItems.length > 0;
-  const welcomeDone = welcomeIssued;
-
-  const complianceItems = run.packItems.filter(
-    (p) => packJourneyRole(p) === "compliance"
-  );
-  const complianceIssued = complianceItems.length > 0;
-  const complianceDone = complianceIssued;
-
+  const pack = welcomePackStage(run);
   const dd = Boolean(paymentUrl(run, "direct_debit"));
   const pay = Boolean(paymentUrl(run, "initial_payment"));
   const complete = run.status === "completed";
 
   return [
     {
-      key: "terms",
-      name: "Terms of Business (sign online)",
-      status: !hasTermsIssued
-        ? "Not issued"
-        : termsDone
-          ? "Complete"
-          : termsStatus(run),
-      done: termsDone,
-    },
-    {
-      key: "welcome",
+      key: "welcome_pack",
       name: "Welcome pack",
-      status: !welcomeIssued
-        ? "Not issued"
-        : welcomeDone
-          ? "In My Onboarding"
-          : "Issued",
-      done: welcomeDone,
-    },
-    {
-      key: "compliance",
-      name: "Compliance documents",
-      status: !complianceIssued
-        ? "Not issued"
-        : complianceDone
-          ? "In My Onboarding"
-          : "Issued",
-      done: complianceDone,
+      status: pack.status,
+      done: pack.done,
     },
     {
       key: "dd",

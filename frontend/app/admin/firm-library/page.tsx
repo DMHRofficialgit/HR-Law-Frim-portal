@@ -49,7 +49,7 @@ export default function AdminFirmLibraryLandingPage() {
           </span>
           <strong>Onboarding pack</strong>
           <span>
-            Terms, Welcome, Compliance templates · boxes + Admin ink · issue from Onboarding
+            Welcome pack templates · boxes + Admin ink · issue from Onboarding
             {templateCount !== null ? ` · ${templateCount} template${templateCount === 1 ? "" : "s"}` : ""}
           </span>
         </Link>

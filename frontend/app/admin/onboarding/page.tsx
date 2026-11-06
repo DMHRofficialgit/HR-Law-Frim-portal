@@ -295,9 +295,9 @@ export default function AdminOnboardingPage() {
                 <tr>
                   <th>Client</th>
                   <th>Initiated</th>
-                  <th>Terms of Business</th>
-                  <th>Pack progress</th>
-                  <th>Welcome email</th>
+                  <th>Welcome pack</th>
+                  <th>Pack docs</th>
+                  <th>Email</th>
                   <th>Status</th>
                   <th className="org-table-actions-col">
                     <span className="sr-only">Actions</span>

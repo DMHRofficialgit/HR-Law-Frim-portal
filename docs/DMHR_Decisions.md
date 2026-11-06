@@ -87,39 +87,37 @@
 
 ### Onboarding journey (functional — approved)
 - **Existing clients:** bypass full onboarding wizard; portal access immediately (`existing_skip` / already onboarded). Hide or empty **My Onboarding** for them.
-- **New clients — stage structure** (match HTML; track real progress, not status-only page):
-  1. **Terms of Business** — Admin issues from Firm Library into client **My Onboarding**; send for **online signature** (Part 4.1); client signs in portal.
-  2. **Welcome pack** — issue / publish into client **My Onboarding**.
-  3. **Compliance documents** — upload and issue into client **My Onboarding**.
-  4. **Direct Debit setup link** — Admin pastes link (payments = paste links only).
-  5. **Initial payment link** — Admin pastes link (same payments model).
-  6. **Admin marks Complete** — Admin only; company becomes a full DM.HR client (“onboarding finished”).
+- **New clients — stage structure (locked 2026-11-06 Phase B):** **four** functional stages — mockup “Terms / Compliance” labels were **filenames**, not categories:
+  1. **Welcome pack** — welcome email + all Firm Library pack docs issued into **My Onboarding** (TOB, compliance PDFs, etc. are files; client signs where required). Done when email sent **and** every pack item complete/reviewed.
+  2. **Direct Debit setup link** — Admin pastes link (payments = paste links only).
+  3. **Initial payment link** — Admin pastes link (same payments model).
+  4. **Admin marks Complete** — Admin only; company becomes a full DM.HR client (“onboarding finished”).
 - **Where sign/pack files live (locked):** All one-time onboarding files that must be signed or completed arrive in client **My Onboarding** (not scattered across My Documents / Policies / etc.).
 - **Sign path:** Client opens file from **My Onboarding** / journey CTA → **Signatures** queue → sign sheet → on Reviewed, signed PDF stays in **My Onboarding** (same folder as source; keep unsigned + signed).
-- **Gate:** Required pack items signed/complete **and** Admin sets Complete → full DM.HR client. Admin Complete remains the final switch.
+- **Gate:** Welcome pack done (email + required pack signatures) **and** both payment links **and** Admin sets Complete → full DM.HR client.
 - **Admin UX:** Onboarding list with metrics; detail with stage rows + progress; start onboarding from client profile / organisations; issue pack from Firm Library → **My Onboarding**.
 - **Client UX:** **My Onboarding** folder + journey page with progress + CTAs (Sign → Signatures; open pack files in My Onboarding).
 - Stages are **functional** (e-sign, My Onboarding files, payment links) — not a dead checklist mock.
-- **Onboarding chrome (locked 2026-11-03):** Admin list = Cases/Orgs density (`metrics-row` KPIs + `org-directory` / `org-table` / `PortalSearch` / status pills / `RowActionsMenu`). **Start** = thin `StartOnboardingDialog` (select client only — not mock 5-step wizard). Detail = profile-hub head + shared `OnboardingStageList` + existing welcome/pack/payment/Complete panels; `useConfirm` before Mark Complete; toasts + skeletons. Client journey reuses stage list + pills. No mock marketing checklist.
+- **Onboarding chrome (locked 2026-11-03 / Phase B 2026-11-06):** Admin list = Cases/Orgs density; Welcome pack column (not Terms-only). Detail = profile-hub + `OnboardingStageList` (4 stages) + Send welcome pack + payment/Complete. Client journey reuses stage list.
 - **Signatures chrome (locked 2026-11-03):** Queue pages match Cases/Onboarding density. Admin: KPI strip (All / Needs you / Ready to send / Awaiting / Review / Completed) + `org-directory` table (`PortalSearch`, org filter, status pills, progress, primary CTA from `esignQueueAction`, ⋮ → open request / client documents). Client: KPI strip (All / Needs you / In progress / Completed) + same table density. Compact `ProfileSignaturePanel` above queue (tiles default; add draw/PNG expands; toasts). Still queue-only — start from Documents → Request signature. `EsignSheet` ceremony unchanged. Deep link `?open=`.
 - **Users chrome (locked 2026-11-03):** Admin `/admin/users` + Client `/portal/company-users` match Cases/Orgs density. KPI strip + `org-directory` table + `PortalSearch` / filters / status pills. **Create** = `UserFormDialog` (Employees-style `org-dialog-foot`; Auth hint: email if SMTP + copyable credentials). Row actions = **⋮ only** (Resend invite / Password reset · Open org · Disable/Enable) — **no Edit** (access ops, not profile CRUD); no duplicate inline invite/reset button. After create / invite / reset → `AccessCredentialsBanner` + toasts. Disable uses `useConfirm`. Admin deep link `?org=` from org hub. No per-user ACLs; no Demo-as.
 
-### Welcome pack / compliance tracking
-- Delivered into **My Onboarding** + stage status (Issued / Awaiting / Done style).
-- **Journey role (locked 2026-11-03):** Firm Library templates carry `journeyRole` = `terms` | `welcome` | `compliance` | `other`. Issue pack **snapshots** the role onto the pack item. Stage checklist uses role (not title regex). Terms falls back to any signable pack item when nothing is tagged `terms` (legacy). Tag templates in Firm Library; re-issue (or new issue) for Welcome/Compliance stages to flip.
+### Welcome pack tracking
+- All pack docs + welcome email = **one Welcome pack stage** (Phase B). Delivered into **My Onboarding**.
+- **Journey role (Phase C locked 2026-11-06):** Firm Library UI no longer exposes Terms/Welcome/Compliance stage pickers or pills. New templates always store `journeyRole = other`. Legacy DB values remain until optional Phase D enum tidy. Checklist never splits by role.
 - Pack hub: **Preview** of source (or Signed library file after Reviewed); hint while `signed_returned` that Admin **Mark complete** publishes the Signed copy into My Onboarding; e-sign sheet links to Documents → My Onboarding after review.
 - Ongoing HR library after onboard remains the **six operational folders** below.
-- Full free-form checklist editor can still expand later; the **six-stage journey above is in scope now**.
 
 ### Onboarding ops (locked with build)
 - **Create org:** choose **Needs onboarding** (`in_progress`) or **Already onboarded** (`existing_skip`).
-- **Welcome email:** required before Complete; Admin edits subject/body then sends via SMTP.
-- **Firm Library:** N templates; default **requires signature**. Set **onboarding stage** (Terms / Welcome / Compliance / Other). **Place signature boxes once** (Client or Admin role). **Admin boxes: sign ink once on the template (forever)**; Client boxes stay empty until each company signs.
-- **Issue pack:** Admin multi-selects library docs → copy into **My Onboarding** → clone boxes + snapshot journey role → apply saved Admin ink (issuer as signer for audit) → assign Client boxes to **primary client login** → Mark Ready + Send (client only needs to sign).
+- **Welcome email:** required before Complete; Admin edits subject/body. **Send welcome pack (locked 2026-11-06 Phase A):** one Admin CTA issues selected Firm Library templates (if any) then sends welcome via SMTP — same APIs underneath; disabled when welcome already sent and nothing new selected. Partial failure toast if pack issued but email fails.
+- **Firm Library:** N templates; default **requires signature**. Title = document name (e.g. TOB) — not a journey stage. **Rename / Remove** on Firm Library rows only (not on Onboarding pack checkboxes — uncheck = don’t send). Rename updates master template title for future issues; already-issued client copies keep snapshot title. **Place signature boxes once** (Client or Admin role). **Admin boxes: sign ink once on the template (forever)**; Client boxes stay empty until each company signs.
+- **Issue pack:** Admin multi-selects library docs → copy into **My Onboarding** → clone boxes + snapshot journey role → apply saved Admin ink (issuer as signer for audit) → assign Client boxes to **primary client login** → Mark Ready + Send (client only needs to sign). Triggered from **Send welcome pack** (or Issue selected when email already sent).
+- **Pack item status pills (locked 2026-11-06 Phase A):** Admin + Client pack rows use `packItemStatusPill` — Complete / Awaiting signature / Needs review / Pending — not grey “Reviewed · e-sign: …” strings.
 - **Ad-hoc e-sign:** Documents → Request signature still available for one-off / non-pack docs (manual place + assignee).
 - **Sign UX:** Draw | Saved | Type (no “I agree”); Part 4.1/4.2 sheet.
 - **Payments:** paste Direct Debit + initial payment URLs; both required to Complete.
-- **Complete gate:** welcome sent + pack issued + required signatures reviewed + both payment links.
+- **Complete gate:** welcome email sent + ≥1 pack doc + required signatures reviewed + both payment links (no per-role Terms/Compliance checks).
 
 ### File upload rules
 - **PDF only** for portal uploads (locked 2026-11-02) — matches e-sign (PDF-only) so clients are not misled by Word files they cannot sign.
@@ -270,8 +268,9 @@ Locked 2026-11-03 as optional follow-ons (not Phase A–C).
 - Site reference (footer/contact optional): phone `07493 392481`, email `dave@dmhrgroup.com`, Falcon Point, Park Plaza, Heath Hayes, Cannock, WS12 2DE.
 
 ### Client / Admin IA to mirror (from HTML — functional)
-- **Client:** Overview/home with document-space tiles (**6 operational + My Onboarding** for new clients); strong **Add / Check a Case** path; Employees; Onboarding journey; Signatures queue; Notifications; Account/settings as needed.
-- **Admin:** Overview metrics + attention lists; Clients/Organisations with **client profile hub**; Documents; Firm Library; Employees; Cases; Onboarding journey; Signatures queue; Notifications; Settings (tabbed: templates · SMTP · storage · categories · account).
+- **Client:** Overview = org-scoped action hub (KPIs, cases attention, activity, onboarding progress when live, workspace shortcuts); strong **Submit a case** CTA; Employees; Onboarding; Signatures; Notifications; Settings.
+- **Admin:** Overview = portfolio action dashboard (icon KPIs, cases attention, recent activity from notifications, onboarding progress bars, quick actions + Add client CTA); Clients/Organisations with **client profile hub**; Documents; Firm Library; Employees; Cases; Onboarding; Signatures; Notifications; Settings (tabbed).
+- **Overview charts (locked 2026-11-06):** **No charts in v1** — KPIs + lists + progress bars only. Optional single donut later if asked.
 - **Routes (locked 2026-11-01):** Admin **Overview** = `/admin` (dashboard only). **Organisations / clients directory + add** = `/admin/organisations` — never conflate the two. Client home = `/portal`.
 - **Sidebar groups:** Admin `home` (Overview) → `Clients` (Organisations) → `Workspace` (Documents, Firm Library, Employees, Cases, Onboarding, Signatures) → `System` (Users, Notifications, Settings, Payments). Client: Overview → Workspace → System. Collapsed rail shows thin dividers between groups.
 - **Organisations journey:** Directory (search/filters/table + **Open profile**) → **Client profile hub** `/admin/organisations/[id]`. Mock = journey ideas; we own data flow + components (Apple shell). No fake “view as client”.
@@ -499,4 +498,9 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-04 | **Theme polish A–C:** banners, --ink, chrome joint, e-sign dark leftovers, progress/status chips; drop --shell-bg. |
 | 2026-11-04 | **Sidebar logo:** 40×40 centered white badge; collapses centered with icon column. |
 | 2026-11-04 | **Panel scroll hug:** shared fit-content list scrollers portal-wide; drop settings min-height empty band. |
+| 2026-11-06 | **Onboarding Phase A:** Send welcome pack (issue then email); pack item status pills Admin+Client. |
+| 2026-11-06 | **Onboarding Phase B:** 4-stage journey (Welcome pack · DD · Payment · Complete); checklist ignores journeyRole splits; Complete gate copy aligned. |
+| 2026-11-06 | **Onboarding Phase C:** Firm Library removes Onboarding stage dropdown/pills/row selects; new templates default `other`; issue-pack checkboxes drop role labels; hub copy = Welcome pack templates. |
+| 2026-11-06 | **Firm Library rename:** Onboarding pack templates use `DocsRenameDialog` + Pencil (same as Firm staging); PATCH title only — pack issue list stays checkbox-only. |
+| 2026-11-06 | **Overview D1–D3:** Admin + Client action dashboards — icon KPIs, cases attention, activity feed, onboarding progress bars, quick actions; no charts. |
 

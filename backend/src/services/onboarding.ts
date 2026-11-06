@@ -741,10 +741,13 @@ export function canCompleteOnboarding(run: {
   welcomeEmailSentAt: Date | null;
 }) {
   if (!run.welcomeEmailSentAt) {
-    return { ok: false as const, reason: "Send the welcome email first" };
+    return { ok: false as const, reason: "Send the welcome pack (email) first" };
   }
   if (run.packItems.length === 0) {
-    return { ok: false as const, reason: "Issue at least one pack document from Firm Library" };
+    return {
+      ok: false as const,
+      reason: "Issue at least one pack document with Send welcome pack",
+    };
   }
   const pendingSign = run.packItems.filter(
     (p) =>
