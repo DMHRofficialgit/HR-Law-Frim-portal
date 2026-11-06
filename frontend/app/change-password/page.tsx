@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AuthPasswordField } from "../../components/AuthPasswordField";
+import { AuthShell } from "../../components/AuthShell";
 import { apiFetch, type PublicUser } from "../../lib/api";
 import { clearSession, getStoredUser, getToken, homeForUser, saveSession } from "../../lib/auth";
 
@@ -67,64 +69,45 @@ export default function ChangePasswordPage() {
   if (!user) return null;
 
   return (
-    <main className="auth-shell">
-      <section className="auth-card">
-        <img src="/logo/dmhr_transparent_logo.png" alt="DMHR Group" className="auth-logo" />
-        <p className="brand-kicker">DMHR Group</p>
-        <h1 className="auth-title">Update password</h1>
-        <p className="auth-sub">
-          You signed in with a temporary password. Choose a new one to continue.
-        </p>
+    <AuthShell
+      title="Update password"
+      subtitle="You signed in with a temporary password. Choose a new one to continue."
+      footer={
+        <button className="btn btn-ghost btn-sm" type="button" onClick={logout}>
+          Sign out
+        </button>
+      }
+    >
+      {error ? <div className="error-banner">{error}</div> : null}
 
-        {error ? <div className="error-banner">{error}</div> : null}
-
-        <form onSubmit={onSubmit}>
-          <div className="field">
-            <label htmlFor="current">Current password</label>
-            <input
-              id="current"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="new">New password</label>
-            <input
-              id="new"
-              type="password"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              minLength={8}
-              required
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="confirm">Confirm new password</label>
-            <input
-              id="confirm"
-              type="password"
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              minLength={8}
-              required
-            />
-          </div>
-          <button className="btn btn-primary" type="submit" disabled={loading}>
-            {loading ? "Saving…" : "Save password"}
-          </button>
-        </form>
-
-        <div style={{ marginTop: 16, textAlign: "center" }}>
-          <button className="btn btn-ghost" type="button" onClick={logout}>
-            Sign out
-          </button>
-        </div>
-      </section>
-    </main>
+      <form onSubmit={onSubmit} className="auth-form">
+        <AuthPasswordField
+          id="current"
+          label="Current password"
+          value={currentPassword}
+          onChange={setCurrentPassword}
+          autoComplete="current-password"
+        />
+        <AuthPasswordField
+          id="new"
+          label="New password"
+          value={newPassword}
+          onChange={setNewPassword}
+          autoComplete="new-password"
+          minLength={8}
+        />
+        <AuthPasswordField
+          id="confirm"
+          label="Confirm new password"
+          value={confirm}
+          onChange={setConfirm}
+          autoComplete="new-password"
+          minLength={8}
+        />
+        <button className="btn btn-primary" type="submit" disabled={loading}>
+          {loading ? "Saving…" : "Save password"}
+        </button>
+      </form>
+    </AuthShell>
   );
 }

@@ -46,7 +46,7 @@ Do not install every library blindly. Add a dependency only when a concrete comp
 
 - Brand mark visible in authenticated chrome (logo + short name)
 - Admin and Client share the same design language; role differs by nav items and data, not by a different theme
-- Auth screens (login / set-password / change-password): centered composition, logo hero-level, one job
+- Auth screens (login / set-password / change-password): **split layout** — left brand panel (DMHR hero photo + navy overlay + logo hero-level), right form. Shared `AuthShell` + `AuthPasswordField` (show/hide). Invite-only — no public sign-up / OAuth. Mobile: form card + compact logo (photo panel hidden). Asset: `/auth/dmhr-auth-hero.jpg`
 - Authenticated app: sticky or fixed header / sidebar, content max-width readable, no dense enterprise clutter
 - **Shell v2 (locked 2026-11-01):** icon rail default (expand on hover, pin to lock open); top breadcrumbs page map + theme toggle + notify + avatar; mobile drawer; optional `actions` slot
 - **Shell motion / chrome:** delayed hover expand; soft cubic width transition; nav item hover scale/slide; pin row + avatar stacked in foot (collapsed = centered icons only)
