@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Eye, FileSignature, FolderOpen, PenLine } from "lucide-react";
@@ -16,17 +16,14 @@ import { API_URL, apiFetch, type PublicUser } from "../../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../../lib/auth";
 import { adminNav } from "../../../../lib/nav";
 import {
-  JOURNEY_ROLE_LABELS,
   onboardingRunBadgeTone,
   onboardingRunLabel,
   packAwaitingAdminReview,
-  packItemLabel,
-  packJourneyRole,
+  packItemStatusPill,
   packPreviewShowsUnsignedSource,
   packPreviewTarget,
   packProgress,
   paymentUrl,
-  type JourneyRole,
   type OnboardingPackItem,
   type OnboardingRun,
 } from "../../../../lib/onboarding";
@@ -37,7 +34,6 @@ type LibraryDoc = {
   fileName: string;
   fieldCount?: number;
   adminInkReady?: boolean;
-  journeyRole?: JourneyRole | string;
 };
 
 function AdminOnboardingDetailInner() {
@@ -104,56 +100,79 @@ function AdminOnboardingDetailInner() {
     })();
   }, [router, load]);
 
-  async function sendWelcome(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const result = await apiFetch<{ run: OnboardingRun }>(
-        `/admin/onboarding/runs/${runId}/welcome-email`,
-        {
-          method: "POST",
-          token: getToken(),
-          body: JSON.stringify({ subject, body }),
-        }
-      );
-      if (!result.success) {
-        setError(result.error.message);
-        toastError(result.error.message);
-        return;
-      }
-      toastSuccess("Welcome email sent.");
-      await load();
-    } finally {
-      setBusy(false);
-    }
-  }
+  /** Issue selected templates (if any), then send welcome email if not yet sent. */
+  async function sendWelcomePack() {
+    if (!run) return;
+    const alreadyIssued = new Set(
+      run.packItems
+        .map((p) => p.libraryDocumentId)
+        .filter((id): id is string => Boolean(id))
+    );
+    const toIssue = selectedLib.filter((id) => !alreadyIssued.has(id));
+    const needEmail = !run.welcomeEmailSentAt;
 
-  async function issuePack() {
-    if (!selectedLib.length) {
-      const msg = "Select at least one Firm Library document.";
+    if (!toIssue.length && !needEmail) {
+      const msg = "Nothing to send — select templates or welcome already sent.";
       setError(msg);
       toastError(msg);
       return;
     }
+
+    if (needEmail && (!subject.trim() || !body.trim())) {
+      const msg = "Add welcome email subject and body before sending.";
+      setError(msg);
+      toastError(msg);
+      return;
+    }
+
     setBusy(true);
     setError("");
+    let issuedOk = false;
     try {
-      const result = await apiFetch<{ run: OnboardingRun }>(
-        `/admin/onboarding/runs/${runId}/issue-pack`,
-        {
-          method: "POST",
-          token: getToken(),
-          body: JSON.stringify({ libraryDocumentIds: selectedLib }),
+      if (toIssue.length) {
+        const result = await apiFetch<{ run: OnboardingRun }>(
+          `/admin/onboarding/runs/${runId}/issue-pack`,
+          {
+            method: "POST",
+            token: getToken(),
+            body: JSON.stringify({ libraryDocumentIds: toIssue }),
+          }
+        );
+        if (!result.success) {
+          setError(result.error.message);
+          toastError(result.error.message);
+          return;
         }
-      );
-      if (!result.success) {
-        setError(result.error.message);
-        toastError(result.error.message);
-        return;
+        issuedOk = true;
+        setSelectedLib([]);
       }
-      toastSuccess("Pack issued to My Onboarding.");
-      setSelectedLib([]);
+
+      if (needEmail) {
+        const result = await apiFetch<{ run: OnboardingRun }>(
+          `/admin/onboarding/runs/${runId}/welcome-email`,
+          {
+            method: "POST",
+            token: getToken(),
+            body: JSON.stringify({ subject, body }),
+          }
+        );
+        if (!result.success) {
+          const msg = issuedOk
+            ? `Pack issued; email failed — ${result.error.message}`
+            : result.error.message;
+          setError(msg);
+          toastError(msg);
+          await load();
+          return;
+        }
+        toastSuccess(
+          issuedOk
+            ? "Welcome pack sent — documents issued and email delivered."
+            : "Welcome email sent."
+        );
+      } else if (issuedOk) {
+        toastSuccess("Pack issued to My Onboarding.");
+      }
       await load();
     } finally {
       setBusy(false);
@@ -251,7 +270,6 @@ function AdminOnboardingDetailInner() {
       .map((p) => p.libraryDocumentId)
       .filter((id): id is string => Boolean(id))
   );
-  const issuedRoles = new Set((run?.packItems || []).map((p) => packJourneyRole(p)));
 
   function openPackPreview(item: OnboardingPackItem) {
     if (!run?.organisationId) return;
@@ -322,60 +340,40 @@ function AdminOnboardingDetailInner() {
             <section className="panel form-compact">
               <h2>1. Welcome email</h2>
               <p className="lead">
-                Required before Complete. Edit, then send via SMTP (Admin Settings).
+                Part of Send welcome pack (SMTP in Admin Settings).
                 {run.welcomeEmailSentAt
                   ? ` Sent ${new Date(run.welcomeEmailSentAt).toLocaleString()}.`
                   : " Not sent yet."}
               </p>
-              <form onSubmit={sendWelcome}>
-                <div className="field">
-                  <label htmlFor="subj">Subject</label>
-                  <input
-                    id="subj"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    required
-                    disabled={run.status !== "in_progress"}
-                  />
-                </div>
-                <div className="field">
-                  <label htmlFor="body">Body</label>
-                  <textarea
-                    id="body"
-                    rows={8}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    required
-                    disabled={run.status !== "in_progress"}
-                  />
-                </div>
-                <button
-                  className="btn btn-primary btn-sm"
-                  type="submit"
-                  disabled={busy || run.status !== "in_progress"}
-                >
-                  {busy ? "Sending…" : "Send welcome email"}
-                </button>
-              </form>
+              <div className="field">
+                <label htmlFor="subj">Subject</label>
+                <input
+                  id="subj"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  required
+                  disabled={run.status !== "in_progress"}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="body">Body</label>
+                <textarea
+                  id="body"
+                  rows={8}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  required
+                  disabled={run.status !== "in_progress"}
+                />
+              </div>
             </section>
 
             <section className="panel">
-              <h2>2–3. Issue pack → My Onboarding</h2>
+              <h2>2. Pack documents → My Onboarding</h2>
               <p className="lead">
-                Templates clone boxes + Admin ink automatically. Client signs their boxes; Admin
-                countersign is already applied from Firm Library. Tag each template’s onboarding
-                stage in Firm Library (Terms / Welcome / Compliance).
+                Select templates to issue with boxes + Admin ink. Sent together with the welcome
+                email via <strong>Send welcome pack</strong>.
               </p>
-              {!issuedRoles.has("welcome") || !issuedRoles.has("compliance") ? (
-                <p className="org-meta" style={{ marginBottom: 10 }}>
-                  {!issuedRoles.has("welcome")
-                    ? "No Welcome pack issued yet — tag a Firm Library template as Welcome pack, then issue. "
-                    : ""}
-                  {!issuedRoles.has("compliance")
-                    ? "No Compliance documents issued yet — tag a template as Compliance, then issue."
-                    : ""}
-                </p>
-              ) : null}
               {library.length === 0 ? (
                 <p className="org-meta">
                   Firm Library is empty.{" "}
@@ -388,10 +386,6 @@ function AdminOnboardingDetailInner() {
                     const layoutReady =
                       !doc.requiresSignature ||
                       (Boolean(doc.fieldCount) && doc.adminInkReady !== false);
-                    const roleKey = (String(doc.journeyRole || "other").toLowerCase() ||
-                      "other") as JourneyRole;
-                    const roleLabel =
-                      JOURNEY_ROLE_LABELS[roleKey] || JOURNEY_ROLE_LABELS.other;
                     return (
                       <li key={doc.id}>
                         <label>
@@ -415,8 +409,6 @@ function AdminOnboardingDetailInner() {
                           <span>
                             <strong>{doc.title}</strong>
                             <small>
-                              {roleLabel}
-                              {" · "}
                               {doc.requiresSignature
                                 ? layoutReady
                                   ? `${doc.fieldCount} box(es) · Admin ink · auto-send`
@@ -433,16 +425,41 @@ function AdminOnboardingDetailInner() {
                   })}
                 </ul>
               )}
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                style={{ marginTop: 12 }}
-                onClick={issuePack}
-                disabled={busy || run.status !== "in_progress" || !selectedLib.length}
-              >
-                Issue selected to My Onboarding
-              </button>
             </section>
+          </div>
+
+          <div
+            className="panel"
+            style={{
+              marginTop: 12,
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 12,
+              justifyContent: "space-between",
+            }}
+          >
+            <p className="org-meta" style={{ margin: 0, maxWidth: "36rem" }}>
+              One action: issue selected templates (if any), then send the welcome email if not
+              already sent. Disabled when welcome is sent and nothing new is selected.
+            </p>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => void sendWelcomePack()}
+              disabled={
+                busy ||
+                run.status !== "in_progress" ||
+                (Boolean(run.welcomeEmailSentAt) &&
+                  selectedLib.filter((id) => !issuedIds.has(id)).length === 0)
+              }
+            >
+              {busy
+                ? "Sending…"
+                : run.welcomeEmailSentAt
+                  ? "Issue selected to My Onboarding"
+                  : "Send welcome pack"}
+            </button>
           </div>
 
           <section className="panel" style={{ marginTop: 16 }}>
@@ -457,6 +474,7 @@ function AdminOnboardingDetailInner() {
               <ul className="org-list">
                 {run.packItems.map((item) => {
                   const awaitingReview = packAwaitingAdminReview(item);
+                  const statusPill = packItemStatusPill(item);
                   const canPreview = Boolean(
                     packPreviewTarget(item, {
                       role: "admin",
@@ -468,14 +486,14 @@ function AdminOnboardingDetailInner() {
                   return (
                     <li key={item.id}>
                       <div>
-                        <div className="org-name">{item.title}</div>
-                        <div className="org-meta">
-                          {item.requiresSignature
-                            ? packItemLabel(item.status)
-                            : "No signature · Done when issued"}
-                          {item.signatureRequest
-                            ? ` · e-sign: ${item.signatureRequest.status.replace(/_/g, " ")}`
-                            : ""}
+                        <div
+                          className="org-name"
+                          style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}
+                        >
+                          <span>{item.title}</span>
+                          <span className={`status-pill status-pill-${statusPill.tone}`}>
+                            {statusPill.label}
+                          </span>
                         </div>
                         {awaitingReview ? (
                           <div className="org-meta" style={{ marginTop: 4 }}>
@@ -539,7 +557,7 @@ function AdminOnboardingDetailInner() {
 
           <div className="grid-2" style={{ marginTop: 16 }}>
             <section className="panel form-compact">
-              <h2>4. Direct Debit link</h2>
+              <h2>3. Direct Debit link</h2>
               <p className="lead">Paste the setup URL (payments = links only).</p>
               <div className="field">
                 <label htmlFor="dd">URL</label>
@@ -562,7 +580,7 @@ function AdminOnboardingDetailInner() {
               </button>
             </section>
             <section className="panel form-compact">
-              <h2>5. Initial payment link</h2>
+              <h2>4. Initial payment link</h2>
               <p className="lead">Paste the payment URL for the client.</p>
               <div className="field">
                 <label htmlFor="pay">URL</label>
@@ -587,10 +605,10 @@ function AdminOnboardingDetailInner() {
           </div>
 
           <section className="panel" style={{ marginTop: 16 }}>
-            <h2>6. Mark Complete</h2>
+            <h2>5. Mark Complete</h2>
             <p className="lead">
-              Admin only. Company becomes a full DM.HR client when welcome email, pack signatures,
-              and both payment links are done.
+              Admin only. Company becomes a full DM.HR client when the Welcome pack (email + pack
+              signatures), and both payment links are done.
             </p>
             {!canComplete && blockReason ? (
               <p className="org-meta">{blockReason}</p>

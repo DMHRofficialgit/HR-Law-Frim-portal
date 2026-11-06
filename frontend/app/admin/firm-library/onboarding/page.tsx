@@ -8,26 +8,22 @@ import {
   Ban,
   CircleCheck,
   Eye,
+  Pencil,
   PenLine,
   Trash2,
 } from "lucide-react";
 import { AppShell } from "../../../../components/AppShell";
 import { DocsDropzone } from "../../../../components/DocsDropzone";
+import { DocsRenameDialog } from "../../../../components/DocsRenameDialog";
 import { FilePreviewSheet, type FilePreviewTarget } from "../../../../components/FilePreviewSheet";
 import { FirmLibraryPrepareSheet } from "../../../../components/FirmLibraryPrepareSheet";
 import { IconButton } from "../../../../components/IconButton";
-import { PortalSelect } from "../../../../components/PortalSelect";
 import { ListSkeleton } from "../../../../components/Skeleton";
 import { useConfirm } from "../../../../context/ConfirmContext";
 import { useToast } from "../../../../context/ToastContext";
 import { API_URL, apiFetch, apiUpload, type PublicUser } from "../../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../../lib/auth";
 import { adminNav } from "../../../../lib/nav";
-import {
-  JOURNEY_ROLE_LABELS,
-  journeyRolePillClass,
-  type JourneyRole,
-} from "../../../../lib/onboarding";
 import { isPdfDocument } from "../../../../lib/signatures";
 
 type LibraryDoc = {
@@ -37,19 +33,11 @@ type LibraryDoc = {
   mimeType: string;
   sizeBytes: number;
   requiresSignature: boolean;
-  journeyRole?: JourneyRole | string;
   sortOrder: number;
   createdAt: string;
   fieldCount?: number;
   adminInkReady?: boolean;
 };
-
-const JOURNEY_ROLE_OPTIONS = (Object.keys(JOURNEY_ROLE_LABELS) as JourneyRole[]).map(
-  (value) => ({
-    value,
-    label: JOURNEY_ROLE_LABELS[value],
-  })
-);
 
 function readinessLabel(doc: LibraryDoc): string {
   if (!doc.requiresSignature) return "No signature";
@@ -76,11 +64,12 @@ export default function AdminFirmLibraryOnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState("");
   const [requiresSignature, setRequiresSignature] = useState(true);
-  const [journeyRole, setJourneyRole] = useState<JourneyRole>("other");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [prepareId, setPrepareId] = useState<string | null>(null);
   const [preview, setPreview] = useState<FilePreviewTarget | null>(null);
+  const [renameDoc, setRenameDoc] = useState<LibraryDoc | null>(null);
+  const [renaming, setRenaming] = useState(false);
 
   async function load(token: string | null) {
     setLoading(true);
@@ -118,7 +107,8 @@ export default function AdminFirmLibraryOnboardingPage() {
       fd.append("file", file);
       if (title.trim()) fd.append("title", title.trim());
       fd.append("requiresSignature", requiresSignature ? "true" : "false");
-      fd.append("journeyRole", journeyRole);
+      // Phase C: journey roles no longer drive checklist — always store other.
+      fd.append("journeyRole", "other");
       const result = await apiUpload<{ document: LibraryDoc }>(
         "/admin/firm-library",
         fd,
@@ -132,7 +122,6 @@ export default function AdminFirmLibraryOnboardingPage() {
       setTitle("");
       setFile(null);
       setRequiresSignature(true);
-      setJourneyRole("other");
       await load(getToken());
       if (
         result.data.document.requiresSignature &&
@@ -165,19 +154,6 @@ export default function AdminFirmLibraryOnboardingPage() {
     await load(getToken());
   }
 
-  async function setDocJourneyRole(doc: LibraryDoc, next: JourneyRole) {
-    const result = await apiFetch<{ document: LibraryDoc }>(`/admin/firm-library/${doc.id}`, {
-      method: "PATCH",
-      token: getToken(),
-      body: JSON.stringify({ journeyRole: next }),
-    });
-    if (!result.success) {
-      toastError(result.error.message);
-      return;
-    }
-    await load(getToken());
-  }
-
   async function remove(doc: LibraryDoc) {
     const ok = await confirm({
       title: "Remove pack template?",
@@ -195,6 +171,32 @@ export default function AdminFirmLibraryOnboardingPage() {
       return;
     }
     toastSuccess("Removed from Onboarding pack.");
+    await load(getToken());
+  }
+
+  async function onRenameSave(nextTitle: string) {
+    if (!renameDoc) return;
+    const next = nextTitle.trim();
+    if (!next || next === renameDoc.title) {
+      setRenameDoc(null);
+      return;
+    }
+    setRenaming(true);
+    const result = await apiFetch<{ document: LibraryDoc }>(
+      `/admin/firm-library/${renameDoc.id}`,
+      {
+        method: "PATCH",
+        token: getToken(),
+        body: JSON.stringify({ title: next }),
+      }
+    );
+    setRenaming(false);
+    if (!result.success) {
+      toastError(result.error.message);
+      return;
+    }
+    toastSuccess(`Renamed to “${result.data.document.title}”.`);
+    setRenameDoc(null);
     await load(getToken());
   }
 
@@ -224,7 +226,7 @@ export default function AdminFirmLibraryOnboardingPage() {
           <div className="profile-hub-titles">
             <h1>Onboarding pack</h1>
             <div className="profile-hub-meta">
-              Upload once · set stage · prepare boxes &amp; Admin ink · issue from Onboarding
+              Upload once · prepare boxes &amp; Admin ink · issue Welcome pack from Onboarding
             </div>
           </div>
         </div>
@@ -239,30 +241,18 @@ export default function AdminFirmLibraryOnboardingPage() {
         <h2>Add template</h2>
         <p className="lead firm-pack-lead">
           Place Client or Admin boxes once. Admin ink is saved forever and applied when you issue
-          the pack. Stage tags drive Welcome / Compliance / Terms on the journey checklist.
+          the Welcome pack. Use the title for the document name (e.g. Terms of Business) — all pack
+          PDFs belong to one Welcome pack, not separate journey stages.
         </p>
         <form onSubmit={onUpload} className="firm-pack-add-form">
-          <div className="firm-pack-add-grid">
-            <div className="field">
-              <label htmlFor="libTitle">Title (optional)</label>
-              <input
-                id="libTitle"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Terms of Business"
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="libJourneyRole">Onboarding stage</label>
-              <PortalSelect
-                id="libJourneyRole"
-                value={journeyRole}
-                onChange={(v) => setJourneyRole((v as JourneyRole) || "other")}
-                options={JOURNEY_ROLE_OPTIONS}
-                aria-label="Onboarding stage"
-                size="sm"
-              />
-            </div>
+          <div className="field">
+            <label htmlFor="libTitle">Title (optional)</label>
+            <input
+              id="libTitle"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Terms of Business"
+            />
           </div>
           <div className="field">
             <label>PDF template</label>
@@ -326,7 +316,7 @@ export default function AdminFirmLibraryOnboardingPage() {
           <div className="docs-empty empty-state">
             <p>No pack templates yet</p>
             <p className="lead">
-              Add Terms of Business, Welcome pack, and Compliance PDFs, then prepare boxes.
+              Add Welcome pack PDFs (any document names), then prepare boxes and Admin ink.
             </p>
           </div>
         ) : (
@@ -334,17 +324,12 @@ export default function AdminFirmLibraryOnboardingPage() {
             <ul className="firm-pack-list">
               {docs.map((doc) => {
                 const pdf = isPdfDocument(doc.mimeType, doc.fileName);
-                const roleKey = (String(doc.journeyRole || "other").toLowerCase() ||
-                  "other") as JourneyRole;
                 const readyTone = readinessTone(doc);
                 return (
                   <li key={doc.id} className="firm-pack-row">
                     <div className="firm-pack-row-main">
                       <div className="firm-pack-row-title">
                         <strong>{doc.title}</strong>
-                        <span className={`status-pill ${journeyRolePillClass(roleKey)}`}>
-                          {JOURNEY_ROLE_LABELS[roleKey] || "Other"}
-                        </span>
                         <span
                           className={`status-pill status-pill-${
                             readyTone === "ok"
@@ -360,21 +345,6 @@ export default function AdminFirmLibraryOnboardingPage() {
                         </span>
                       </div>
                       <div className="firm-pack-row-meta">{doc.fileName}</div>
-                      <div className="firm-pack-row-stage">
-                        <label className="sr-only" htmlFor={`role-${doc.id}`}>
-                          Onboarding stage for {doc.title}
-                        </label>
-                        <PortalSelect
-                          id={`role-${doc.id}`}
-                          value={roleKey}
-                          onChange={(v) =>
-                            void setDocJourneyRole(doc, (v as JourneyRole) || "other")
-                          }
-                          options={JOURNEY_ROLE_OPTIONS}
-                          size="sm"
-                          aria-label={`Onboarding stage for ${doc.title}`}
-                        />
-                      </div>
                     </div>
                     <div className="firm-pack-row-actions">
                       {pdf ? (
@@ -387,6 +357,14 @@ export default function AdminFirmLibraryOnboardingPage() {
                           <Eye size={15} strokeWidth={1.75} />
                         </IconButton>
                       ) : null}
+                      <IconButton
+                        label="Rename"
+                        aria-label={`Rename ${doc.title}`}
+                        side="bottom"
+                        onClick={() => setRenameDoc(doc)}
+                      >
+                        <Pencil size={15} strokeWidth={1.75} />
+                      </IconButton>
                       {doc.requiresSignature && pdf ? (
                         <button
                           type="button"
@@ -440,6 +418,16 @@ export default function AdminFirmLibraryOnboardingPage() {
           onSaved={() => load(getToken())}
         />
       ) : null}
+
+      <DocsRenameDialog
+        open={Boolean(renameDoc)}
+        currentTitle={renameDoc?.title || ""}
+        busy={renaming}
+        onClose={() => {
+          if (!renaming) setRenameDoc(null);
+        }}
+        onSave={onRenameSave}
+      />
 
       <FilePreviewSheet target={preview} onClose={() => setPreview(null)} />
     </AppShell>

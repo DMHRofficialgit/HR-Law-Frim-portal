@@ -128,6 +128,22 @@ body {
   overscroll-behavior: contain;
 }
 
+/* Overview dashboard list panels — hug content, then cap + inner scroll */
+.overview-dash-scroll {
+  height: fit-content;
+  max-height: min(32vh, 260px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+  scroll-padding-block: 4px 8px;
+}
+
+@media (max-width: 640px) {
+  .overview-dash-scroll {
+    max-height: min(40vh, 280px);
+  }
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -4671,7 +4687,8 @@ textarea {
 }
 
 /* Cases register KPIs — Overview metric cards above the table panel */
-button.case-metric-card {
+button.case-metric-card,
+a.case-metric-card {
   position: relative;
   width: 100%;
   appearance: none;
@@ -4681,9 +4698,11 @@ button.case-metric-card {
   cursor: pointer;
   color: inherit;
   margin: 0;
+  display: block;
 }
 
-button.case-metric-card .case-metric-icon {
+button.case-metric-card .case-metric-icon,
+a.case-metric-card .case-metric-icon {
   position: absolute;
   top: 14px;
   right: 14px;
@@ -4712,10 +4731,186 @@ button.case-metric-card.is-active .case-metric-icon {
   margin: 0;
 }
 
+.overview-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.overview-dash-panel {
+  margin: 0;
+  min-width: 0;
+}
+
+.overview-dash-span {
+  grid-column: 1 / -1;
+}
+
+.overview-attn-list,
+.overview-progress-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.overview-attn-row,
+.overview-progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.overview-attn-row:last-child,
+.overview-progress-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.overview-attn-row:first-child,
+.overview-progress-row:first-child {
+  padding-top: 0;
+}
+
+.overview-progress-row {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.overview-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.overview-attn-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.overview-attn-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.overview-attn-title strong {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.overview-attn-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.overview-progress-track {
+  margin-top: 10px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.overview-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--blue) 85%, var(--ink));
+  transition: width 0.25s ease;
+}
+
+.overview-activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.overview-activity-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 0;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.overview-activity-list li:last-child .overview-activity-row {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.overview-activity-list li:first-child .overview-activity-row {
+  padding-top: 0;
+}
+
+.overview-activity-row:disabled {
+  cursor: default;
+}
+
+.overview-activity-row:not(:disabled):hover .overview-activity-title {
+  color: var(--blue);
+}
+
+.overview-activity-icon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.overview-activity-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.overview-activity-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+}
+
+.overview-activity-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .overview-quick-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+
+.overview-actions-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .overview-quick-tile {
@@ -4730,6 +4925,16 @@ button.case-metric-card.is-active .case-metric-icon {
     background 0.2s ease,
     border-color 0.2s ease,
     transform 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+}
+
+.overview-action-tile {
+  gap: 6px;
+}
+
+.overview-action-tile svg {
+  color: var(--muted);
 }
 
 .overview-quick-tile strong {
@@ -4748,6 +4953,10 @@ button.case-metric-card.is-active .case-metric-icon {
   background: var(--blue-soft);
   border-color: color-mix(in srgb, var(--blue) 28%, var(--line));
   transform: translateY(-1px);
+}
+
+.overview-action-tile:hover svg {
+  color: var(--blue);
 }
 
 .firm-lib-rooms {
@@ -5628,9 +5837,15 @@ button.case-metric-card.is-active .case-metric-icon {
 
   .metrics-row,
   .grid-2,
+  .overview-dash-grid,
   .overview-quick-grid,
-  .overview-doc-grid {
+  .overview-doc-grid,
+  .overview-actions-grid {
     grid-template-columns: 1fr;
+  }
+
+  .overview-dash-span {
+    grid-column: auto;
   }
 
   .shell-content,
@@ -5649,8 +5864,10 @@ button.case-metric-card.is-active .case-metric-icon {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .overview-dash-grid,
   .overview-quick-grid,
-  .overview-doc-grid {
+  .overview-doc-grid,
+  .overview-actions-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
