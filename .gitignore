@@ -49,6 +49,11 @@ Desktop.ini
 # Vercel / deploy
 .vercel
 
+# DB dumps / backups (never ship to client remotes)
+*.dump
+*.sql.gz
+dmhr_local_to_render.dump
+
 # Misc
 *.pem
 *.key
