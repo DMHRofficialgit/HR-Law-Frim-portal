@@ -54,6 +54,9 @@ Desktop.ini
 *.sql.gz
 dmhr_local_to_render.dump
 
+# Accidental nested Desktop clones
+/HR-Law-Frim-portal/
+
 # Misc
 *.pem
 *.key
