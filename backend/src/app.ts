@@ -73,5 +73,21 @@ export function createApp() {
     });
   });
 
+  app.use(
+    (
+      err: unknown,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction
+    ) => {
+      console.error("Unhandled route error", err);
+      if (res.headersSent) return;
+      res.status(500).json({
+        success: false,
+        error: { code: "INTERNAL", message: "Internal server error" },
+      });
+    }
+  );
+
   return app;
 }
