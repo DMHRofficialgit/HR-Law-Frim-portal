@@ -6,6 +6,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "DMHR Group Client Portal",
   description: "DMHR Group client portal and case management",
+  icons: {
+    icon: [{ url: "/logo/dmhr-mark.png", type: "image/png" }],
+    apple: [{ url: "/logo/dmhr-mark.png", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({
