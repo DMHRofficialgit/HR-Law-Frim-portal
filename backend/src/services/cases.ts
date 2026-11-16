@@ -238,6 +238,32 @@ export async function createCase(params: {
       templateKey: "case_opened_client",
       tokens: { case_ref: ref, case_title: params.title.trim() },
     });
+
+    const openedAt = new Date().toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZoneName: "short",
+    });
+    await notifyUsers({
+      userIds: [params.userId],
+      organisationId: params.organisationId,
+      title: "Case opened confirmation",
+      body: `${ref}: ${params.title.trim()}`,
+      href: `/admin/cases/${created.id}`,
+      emailGroup: "cases",
+      templateKey: "case_opened_admin_confirm",
+      tokens: {
+        case_ref: ref,
+        case_title: params.title.trim(),
+        org_name: full?.organisation?.name || org.name,
+        employee_name: full?.employee?.name?.trim() || "Not linked",
+        opened_by_name: full?.createdBy?.name || "Admin",
+        opened_at: openedAt,
+      },
+    });
   } else {
     const admins = await adminUserIds();
     await notifyUsers({
