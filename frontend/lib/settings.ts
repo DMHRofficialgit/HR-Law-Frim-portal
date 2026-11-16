@@ -114,6 +114,12 @@ export const EMAIL_TEMPLATE_CATALOG: readonly EmailTemplateCatalogItem[] = [
   { key: "onboarding_complete", name: "Onboarding complete", audience: "Client", group: "Onboarding" },
   { key: "case_opened_client", name: "New case opened", audience: "Client", group: "Cases" },
   { key: "case_opened_admin", name: "New case submitted", audience: "Admin", group: "Cases" },
+  {
+    key: "case_opened_admin_confirm",
+    name: "Case opened — admin confirmation",
+    audience: "Admin",
+    group: "Cases",
+  },
   { key: "case_status_updated", name: "Case status updated", audience: "Client", group: "Cases" },
   { key: "case_update", name: "Case update", audience: "Client", group: "Cases" },
   { key: "case_client_reply", name: "Client replied on case", audience: "Admin", group: "Cases" },

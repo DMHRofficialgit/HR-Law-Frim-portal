@@ -138,6 +138,23 @@ DM.HR Group`,
 {{portal_link}}`,
   },
   {
+    key: "case_opened_admin_confirm",
+    name: "Case opened — admin confirmation",
+    audience: "Admin",
+    groupName: "Cases",
+    subject: "Confirmation — you opened {{case_ref}}",
+    body: `You opened an employment case.
+
+Ref: {{case_ref}}
+Title: {{case_title}}
+Client: {{org_name}}
+Employee: {{employee_name}}
+Opened by: {{opened_by_name}}
+Opened at: {{opened_at}}
+
+{{portal_link}}`,
+  },
+  {
     key: "case_status_updated",
     name: "Case status updated",
     audience: "Client",
@@ -352,6 +369,9 @@ export const SAMPLE_EMAIL_TOKENS: EmailTemplateTokens = {
   portal_link: "https://portal.example/portal",
   case_ref: "CASE-2026-0001",
   case_title: "Grievance — sample matter",
+  employee_name: "Alex Morgan",
+  opened_by_name: "DM.HR Admin",
+  opened_at: "16 Nov 2026, 14:30 GMT",
   status: "under review",
   detail: "Sample detail line for preview.",
   document_title: "Terms of Business",
