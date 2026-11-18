@@ -533,7 +533,7 @@ def build():
     add_image(doc, "C09-case-thread.png", "Figure C5c — Case conversation / timeline")
     add_tip(
         doc,
-        "When you submit a case, DM.HR admins are notified by email (when SMTP is working).",
+        "When you submit a case, DM.HR admins are notified and you also get a confirmation email (when SMTP is working).",
     )
 
     add_heading(doc, "C6. Employees", 2)
@@ -584,7 +584,11 @@ def build():
                 "Confirmation to the admin who opened it",
                 "Yes — case opened",
             ],
-            ["Client submits a case", "Yes — case submitted", "—"],
+            [
+                "Client submits a case",
+                "Yes — case submitted",
+                "Confirmation to the client who submitted it",
+            ],
             ["Case status / update / client reply", "As applicable", "As applicable"],
             ["Document available / client upload", "As applicable", "As applicable"],
             ["E-sign ready / fully signed / revision", "As applicable", "As applicable"],

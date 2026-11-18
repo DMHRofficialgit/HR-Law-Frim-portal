@@ -288,7 +288,7 @@
 **[SS: C08-submit-case]** — Submit case  
 **[SS: C09-case-thread]** — Case conversation / timeline
 
-> **Tip:** When you submit a case, DM.HR admins are notified by email (when SMTP is working).
+> **Tip:** When you submit a case, DM.HR admins are notified and you also get a confirmation email (when SMTP is working).
 
 ---
 
@@ -329,7 +329,7 @@ Emails only send when **SMTP is configured** by DM.HR. Check spam/junk if someth
 |--------|-------|--------|
 | Invite / temporary password / password reset | — | Yes |
 | Admin opens a case | Confirmation to the admin who opened it | Yes — “case opened” |
-| Client submits a case | Yes — “case submitted” | — |
+| Client submits a case | Yes — “case submitted” | Confirmation to the client who submitted it |
 | Case status / update / client reply | As applicable | As applicable |
 | Document available / client upload | As applicable | As applicable |
 | E-sign ready / fully signed / revision | As applicable | As applicable |

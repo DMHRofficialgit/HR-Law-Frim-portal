@@ -155,6 +155,25 @@ Opened at: {{opened_at}}
 {{portal_link}}`,
   },
   {
+    key: "case_submitted_client_confirm",
+    name: "Case submitted — client confirmation",
+    audience: "Client",
+    groupName: "Cases",
+    subject: "Confirmation — we received {{case_ref}}",
+    body: `We have received your employment case.
+
+Ref: {{case_ref}}
+Title: {{case_title}}
+Organisation: {{org_name}}
+Employee: {{employee_name}}
+Submitted by: {{submitted_by_name}}
+Submitted at: {{submitted_at}}
+
+DM.HR Group will review it shortly.
+
+{{portal_link}}`,
+  },
+  {
     key: "case_status_updated",
     name: "Case status updated",
     audience: "Client",
@@ -372,6 +391,8 @@ export const SAMPLE_EMAIL_TOKENS: EmailTemplateTokens = {
   employee_name: "Alex Morgan",
   opened_by_name: "DM.HR Admin",
   opened_at: "16 Nov 2026, 14:30 GMT",
+  submitted_by_name: "Alex Client",
+  submitted_at: "16 Nov 2026, 14:35 GMT",
   status: "under review",
   detail: "Sample detail line for preview.",
   document_title: "Terms of Business",
