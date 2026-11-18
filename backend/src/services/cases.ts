@@ -5,6 +5,7 @@ import { nextCaseRef } from "../lib/caseRef";
 import {
   adminUserIds,
   clientUserIdsForOrg,
+  getCasesNotifyEmails,
   notifyUsers,
 } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
@@ -228,6 +229,7 @@ export async function createCase(params: {
 
   if (byAdmin) {
     const clients = await clientUserIdsForOrg(params.organisationId);
+    const casesMailbox = await getCasesNotifyEmails();
     await notifyUsers({
       userIds: clients,
       organisationId: params.organisationId,
@@ -237,6 +239,7 @@ export async function createCase(params: {
       emailGroup: "cases",
       templateKey: "case_opened_client",
       tokens: { case_ref: ref, case_title: params.title.trim() },
+      extraEmails: casesMailbox,
     });
 
     const openedAt = new Date().toLocaleString("en-GB", {
@@ -266,6 +269,7 @@ export async function createCase(params: {
     });
   } else {
     const admins = await adminUserIds();
+    const casesMailbox = await getCasesNotifyEmails();
     await notifyUsers({
       userIds: admins,
       organisationId: params.organisationId,
@@ -275,6 +279,7 @@ export async function createCase(params: {
       emailGroup: "cases",
       templateKey: "case_opened_admin",
       tokens: { case_ref: ref, case_title: params.title.trim() },
+      extraEmails: casesMailbox,
     });
 
     const submittedAt = new Date().toLocaleString("en-GB", {
@@ -310,6 +315,8 @@ export async function createCase(params: {
 export async function updateCase(params: {
   caseId: string;
   organisationId?: string;
+  actorUserId?: string;
+  actorRole?: "admin" | "client";
   title?: string;
   description?: string;
   categoryId?: string;
@@ -408,8 +415,36 @@ export async function updateCase(params: {
     data.outcome = params.outcome?.trim() || null;
   }
 
+  const changed = Object.keys(data).length > 0;
   await prisma.case.update({ where: { id: params.caseId }, data });
   const updated = await getCase(params.caseId);
+
+  if (changed && params.actorRole === "client") {
+    const admins = await adminUserIds();
+    const casesMailbox = await getCasesNotifyEmails();
+    await notifyUsers({
+      userIds: admins,
+      organisationId: existing.organisationId,
+      title: "Case details updated by client",
+      body: `${existing.ref}: client changed case details — please review`,
+      href: `/admin/cases/${existing.id}`,
+      emailGroup: "cases",
+      extraEmails: casesMailbox,
+    });
+  } else if (changed && params.actorRole === "admin") {
+    const clients = await clientUserIdsForOrg(existing.organisationId);
+    const casesMailbox = await getCasesNotifyEmails();
+    await notifyUsers({
+      userIds: clients,
+      organisationId: existing.organisationId,
+      title: "Case details updated",
+      body: `${existing.ref}: DM.HR updated case details`,
+      href: `/portal/cases/${existing.id}`,
+      emailGroup: "cases",
+      extraEmails: casesMailbox,
+    });
+  }
+
   return { case: updated };
 }
 
@@ -441,6 +476,7 @@ export async function updateCaseStatus(params: {
   const updated = await getCase(params.caseId);
 
   const clients = await clientUserIdsForOrg(existing.organisationId);
+  const casesMailbox = await getCasesNotifyEmails();
   const statusLabel = params.status.replace(/_/g, " ");
   await notifyUsers({
     userIds: clients,
@@ -451,6 +487,7 @@ export async function updateCaseStatus(params: {
     emailGroup: "cases",
     templateKey: "case_status_updated",
     tokens: { case_ref: existing.ref, status: statusLabel },
+    extraEmails: casesMailbox,
   });
 
   return { case: updated };
@@ -512,6 +549,7 @@ export async function addCaseMessage(params: {
     const author = await prisma.user.findUnique({ where: { id: params.userId } });
     if (author?.role === "admin") {
       const clients = await clientUserIdsForOrg(existing.organisationId);
+      const casesMailbox = await getCasesNotifyEmails();
       await notifyUsers({
         userIds: clients,
         organisationId: existing.organisationId,
@@ -521,9 +559,11 @@ export async function addCaseMessage(params: {
         emailGroup: "cases",
         templateKey: "case_update",
         tokens: { case_ref: existing.ref },
+        extraEmails: casesMailbox,
       });
     } else {
       const admins = await adminUserIds();
+      const casesMailbox = await getCasesNotifyEmails();
       const replyPreview = params.body.slice(0, 120);
       await notifyUsers({
         userIds: admins,
@@ -534,6 +574,7 @@ export async function addCaseMessage(params: {
         emailGroup: "cases",
         templateKey: "case_client_reply",
         tokens: { case_ref: existing.ref, detail: replyPreview },
+        extraEmails: casesMailbox,
       });
     }
   }

@@ -132,7 +132,7 @@
 4. Save
 
 **Emails when Admin opens a case**
-- The **client users** for that organisation get a notification email
+- The **client users** for that organisation get a notification email (also CC’d to the **shared cases mailbox**, e.g. case@dmhrgroup.com)
 - The **admin who opened the case** gets a **confirmation email** (ref, title, client, time, link)
 
 **[SS: A09-cases-list]** — Cases list  
@@ -325,12 +325,15 @@
 
 Emails only send when **SMTP is configured** by DM.HR. Check spam/junk if something is missing.
 
-| Event | Admin | Client |
+| Event | Admin / shared mailbox | Client |
 |--------|-------|--------|
 | Invite / temporary password / password reset | — | Yes |
-| Admin opens a case | Confirmation to the admin who opened it | Yes — “case opened” |
-| Client submits a case | Yes — “case submitted” | Confirmation to the client who submitted it |
-| Case status / update / client reply | As applicable | As applicable |
+| Admin opens a case | Confirmation to opener; **shared mailbox (case@)** CC’d on client alert | Yes — “case opened” |
+| Client submits a case | Yes — “case submitted” (+ shared mailbox e.g. case@dmhrgroup.com) | Confirmation to the client who submitted it |
+| Client updates / replies on a case | Yes (+ shared cases mailbox) | — |
+| Admin updates case details | Shared mailbox CC | Yes — details updated |
+| Admin case status / client-visible update | Shared mailbox CC | Yes |
+| Case status / update / client reply | As applicable (+ mailbox on activity) | As applicable |
 | Document available / client upload | As applicable | As applicable |
 | E-sign ready / fully signed / revision | As applicable | As applicable |
 | Onboarding started / pack / complete | As applicable | Yes |

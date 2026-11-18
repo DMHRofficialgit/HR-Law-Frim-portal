@@ -141,6 +141,8 @@ router.patch("/cases/:id", async (req, res) => {
   const result = await updateCase({
     caseId: req.params.id,
     organisationId: clientOrgId(req),
+    actorUserId: req.auth!.id,
+    actorRole: "client",
     title: parsed.data.title,
     description: parsed.data.description,
     categoryId: parsed.data.categoryId,

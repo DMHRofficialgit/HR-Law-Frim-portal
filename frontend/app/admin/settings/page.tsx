@@ -46,6 +46,7 @@ function AdminSettingsPageInner() {
   const [smtpPassword, setSmtpPassword] = useState("");
   const [smtpFrom, setSmtpFrom] = useState("");
   const [smtpFromName, setSmtpFromName] = useState("DM.HR Group");
+  const [smtpCasesNotify, setSmtpCasesNotify] = useState("case@dmhrgroup.com");
   const [smtpHasPassword, setSmtpHasPassword] = useState(false);
   const [smtpTestTo, setSmtpTestTo] = useState("");
   const [profileName, setProfileName] = useState("");
@@ -112,6 +113,7 @@ function AdminSettingsPageInner() {
           username: string | null;
           fromAddress: string | null;
           fromDisplayName: string | null;
+          casesNotifyEmail: string | null;
           hasPassword: boolean;
         };
       }>("/admin/smtp-settings", { token });
@@ -123,6 +125,7 @@ function AdminSettingsPageInner() {
         setSmtpUser(s.username || "");
         setSmtpFrom(s.fromAddress || "");
         setSmtpFromName(s.fromDisplayName || "DM.HR Group");
+        setSmtpCasesNotify(s.casesNotifyEmail || "case@dmhrgroup.com");
         setSmtpHasPassword(s.hasPassword);
       }
       if (stored) setSmtpTestTo(stored.email || "");
@@ -326,6 +329,7 @@ function AdminSettingsPageInner() {
                       username: smtpUser || null,
                       fromAddress: smtpFrom || null,
                       fromDisplayName: smtpFromName || null,
+                      casesNotifyEmail: smtpCasesNotify || null,
                       ...(smtpPassword ? { password: smtpPassword } : {}),
                     }),
                   });
@@ -424,6 +428,20 @@ function AdminSettingsPageInner() {
                     onChange={(e) => setSmtpFromName(e.target.value)}
                     placeholder="DM.HR Group"
                   />
+                </div>
+                <div className="field field-full">
+                  <label htmlFor="smtp-cases-notify">Cases notify mailbox</label>
+                  <input
+                    id="smtp-cases-notify"
+                    type="email"
+                    value={smtpCasesNotify}
+                    onChange={(e) => setSmtpCasesNotify(e.target.value)}
+                    placeholder="case@dmhrgroup.com"
+                  />
+                  <p className="lead" style={{ margin: "6px 0 0", fontSize: 12.5 }}>
+                    Always emailed when a client submits or updates a case (shared inbox — not
+                    per-client). Defaults to case@dmhrgroup.com.
+                  </p>
                 </div>
               </div>
 

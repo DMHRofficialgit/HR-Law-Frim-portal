@@ -425,6 +425,8 @@ model SmtpSettings {
   password       String?
   fromAddress    String?  @map("from_address")
   fromDisplayName String? @map("from_display_name")
+  /// Shared inbox for client→DM.HR case activity (e.g. case@dmhrgroup.com).
+  casesNotifyEmail String? @map("cases_notify_email")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("smtp_settings")

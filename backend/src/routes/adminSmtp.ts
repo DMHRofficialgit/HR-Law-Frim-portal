@@ -16,7 +16,11 @@ router.get("/smtp-settings", async (_req, res) => {
   const row = await prisma.smtpSettings.upsert({
     where: { id: "default" },
     update: {},
-    create: { id: "default", fromDisplayName: "DM.HR Group" },
+    create: {
+      id: "default",
+      fromDisplayName: "DM.HR Group",
+      casesNotifyEmail: "case@dmhrgroup.com",
+    },
   });
   return res.status(200).json({
     success: true,
@@ -32,6 +36,7 @@ const patchSchema = z.object({
   password: z.string().nullable().optional(),
   fromAddress: z.string().email().nullable().optional().or(z.literal("")),
   fromDisplayName: z.string().nullable().optional(),
+  casesNotifyEmail: z.string().email().nullable().optional().or(z.literal("")),
   clearPassword: z.boolean().optional(),
 });
 
@@ -51,7 +56,11 @@ router.patch("/smtp-settings", async (req, res) => {
   const existing = await prisma.smtpSettings.upsert({
     where: { id: "default" },
     update: {},
-    create: { id: "default", fromDisplayName: "DM.HR Group" },
+    create: {
+      id: "default",
+      fromDisplayName: "DM.HR Group",
+      casesNotifyEmail: "case@dmhrgroup.com",
+    },
   });
 
   const passwordUpdate =
@@ -68,6 +77,13 @@ router.patch("/smtp-settings", async (req, res) => {
         ? null
         : data.fromAddress;
 
+  const casesNotifyEmail =
+    data.casesNotifyEmail === undefined
+      ? undefined
+      : data.casesNotifyEmail === ""
+        ? null
+        : data.casesNotifyEmail;
+
   const row = await prisma.smtpSettings.update({
     where: { id: existing.id },
     data: {
@@ -79,6 +95,7 @@ router.patch("/smtp-settings", async (req, res) => {
       ...(data.fromDisplayName !== undefined
         ? { fromDisplayName: data.fromDisplayName || null }
         : {}),
+      ...(casesNotifyEmail !== undefined ? { casesNotifyEmail } : {}),
       ...passwordUpdate,
     },
   });
