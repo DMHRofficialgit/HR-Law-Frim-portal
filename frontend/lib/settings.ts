@@ -120,6 +120,12 @@ export const EMAIL_TEMPLATE_CATALOG: readonly EmailTemplateCatalogItem[] = [
     audience: "Admin",
     group: "Cases",
   },
+  {
+    key: "case_submitted_client_confirm",
+    name: "Case submitted — client confirmation",
+    audience: "Client",
+    group: "Cases",
+  },
   { key: "case_status_updated", name: "Case status updated", audience: "Client", group: "Cases" },
   { key: "case_update", name: "Case update", audience: "Client", group: "Cases" },
   { key: "case_client_reply", name: "Client replied on case", audience: "Admin", group: "Cases" },
