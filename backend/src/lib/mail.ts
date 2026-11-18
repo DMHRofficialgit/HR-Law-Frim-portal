@@ -113,6 +113,7 @@ export function publicSmtpSettings(row: {
   password: string | null;
   fromAddress: string | null;
   fromDisplayName: string | null;
+  casesNotifyEmail?: string | null;
   updatedAt: Date;
 }) {
   return {
@@ -122,6 +123,7 @@ export function publicSmtpSettings(row: {
     username: row.username,
     fromAddress: row.fromAddress,
     fromDisplayName: row.fromDisplayName,
+    casesNotifyEmail: row.casesNotifyEmail ?? "case@dmhrgroup.com",
     hasPassword: Boolean(row.password),
     updatedAt: row.updatedAt,
   };

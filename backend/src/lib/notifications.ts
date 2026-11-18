@@ -92,6 +92,15 @@ async function userIdsAllowingEmail(
   });
 }
 
+const DEFAULT_CASES_NOTIFY_EMAIL = "case@dmhrgroup.com";
+
+/** Shared DM.HR cases inbox (SMTP setting, else default case@…). */
+export async function getCasesNotifyEmails(): Promise<string[]> {
+  const row = await prisma.smtpSettings.findUnique({ where: { id: "default" } });
+  const raw = (row?.casesNotifyEmail || DEFAULT_CASES_NOTIFY_EMAIL).trim().toLowerCase();
+  return raw ? [raw] : [];
+}
+
 /** In-app notification + optional SMTP (never hard-code mailbox). */
 export async function notifyUsers(params: {
   userIds: string[];
@@ -104,9 +113,20 @@ export async function notifyUsers(params: {
   /** When set, subject/body come from Admin Email templates (+ tokens). */
   templateKey?: string;
   tokens?: EmailTemplateTokens;
+  /**
+   * Extra addresses always emailed (ignore user prefs / in-app).
+   * Used for shared inbox e.g. case@dmhrgroup.com.
+   */
+  extraEmails?: string[];
 }) {
   const unique = [...new Set(params.userIds.filter(Boolean))];
-  if (unique.length === 0) return;
+  const extraEmails = [
+    ...new Set(
+      (params.extraEmails || [])
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean)
+    ),
+  ];
 
   let title = params.title;
   let body = params.body;
@@ -122,30 +142,47 @@ export async function notifyUsers(params: {
     }
   }
 
-  await prisma.notification.createMany({
-    data: unique.map((userId) => ({
-      userId,
-      organisationId: params.organisationId || null,
-      title,
-      body,
-      href: params.href || null,
-    })),
-  });
+  if (unique.length > 0) {
+    await prisma.notification.createMany({
+      data: unique.map((userId) => ({
+        userId,
+        organisationId: params.organisationId || null,
+        title,
+        body,
+        href: params.href || null,
+      })),
+    });
+  }
 
-  const mailUserIds = params.emailGroup
-    ? await userIdsAllowingEmail(unique, params.emailGroup)
-    : unique;
+  const mailUserIds =
+    unique.length === 0
+      ? []
+      : params.emailGroup
+        ? await userIdsAllowingEmail(unique, params.emailGroup)
+        : unique;
 
-  if (mailUserIds.length === 0) {
-    console.info("[mail:skipped:prefs]", { title, group: params.emailGroup });
+  const users =
+    mailUserIds.length > 0
+      ? await prisma.user.findMany({
+          where: { id: { in: mailUserIds } },
+          select: { email: true },
+        })
+      : [];
+
+  const emails = [
+    ...new Set([
+      ...users.map((u) => u.email.trim().toLowerCase()).filter(Boolean),
+      ...extraEmails,
+    ]),
+  ];
+
+  if (emails.length === 0) {
+    if (unique.length > 0) {
+      console.info("[mail:skipped:prefs]", { title, group: params.emailGroup });
+    }
     return;
   }
 
-  const users = await prisma.user.findMany({
-    where: { id: { in: mailUserIds } },
-    select: { email: true },
-  });
-  const emails = users.map((u) => u.email);
   const link = params.href ? portalHrefLink(env.FRONTEND_URL, params.href) : "";
 
   const result = await sendMail({
@@ -155,9 +192,9 @@ export async function notifyUsers(params: {
   });
 
   if (result === "skipped") {
-    console.info("[mail:skipped:no-smtp]", { title, toUserIds: mailUserIds });
+    console.info("[mail:skipped:no-smtp]", { title, toCount: emails.length });
   } else if (result === "sent") {
-    console.info("[mail:sent]", { title, toCount: emails.length });
+    console.info("[mail:sent]", { title, toCount: emails.length, extra: extraEmails.length });
   }
 }
 
