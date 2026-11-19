@@ -25,6 +25,8 @@ export type OrgListRow = {
   phone: string | null;
   type: string | null;
   regulatoryContext?: string | null;
+  /** Comma-separated CC emails for alerts (no portal login). */
+  notifyEmails?: string | null;
   onboardingStatus: string;
   status: string;
   users: OrgClientUser[];
@@ -64,6 +66,8 @@ export type AddOrganisationPayload = {
   phone?: string;
   type?: string;
   regulatoryContext?: string;
+  /** Comma-separated CC emails (no login). */
+  notifyEmails?: string;
   clientName: string;
   clientEmail: string;
   authMode: "invite" | "temporary_password";

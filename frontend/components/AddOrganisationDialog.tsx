@@ -43,6 +43,7 @@ const emptyOrganisationForm = () => ({
   regulatoryOther: "",
   clientName: "",
   clientEmail: "",
+  notifyEmails: "",
   authMode: "invite" as "invite" | "temporary_password",
   temporaryPassword: "",
   onboardingStatus: "in_progress" as "in_progress" | "existing_skip",
@@ -110,6 +111,7 @@ export function AddOrganisationDialog({
           resolveOptionValue(form.regulatoryContext, form.regulatoryOther) || undefined,
         clientName: form.clientName,
         clientEmail: form.clientEmail,
+        notifyEmails: form.notifyEmails.trim() || undefined,
         authMode: form.authMode,
         temporaryPassword:
           form.authMode === "temporary_password" ? form.temporaryPassword : undefined,
@@ -324,6 +326,21 @@ export function AddOrganisationDialog({
                 onChange={(e) => setForm({ ...form, clientEmail: e.target.value })}
                 required
               />
+            </div>
+            <div className="field field-full">
+              <label htmlFor="add-notify-emails">Also notify (CC)</label>
+              <input
+                id="add-notify-emails"
+                type="text"
+                value={form.notifyEmails}
+                onChange={(e) => setForm({ ...form, notifyEmails: e.target.value })}
+                placeholder="director@…, manager@…"
+                autoComplete="off"
+              />
+              <p className="lead settings-hint">
+                Optional. Comma-separated. No portal login — case, document, and onboarding
+                updates only.
+              </p>
             </div>
 
             <ChoiceToggle

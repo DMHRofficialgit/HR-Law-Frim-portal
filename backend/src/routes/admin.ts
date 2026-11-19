@@ -10,6 +10,7 @@ import {
   type AccessMailStatus,
 } from "../lib/access-mail";
 import { ensureFoldersForOrganisation } from "../lib/folders";
+import { normalizeNotifyEmailsInput } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
 import { publicUser } from "../lib/tokens";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
@@ -183,6 +184,8 @@ const updateOrgSchema = z.object({
   phone: z.string().optional().nullable(),
   type: z.string().optional().nullable(),
   regulatoryContext: z.string().optional().nullable(),
+  /** Comma-separated CC emails (no login). Empty string clears. */
+  notifyEmails: z.string().optional().nullable(),
   status: z.enum(["active", "inactive"]).optional(),
 });
 
@@ -209,6 +212,18 @@ router.patch("/organisations/:id", async (req, res) => {
   }
 
   const data = parsed.data;
+  let notifyEmailsValue: string | null | undefined;
+  if (data.notifyEmails !== undefined) {
+    const normalized = normalizeNotifyEmailsInput(data.notifyEmails);
+    if (!normalized.ok) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: normalized.message },
+      });
+    }
+    notifyEmailsValue = normalized.value;
+  }
+
   const organisation = await prisma.organisation.update({
     where: { id: existing.id },
     data: {
@@ -221,6 +236,7 @@ router.patch("/organisations/:id", async (req, res) => {
       ...(data.regulatoryContext !== undefined
         ? { regulatoryContext: data.regulatoryContext || null }
         : {}),
+      ...(notifyEmailsValue !== undefined ? { notifyEmails: notifyEmailsValue } : {}),
       ...(data.status !== undefined ? { status: data.status } : {}),
     },
     include: {
@@ -253,6 +269,8 @@ const createOrgSchema = z.object({
   phone: z.string().optional(),
   type: z.string().optional(),
   regulatoryContext: z.string().optional(),
+  /** Comma-separated CC emails (no login). */
+  notifyEmails: z.string().optional(),
   onboardingStatus: z.nativeEnum(OnboardingStatus).default(OnboardingStatus.in_progress),
   clientName: z.string().min(1),
   clientEmail: z.string().email(),
@@ -274,6 +292,14 @@ router.post("/organisations", async (req, res) => {
 
   const data = parsed.data;
   const clientEmail = data.clientEmail.toLowerCase();
+
+  const notifyNormalized = normalizeNotifyEmailsInput(data.notifyEmails);
+  if (!notifyNormalized.ok) {
+    return res.status(400).json({
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: notifyNormalized.message },
+    });
+  }
 
   if (data.authMode === "temporary_password" && !data.temporaryPassword) {
     return res.status(400).json({
@@ -309,6 +335,7 @@ router.post("/organisations", async (req, res) => {
       phone: data.phone || null,
       type: data.type || null,
       regulatoryContext: data.regulatoryContext || null,
+      notifyEmails: notifyNormalized.value,
       onboardingStatus: data.onboardingStatus,
       users: {
         create: {

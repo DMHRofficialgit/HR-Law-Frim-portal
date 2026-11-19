@@ -107,6 +107,8 @@ model Organisation {
   type               String?
   /// e.g. CQC, Ofsted — optional regulatory context
   regulatoryContext  String?          @map("regulatory_context")
+  /// Comma-separated CC emails for client-facing alerts (no portal login).
+  notifyEmails       String?          @map("notify_emails") @db.Text
   onboardingStatus   OnboardingStatus @default(in_progress) @map("onboarding_status")
   status             String           @default("active")
   createdAt          DateTime         @default(now()) @map("created_at")

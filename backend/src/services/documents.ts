@@ -2,6 +2,7 @@ import path from "path";
 import {
   adminUserIds,
   clientUserIdsForOrg,
+  notifyOrgCcAlert,
   notifyUsers,
 } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
@@ -138,6 +139,10 @@ async function notifyPlainDocumentUpload(params: {
       emailGroup: "documents",
       templateKey: "document_new_client",
       tokens: { subject_line: subjectLine, detail: body, document_title: params.documentTitle },
+    });
+    await notifyOrgCcAlert({
+      organisationId: params.organisationId,
+      detail: `${subjectLine}.\n\n${body}`,
     });
     return;
   }
