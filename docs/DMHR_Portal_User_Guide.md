@@ -79,14 +79,15 @@
 **Steps — add a client**
 1. Go to **Organisations**
 2. Click **Add client** (or equivalent)
-3. Enter company details and save
-4. Open the organisation to manage documents, cases, and related records
+3. Enter company details and a unique **Client login email**
+4. Optionally add **Also notify (CC)** emails (comma-separated) — these get update emails but **cannot log in**
+5. Save, then open the organisation to manage documents, cases, and related records
 
 **[SS: A02-orgs-list]** — Organisations list  
 **[SS: A03-add-org]** — Add organisation form  
 **[SS: A04-org-detail]** — Organisation detail
 
-> **Tip:** Create the organisation first, then add users and employees for that client.
+> **Tip:** Create the organisation first, then add users and employees for that client. CC emails are notify-only; add a **User** if someone needs portal access. Client-facing alerts go to **active client users + org CC**.
 
 ---
 
@@ -336,9 +337,11 @@ Emails only send when **SMTP is configured** by DM.HR. Check spam/junk if someth
 | Case status / update / client reply | As applicable (+ mailbox on activity) | As applicable |
 | Document available / client upload | As applicable | As applicable |
 | E-sign ready / fully signed / revision | As applicable | As applicable |
-| Onboarding started / pack / complete | As applicable | Yes |
+| Onboarding started / pack / complete | As applicable | Yes (+ org CC) |
 
-You can turn email groups on or off under **Settings → Notifications** (in-app alerts continue).
+**Also notify (CC)** emails on the organisation get a short **alert-only** message (no portal or sign-in link). Login users still get the normal actionable email. CC addresses cannot log in.
+
+You can turn email groups on or off under **Settings → Notifications** (in-app alerts continue). Admin can edit the CC alert wording under **Settings → Email templates** (`cc_alert`).
 
 ---
 

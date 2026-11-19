@@ -135,5 +135,11 @@ export const EMAIL_TEMPLATE_CATALOG: readonly EmailTemplateCatalogItem[] = [
   { key: "esign_revision", name: "Signature revision requested", audience: "Assignees", group: "E-sign" },
   { key: "document_new_client", name: "Document available / updated", audience: "Client", group: "Documents" },
   { key: "document_new_admin", name: "Client document upload", audience: "Admin", group: "Documents" },
+  {
+    key: "cc_alert",
+    name: "Org CC alert (no login)",
+    audience: "Org CC",
+    group: "Org CC",
+  },
   { key: "smtp_test", name: "SMTP test email", audience: "Admin test", group: "Ops" },
 ] as const;

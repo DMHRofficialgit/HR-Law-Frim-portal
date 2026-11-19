@@ -201,6 +201,8 @@
 - **Documents folder upload (locked 2026-11-03):** Plain Documents (and firm-staging copy-to-client) call `notifyUsers` — Admin upload → active company users (`/portal/documents?folder=`); client upload → active Admins (`/admin/documents?org=&folder=`). Same in-app + SMTP-if-configured path. **Silent:** `isSignedCopy` publish (e-sign already notifies) and onboarding issue-pack (`silent: true`; one pack alert).
 - Case alerts intended for David’s ops mailbox preference: **`case@dmhrgroup.com`** (configured via SMTP Settings — not hard-coded).
 - **Cases shared mailbox CC (locked 2026-11-19):** All **client-visible** case activity emails also CC `casesNotifyEmail` (default `case@dmhrgroup.com`) via `notifyUsers({ extraEmails })` — admin open / edit / status / update **and** client submit / edit / reply. Actor confirm-only mails and Admin private notes do **not** CC the mailbox.
+- **Org CC notify emails (locked 2026-11-19):** Optional `Organisation.notifyEmails` (comma-separated). **No portal login** — notify-only. Admin Add/Edit org: separate “Also notify (CC)” field. Dave approved (WhatsApp 2026-11-19).
+- **Org CC alert template (locked 2026-11-19):** Login clients keep actionable templates (portal / sign links). Org CC get a **separate** `cc_alert` FYI email via `notifyOrgCcAlert` — **no** portal CTA. Applies to cases (admin→client), documents (admin→client), onboarding, client-facing e-sign. `case@` stays on the primary case mail (Phase 1). No per-send CC checkboxes.
 - **Internal / personal Admin notes:** Admin-only — never shown on client screens or in client emails.
 - **Notifications chrome (locked 2026-11-03):** Shared `NotificationsPanel` (Admin + Client) = activity feed (21st item-19 / activity-3 inspired). Icon tiles + kind pill inferred from `href`/title (no DB `type` yet). Compact Unread/All segment (no visible Show label; soft-blue active; unread count on Unread); unread blue dot; relative time; icon actions (`ArrowUpRight` View, `Check` Mark read); Mark all in panel head; max-height inner scroll. Shell bell badge unchanged. No Demo-as / prototype banners.
 
@@ -223,7 +225,8 @@
   Cases: `case_opened_client`, `case_opened_admin`, `case_status_updated`, `case_update`, `case_client_reply`.  
   E-sign: `esign_ready`, `esign_fully_signed`, `esign_reviewed`, `esign_revision`.  
   Documents: `document_new_client`, `document_new_admin`.  
-  Ops: `smtp_test` (optional). Tokens e.g. `{{recipient_name}}`, `{{org_name}}`, `{{invite_link}}`, `{{case_ref}}`, `{{document_title}}`, `{{portal_link}}`.
+  Org CC: `cc_alert` (FYI only — no portal link).  
+  Ops: `smtp_test` (optional). Tokens e.g. `{{recipient_name}}`, `{{org_name}}`, `{{invite_link}}`, `{{case_ref}}`, `{{document_title}}`, `{{portal_link}}`, `{{detail}}`.
 
 #### Settings backlog — polish (do when asked; suggested order)
 Locked 2026-11-03. Not blocking go-live; ship on request.
@@ -510,4 +513,7 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-06 | **Firm Library rename:** Onboarding pack templates use `DocsRenameDialog` + Pencil (same as Firm staging); PATCH title only — pack issue list stays checkbox-only. |
 | 2026-11-06 | **Overview D1–D3:** Admin + Client action dashboards — icon KPIs, cases attention, activity feed, onboarding progress bars, quick actions; no charts. |
 | 2026-11-06 | **Auth UI split:** `AuthShell` brand panel + form; password eye toggle; login / set-password / change-password; hero `/auth/dmhr-auth-hero.jpg`; no public register. |
+| 2026-11-19 | **Cases mailbox Phase 1:** client-visible case activity always CC `casesNotifyEmail` (case@). |
+| 2026-11-19 | **Org CC Phase 2:** `Organisation.notifyEmails`; Add/Edit “Also notify (CC)”; client-facing case/doc/onboarding/e-sign mail = login users + CC (no login for CC). |
+| 2026-11-19 | **Org CC alert emails:** `cc_alert` template + `notifyOrgCcAlert`; CC get FYI only (no portal link); login clients keep actionable mail. |
 

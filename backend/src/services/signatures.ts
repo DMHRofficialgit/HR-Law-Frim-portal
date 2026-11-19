@@ -4,7 +4,11 @@ import { SignatureFieldType, SignatureStatus, UserRole, UserStatus } from "@pris
 import { prisma } from "../lib/prisma";
 import { stampSignaturesOnPdf } from "../lib/pdfStamp";
 import { absoluteStoragePath, writeStoredFile } from "../lib/storage";
-import { adminUserIds, notifyUsers } from "../lib/notifications";
+import {
+  adminUserIds,
+  notifyOrgCcAlert,
+  notifyUsers,
+} from "../lib/notifications";
 import { uploadDocument } from "./documents";
 
 const FIELD_TYPES: SignatureFieldType[] = [
@@ -584,6 +588,11 @@ export async function sendForSignature(id: string) {
         detail: "is awaiting your signature.",
       },
     });
+    await notifyOrgCcAlert({
+      organisationId: existing.organisationId,
+      orgName: updated.organisation?.name,
+      detail: `A document is ready for signature.\n\n"${updated.title}"\n\nYour company's portal user should sign in to complete it.`,
+    });
   }
 
   try {
@@ -1047,6 +1056,11 @@ export async function reviewSignatureRequest(params: {
       templateKey: "esign_reviewed",
       tokens: { document_title: updated.title },
     });
+    await notifyOrgCcAlert({
+      organisationId: existing.organisationId,
+      orgName: updated.organisation?.name,
+      detail: `A signature request was marked complete.\n\n"${updated.title}"\n\nA signed copy is available in Documents for your portal user.`,
+    });
   }
 
   try {
@@ -1149,6 +1163,11 @@ export async function requestRevision(params: {
       emailGroup: "signatures",
       templateKey: "esign_revision",
       tokens: { document_title: updated.title, detail: body },
+    });
+    await notifyOrgCcAlert({
+      organisationId: existing.organisationId,
+      orgName: updated.organisation?.name,
+      detail: `A signature revision was requested.\n\n${body}\n\nYour company's portal user should sign in to complete it.`,
     });
   }
 

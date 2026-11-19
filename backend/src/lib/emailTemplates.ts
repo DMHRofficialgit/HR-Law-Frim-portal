@@ -264,6 +264,18 @@ DM.HR Group will review it shortly.
 {{portal_link}}`,
   },
   {
+    key: "cc_alert",
+    name: "Org CC alert (no login)",
+    audience: "Org CC",
+    groupName: "Org CC",
+    subject: "Update for {{org_name}}",
+    body: `{{detail}}
+
+This is a notification only. You do not have a portal login for this organisation. Please ask your company's portal user to review the update in the DM.HR portal.
+
+— DM.HR Group`,
+  },
+  {
     key: "smtp_test",
     name: "SMTP test email",
     audience: "Admin test",

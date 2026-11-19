@@ -6,6 +6,7 @@ import {
   adminUserIds,
   clientUserIdsForOrg,
   getCasesNotifyEmails,
+  notifyOrgCcAlert,
   notifyUsers,
 } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
@@ -230,6 +231,7 @@ export async function createCase(params: {
   if (byAdmin) {
     const clients = await clientUserIdsForOrg(params.organisationId);
     const casesMailbox = await getCasesNotifyEmails();
+    const orgName = full?.organisation?.name || org.name;
     await notifyUsers({
       userIds: clients,
       organisationId: params.organisationId,
@@ -240,6 +242,11 @@ export async function createCase(params: {
       templateKey: "case_opened_client",
       tokens: { case_ref: ref, case_title: params.title.trim() },
       extraEmails: casesMailbox,
+    });
+    await notifyOrgCcAlert({
+      organisationId: params.organisationId,
+      orgName,
+      detail: `A new employment case was opened.\n\nRef: ${ref}\nTitle: ${params.title.trim()}`,
     });
 
     const openedAt = new Date().toLocaleString("en-GB", {
@@ -443,6 +450,11 @@ export async function updateCase(params: {
       emailGroup: "cases",
       extraEmails: casesMailbox,
     });
+    await notifyOrgCcAlert({
+      organisationId: existing.organisationId,
+      orgName: existing.organisation?.name,
+      detail: `Case details were updated by DM.HR.\n\nRef: ${existing.ref}`,
+    });
   }
 
   return { case: updated };
@@ -488,6 +500,11 @@ export async function updateCaseStatus(params: {
     templateKey: "case_status_updated",
     tokens: { case_ref: existing.ref, status: statusLabel },
     extraEmails: casesMailbox,
+  });
+  await notifyOrgCcAlert({
+    organisationId: existing.organisationId,
+    orgName: existing.organisation?.name,
+    detail: `Case status was updated.\n\nRef: ${existing.ref}\nStatus: ${statusLabel}`,
   });
 
   return { case: updated };
@@ -560,6 +577,11 @@ export async function addCaseMessage(params: {
         templateKey: "case_update",
         tokens: { case_ref: existing.ref },
         extraEmails: casesMailbox,
+      });
+      await notifyOrgCcAlert({
+        organisationId: existing.organisationId,
+        orgName: existing.organisation?.name,
+        detail: `There is a new update from DM.HR on a case.\n\nRef: ${existing.ref}`,
       });
     } else {
       const admins = await adminUserIds();

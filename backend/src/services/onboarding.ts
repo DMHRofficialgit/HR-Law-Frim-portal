@@ -13,7 +13,11 @@ import {
 import { env } from "../config/env";
 import { ensureFoldersForOrganisation } from "../lib/folders";
 import { sendMail } from "../lib/mail";
-import { clientUserIdsForOrg, notifyUsers } from "../lib/notifications";
+import {
+  clientUserIdsForOrg,
+  notifyOrgCcAlert,
+  notifyUsers,
+} from "../lib/notifications";
 import { prisma } from "../lib/prisma";
 import { absoluteStoragePath } from "../lib/storage";
 import { deleteDocument, uploadDocument } from "./documents";
@@ -323,6 +327,11 @@ export async function sendWelcomeEmail(params: {
     emailGroup: "onboarding",
     templateKey: "onboarding_started",
     tokens: { org_name: run.organisation.name },
+  });
+  await notifyOrgCcAlert({
+    organisationId: run.organisationId,
+    orgName: run.organisation.name,
+    detail: `Onboarding has started for ${run.organisation.name}. Your company's portal user should open My Onboarding to continue.`,
   });
 
   return updated;
@@ -635,6 +644,11 @@ export async function issuePackFromLibrary(params: {
       templateKey: "onboarding_pack",
       tokens: { org_name: run.organisation.name, detail: packDetail },
     });
+    await notifyOrgCcAlert({
+      organisationId: run.organisationId,
+      orgName: run.organisation.name,
+      detail: `Onboarding documents are ready for ${run.organisation.name}.\n\n${packDetail}\n\nYour company's portal user should sign in to complete any signatures.`,
+    });
   }
 
   return refreshed;
@@ -809,6 +823,11 @@ export async function completeOnboarding(params: {
     emailGroup: "onboarding",
     templateKey: "onboarding_complete",
     tokens: { org_name: run.organisation.name },
+  });
+  await notifyOrgCcAlert({
+    organisationId: run.organisationId,
+    orgName: run.organisation.name,
+    detail: `Onboarding is complete for ${run.organisation.name}. They are now a full DM.HR client.`,
   });
 
   return getOnboardingRunById(run.id);

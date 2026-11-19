@@ -93,12 +93,130 @@ async function userIdsAllowingEmail(
 }
 
 const DEFAULT_CASES_NOTIFY_EMAIL = "case@dmhrgroup.com";
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_ORG_NOTIFY_EMAILS = 20;
 
 /** Shared DM.HR cases inbox (SMTP setting, else default case@…). */
 export async function getCasesNotifyEmails(): Promise<string[]> {
   const row = await prisma.smtpSettings.findUnique({ where: { id: "default" } });
   const raw = (row?.casesNotifyEmail || DEFAULT_CASES_NOTIFY_EMAIL).trim().toLowerCase();
   return raw ? [raw] : [];
+}
+
+/** Split / normalize a stored or form CC list (invalid tokens dropped). */
+export function parseNotifyEmails(raw: string | null | undefined): string[] {
+  if (!raw?.trim()) return [];
+  const parts = raw
+    .split(/[,;\n\r]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return [...new Set(parts.filter((e) => EMAIL_RE.test(e)))].slice(
+    0,
+    MAX_ORG_NOTIFY_EMAILS
+  );
+}
+
+/**
+ * Validate + normalize org CC input for create/update.
+ * Empty → null. Invalid address → error (do not save half-broken lists).
+ */
+export function normalizeNotifyEmailsInput(
+  raw: string | null | undefined
+): { ok: true; value: string | null } | { ok: false; message: string } {
+  if (raw === null || raw === undefined || !String(raw).trim()) {
+    return { ok: true, value: null };
+  }
+  const parts = String(raw)
+    .split(/[,;\n\r]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length > MAX_ORG_NOTIFY_EMAILS) {
+    return {
+      ok: false,
+      message: `At most ${MAX_ORG_NOTIFY_EMAILS} CC emails are allowed`,
+    };
+  }
+  const invalid = parts.find((p) => !EMAIL_RE.test(p.toLowerCase()));
+  if (invalid) {
+    return { ok: false, message: `Invalid CC email: ${invalid}` };
+  }
+  const unique = [...new Set(parts.map((p) => p.toLowerCase()))];
+  return { ok: true, value: unique.join(", ") };
+}
+
+/** Org-level CC emails (no login) for client-facing alerts. */
+export async function getOrgNotifyEmails(organisationId: string): Promise<string[]> {
+  const org = await prisma.organisation.findUnique({
+    where: { id: organisationId },
+    select: { notifyEmails: true },
+  });
+  return parseNotifyEmails(org?.notifyEmails);
+}
+
+export function mergeExtraEmails(...lists: (string[] | undefined)[]): string[] {
+  return [
+    ...new Set(
+      lists
+        .flatMap((l) => l || [])
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean)
+    ),
+  ];
+}
+
+/**
+ * FYI-only mail for org CC (no login). Uses `cc_alert` template — never appends a portal link.
+ * Does not create in-app notifications.
+ */
+export async function notifyOrgCcAlert(params: {
+  organisationId: string;
+  detail: string;
+  orgName?: string;
+  emails?: string[];
+}) {
+  const emails =
+    params.emails !== undefined
+      ? [
+          ...new Set(
+            params.emails.map((e) => e.trim().toLowerCase()).filter(Boolean)
+          ),
+        ]
+      : await getOrgNotifyEmails(params.organisationId);
+  if (emails.length === 0) return;
+
+  let orgName = params.orgName?.trim() || "";
+  if (!orgName) {
+    const org = await prisma.organisation.findUnique({
+      where: { id: params.organisationId },
+      select: { name: true },
+    });
+    orgName = org?.name || "your organisation";
+  }
+
+  const fallbackSubject = `Update for ${orgName}`;
+  const fallbackBody = `${params.detail}
+
+This is a notification only. You do not have a portal login for this organisation. Please ask your company's portal user to review the update in the DM.HR portal.
+
+— DM.HR Group`;
+
+  let subject = fallbackSubject;
+  let body = fallbackBody;
+  const rendered = await renderEmailTemplate("cc_alert", {
+    org_name: orgName,
+    detail: params.detail,
+  });
+  if (rendered) {
+    subject = rendered.subject;
+    body = rendered.body;
+  }
+
+  const result = await sendMail({ to: emails, subject, text: body });
+  if (result === "skipped") {
+    console.info("[mail:skipped:no-smtp]", { title: subject, toCount: emails.length, kind: "org_cc" });
+  } else if (result === "sent") {
+    console.info("[mail:sent]", { title: subject, toCount: emails.length, kind: "org_cc" });
+  }
 }
 
 /** In-app notification + optional SMTP (never hard-code mailbox). */

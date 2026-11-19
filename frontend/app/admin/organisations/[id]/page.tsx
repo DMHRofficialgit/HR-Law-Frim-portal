@@ -76,6 +76,7 @@ const hydrateOrgForm = (o: OrgDetail) => {
     typeOther: typeParts.other,
     regulatoryContext: regParts.preset,
     regulatoryOther: regParts.other,
+    notifyEmails: o.notifyEmails || "",
     status: o.status || "active",
   };
 };
@@ -110,6 +111,7 @@ const AdminOrganisationProfilePage = () => {
     typeOther: "",
     regulatoryContext: "",
     regulatoryOther: "",
+    notifyEmails: "",
     status: "active",
   });
 
@@ -219,6 +221,7 @@ const AdminOrganisationProfilePage = () => {
             type: resolveOptionValue(form.type, form.typeOther) || null,
             regulatoryContext:
               resolveOptionValue(form.regulatoryContext, form.regulatoryOther) || null,
+            notifyEmails: form.notifyEmails.trim() || null,
             status: form.status,
           }),
         }
@@ -605,6 +608,10 @@ const AdminOrganisationProfilePage = () => {
                           {primary ? `${primary.name} · ${primary.email}` : "—"}
                         </span>
                       </div>
+                      <div className="profile-meta-item" title="Also notify (CC)">
+                        <Users size={14} strokeWidth={1.75} aria-hidden />
+                        <span>{org.notifyEmails?.trim() || "—"}</span>
+                      </div>
                     </div>
                   </div>
                   <IconButton
@@ -727,6 +734,20 @@ const AdminOrganisationProfilePage = () => {
                       />
                     </div>
                   ) : null}
+                  <div className="field field-full">
+                    <label htmlFor="editNotifyEmails">Also notify (CC)</label>
+                    <input
+                      id="editNotifyEmails"
+                      type="text"
+                      value={form.notifyEmails}
+                      onChange={(e) => setForm({ ...form, notifyEmails: e.target.value })}
+                      placeholder="director@…, manager@…"
+                      autoComplete="off"
+                    />
+                    <p className="lead settings-hint">
+                      Optional. Comma-separated. No portal login — updates only.
+                    </p>
+                  </div>
                   <StatusLiquidToggle
                     name="edit-status"
                     label="Status"
