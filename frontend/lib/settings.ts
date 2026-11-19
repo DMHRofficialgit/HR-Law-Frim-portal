@@ -44,7 +44,7 @@ export type EmailTemplateCatalogItem = {
   key: string;
   name: string;
   audience: string;
-  group: "Access" | "Onboarding" | "Cases" | "E-sign" | "Documents" | "Ops";
+  group: "Access" | "Onboarding" | "Cases" | "E-sign" | "Documents" | "Org CC" | "Ops";
 };
 
 export type ClientSettingsTab = "account" | "notifications";
