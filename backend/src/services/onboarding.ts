@@ -151,8 +151,8 @@ export async function defaultWelcomeEmail(org: {
   });
   if (rendered) return rendered;
   return {
-    subject: "Welcome to DM.HR Group | Your Client Onboarding",
-    body: `Hello ${first},\n\nWelcome to DM.HR Group. We look forward to supporting ${org.name}.\n\nPortal: ${env.FRONTEND_URL}/portal/onboarding\n\nKind regards,\nDM.HR Group`,
+    subject: "Welcome to DMHR Group | Your Client Onboarding",
+    body: `Hello ${first},\n\nWelcome to DMHR Group. We look forward to supporting ${org.name}.\n\nPortal: ${env.FRONTEND_URL}/portal/onboarding\n\nKind regards,\nDMHR Group`,
   };
 }
 
@@ -322,7 +322,7 @@ export async function sendWelcomeEmail(params: {
     userIds,
     organisationId: run.organisationId,
     title: "Welcome — onboarding started",
-    body: `Your onboarding with DM.HR Group has started. Open My Onboarding to continue.`,
+    body: `Your onboarding with DMHR Group has started. Open My Onboarding to continue.`,
     href: `/portal/onboarding`,
     emailGroup: "onboarding",
     templateKey: "onboarding_started",
@@ -549,7 +549,7 @@ export async function issuePackFromLibrary(params: {
             id: request.id,
             organisationId: run.organisationId,
             signedById: issuer.id,
-            typedName: issuer.name || "DM.HR Admin",
+            typedName: issuer.name || "DMHR Admin",
             ip: null,
             fieldImages,
             fieldTexts,
@@ -818,7 +818,7 @@ export async function completeOnboarding(params: {
     userIds,
     organisationId: run.organisationId,
     title: "Onboarding complete",
-    body: `${run.organisation.name} is now a full DM.HR client. Thank you.`,
+    body: `${run.organisation.name} is now a full DMHR client. Thank you.`,
     href: `/portal/onboarding`,
     emailGroup: "onboarding",
     templateKey: "onboarding_complete",
@@ -827,7 +827,7 @@ export async function completeOnboarding(params: {
   await notifyOrgCcAlert({
     organisationId: run.organisationId,
     orgName: run.organisation.name,
-    detail: `Onboarding is complete for ${run.organisation.name}. They are now a full DM.HR client.`,
+    detail: `Onboarding is complete for ${run.organisation.name}. They are now a full DMHR client.`,
   });
 
   return getOnboardingRunById(run.id);

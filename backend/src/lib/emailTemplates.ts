@@ -1,3 +1,4 @@
+import { sanitizeDmHrForEmail } from "./brandEmail";
 import { prisma } from "./prisma";
 
 export type EmailTemplateTokens = Record<string, string | null | undefined>;
@@ -18,29 +19,29 @@ export const EMAIL_TEMPLATE_DEFAULTS: readonly EmailTemplateDefault[] = [
     name: "Invite — set password",
     audience: "Client / user",
     groupName: "Access",
-    subject: "Set your DM.HR Group portal password{{org_bit}}",
+    subject: "Set your DMHR Group portal password{{org_bit}}",
     body: `Hi {{recipient_name}},
 
-Your DM.HR Group client portal account is ready{{org_bit}}.
+Your DMHR Group client portal account is ready{{org_bit}}.
 
 Use this secure link to set your password:
 {{invite_link}}
 
-If the link expires, ask your DM.HR adviser to resend the invite.
+If the link expires, ask your DMHR adviser to resend the invite.
 
 Login page: {{login_url}}
 
-— DM.HR Group`,
+— DMHR Group`,
   },
   {
     key: "temp_password",
     name: "Temporary password",
     audience: "Client / user",
     groupName: "Access",
-    subject: "Your DM.HR Group portal temporary password{{org_bit}}",
+    subject: "Your DMHR Group portal temporary password{{org_bit}}",
     body: `Hi {{recipient_name}},
 
-Your DM.HR Group client portal account is ready{{org_bit}}.
+Your DMHR Group client portal account is ready{{org_bit}}.
 
 Sign in with:
 Email: {{email}}
@@ -49,43 +50,43 @@ Temporary password: {{temporary_password}}
 You will be asked to change this password on first login.
 Login page: {{login_url}}
 
-— DM.HR Group`,
+— DMHR Group`,
   },
   {
     key: "password_reset",
     name: "Password reset",
     audience: "Client / user",
     groupName: "Access",
-    subject: "Reset your DM.HR Group portal password{{org_bit}}",
+    subject: "Reset your DMHR Group portal password{{org_bit}}",
     body: `Hi {{recipient_name}},
 
-A password reset was requested for your DM.HR Group portal account{{org_bit}}.
+A password reset was requested for your DMHR Group portal account{{org_bit}}.
 
 Use this secure link to choose a new password:
 {{invite_link}}
 
-If you did not ask for this, contact your DM.HR adviser.
+If you did not ask for this, contact your DMHR adviser.
 
 Login page: {{login_url}}
 
-— DM.HR Group`,
+— DMHR Group`,
   },
   {
     key: "welcome_default",
     name: "Welcome email (default)",
     audience: "Client",
     groupName: "Onboarding",
-    subject: "Welcome to DM.HR Group | Your Client Onboarding",
+    subject: "Welcome to DMHR Group | Your Client Onboarding",
     body: `Hello {{recipient_name}},
 
-Welcome to DM.HR Group. We look forward to supporting {{org_name}}.
+Welcome to DMHR Group. We look forward to supporting {{org_name}}.
 
 Please sign in to the client portal to review your onboarding checklist in My Onboarding, complete any documents that require your signature, and follow the payment links when they are provided.
 
 Portal: {{portal_link}}
 
 Kind regards,
-DM.HR Group`,
+DMHR Group`,
   },
   {
     key: "onboarding_started",
@@ -93,7 +94,7 @@ DM.HR Group`,
     audience: "Client",
     groupName: "Onboarding",
     subject: "Welcome — onboarding started",
-    body: `Your onboarding with DM.HR Group has started. Open My Onboarding to continue.
+    body: `Your onboarding with DMHR Group has started. Open My Onboarding to continue.
 
 {{portal_link}}`,
   },
@@ -113,7 +114,7 @@ DM.HR Group`,
     audience: "Client",
     groupName: "Onboarding",
     subject: "Onboarding complete",
-    body: `{{org_name}} is now a full DM.HR client. Thank you.
+    body: `{{org_name}} is now a full DMHR client. Thank you.
 
 {{portal_link}}`,
   },
@@ -169,7 +170,7 @@ Employee: {{employee_name}}
 Submitted by: {{submitted_by_name}}
 Submitted at: {{submitted_at}}
 
-DM.HR Group will review it shortly.
+DMHR Group will review it shortly.
 
 {{portal_link}}`,
   },
@@ -271,24 +272,24 @@ DM.HR Group will review it shortly.
     subject: "Update for {{org_name}}",
     body: `{{detail}}
 
-This is a notification only. You do not have a portal login for this organisation. Please ask your company's portal user to review the update in the DM.HR portal.
+This is a notification only. You do not have a portal login for this organisation. Please ask your company's portal user to review the update in the DMHR portal.
 
-— DM.HR Group`,
+— DMHR Group`,
   },
   {
     key: "smtp_test",
     name: "SMTP test email",
     audience: "Admin test",
     groupName: "Ops",
-    subject: "DM.HR Portal — SMTP test email",
-    body: `This is a product test email from the DM.HR Group client portal.
+    subject: "DMHR Portal — SMTP test email",
+    body: `This is a product test email from the DMHR Group client portal.
 
 If you received this, SMTP is working and invite / notify emails can use these settings.
 
 Test source: {{detail}}
 Sent at: {{sent_at}}
 
-— DM.HR Group portal`,
+— DMHR Group portal`,
   },
 ] as const;
 
@@ -319,6 +320,42 @@ export async function ensureEmailTemplatesSeeded(): Promise<void> {
       update: {},
     });
   }
+
+  // Phase 1: rewrite stored templates that still contain auto-linkable "DM.HR"
+  const rows = await prisma.emailTemplate.findMany({
+    select: { id: true, key: true, subject: true, body: true },
+  });
+  for (const row of rows) {
+    if (!row.subject.includes("DM.HR") && !row.body.includes("DM.HR")) continue;
+    const fallback = EMAIL_TEMPLATE_DEFAULTS.find((d) => d.key === row.key);
+    await prisma.emailTemplate.update({
+      where: { id: row.id },
+      data: {
+        subject: fallback?.subject ?? sanitizeDmHrForEmail(row.subject),
+        body: fallback?.body ?? sanitizeDmHrForEmail(row.body),
+      },
+    });
+  }
+
+  // Cached welcome emails on active runs (resent as-is if Admin doesn't edit)
+  const runs = await prisma.onboardingRun.findMany({
+    where: {
+      OR: [
+        { welcomeEmailSubject: { contains: "DM.HR" } },
+        { welcomeEmailBody: { contains: "DM.HR" } },
+      ],
+    },
+    select: { id: true, welcomeEmailSubject: true, welcomeEmailBody: true },
+  });
+  for (const run of runs) {
+    await prisma.onboardingRun.update({
+      where: { id: run.id },
+      data: {
+        welcomeEmailSubject: sanitizeDmHrForEmail(run.welcomeEmailSubject || ""),
+        welcomeEmailBody: sanitizeDmHrForEmail(run.welcomeEmailBody || ""),
+      },
+    });
+  }
 }
 
 export async function listEmailTemplates() {
@@ -341,8 +378,10 @@ export async function renderEmailTemplate(
   const bodySrc = row?.active !== false && row ? row.body : fallback?.body;
   if (!subjectSrc || !bodySrc) return null;
   return {
-    subject: applyEmailTokens(subjectSrc, tokens).trim() || fallback?.subject || key,
-    body: applyEmailTokens(bodySrc, tokens).trim(),
+    subject: sanitizeDmHrForEmail(
+      applyEmailTokens(subjectSrc, tokens).trim() || fallback?.subject || key
+    ),
+    body: sanitizeDmHrForEmail(applyEmailTokens(bodySrc, tokens).trim()),
   };
 }
 
@@ -401,7 +440,7 @@ export const SAMPLE_EMAIL_TOKENS: EmailTemplateTokens = {
   case_ref: "CASE-2026-0001",
   case_title: "Grievance — sample matter",
   employee_name: "Alex Morgan",
-  opened_by_name: "DM.HR Admin",
+  opened_by_name: "DMHR Admin",
   opened_at: "16 Nov 2026, 14:30 GMT",
   submitted_by_name: "Alex Client",
   submitted_at: "16 Nov 2026, 14:35 GMT",

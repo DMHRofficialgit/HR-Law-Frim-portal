@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { sanitizeDmHrForEmail } from "./brandEmail";
 import { prisma } from "./prisma";
 
 export type MailPayload = {
@@ -76,15 +77,18 @@ export async function sendMailWithConfig(
 
     await transporter.verify();
 
-    const from = config.fromDisplayName
-      ? `"${config.fromDisplayName}" <${config.fromAddress.trim()}>`
+    const displayName = config.fromDisplayName
+      ? sanitizeDmHrForEmail(config.fromDisplayName.trim())
+      : "";
+    const from = displayName
+      ? `"${displayName}" <${config.fromAddress.trim()}>`
       : config.fromAddress.trim();
 
     await transporter.sendMail({
       from,
       to: recipients.join(", "),
-      subject: payload.subject,
-      text: payload.text,
+      subject: sanitizeDmHrForEmail(payload.subject),
+      text: sanitizeDmHrForEmail(payload.text),
     });
     return { status: "sent" };
   } catch (err) {
