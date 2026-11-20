@@ -73,6 +73,11 @@
 - **Invite-only** — no public sign-up, no OAuth / social login.
 - Hero asset: `frontend/public/auth/dmhr-auth-hero.jpg` (replaceable with a stronger dmhrgroup.com photo later). Mobile: form card + compact logo; brand photo panel hidden.
 
+### Email brand spelling (locked 2026-11-20 — incident)
+- **Never** put bare **`DM.HR`** in outbound email subject/body (or SMTP From display). Mail clients + Proofpoint treat `.hr` as Croatia’s TLD → fake `http://DM.HR` links (“foreign website”).
+- Outbound copy uses **`DMHR` / `DMHR Group`**. `sanitizeDmHrForEmail` runs on send + template render; boot migrates stored `email_templates` and cached onboarding welcome fields.
+- After deploy: **Resend invite** for affected clients. Optional later: HTML mail with “Set password” link text.
+
 ### Password / invite flow
 - Support **both**: email invite link to set password, **and** DM.HR temporary passwords.
 - **Auto email (locked 2026-11-01):** On create client / create user / resend invite, send credentials via **SMTP Settings** when configured (`sent` / `skipped` / `failed`). Always also surface a **copyable invite link or temp password** panel for Admin (session banner on org profile after create). SMTP mailbox is dynamic — test with any provider (e.g. Gmail), later swap to client mailbox in Settings.
@@ -513,6 +518,7 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-06 | **Firm Library rename:** Onboarding pack templates use `DocsRenameDialog` + Pencil (same as Firm staging); PATCH title only — pack issue list stays checkbox-only. |
 | 2026-11-06 | **Overview D1–D3:** Admin + Client action dashboards — icon KPIs, cases attention, activity feed, onboarding progress bars, quick actions; no charts. |
 | 2026-11-06 | **Auth UI split:** `AuthShell` brand panel + form; password eye toggle; login / set-password / change-password; hero `/auth/dmhr-auth-hero.jpg`; no public register. |
+| 2026-11-20 | **Email DM.HR autolink fix (Phase 1):** Outbound copy uses DMHR/DMHR Group; `sanitizeDmHrForEmail` on send/render; boot migrates `email_templates` + cached welcome fields. |
 | 2026-11-19 | **Cases mailbox Phase 1:** client-visible case activity always CC `casesNotifyEmail` (case@). |
 | 2026-11-19 | **Org CC Phase 2:** `Organisation.notifyEmails`; Add/Edit “Also notify (CC)”; client-facing case/doc/onboarding/e-sign mail = login users + CC (no login for CC). |
 | 2026-11-19 | **Org CC alert emails:** `cc_alert` template + `notifyOrgCcAlert`; CC get FYI only (no portal link); login clients keep actionable mail. |

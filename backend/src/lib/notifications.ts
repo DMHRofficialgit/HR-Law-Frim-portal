@@ -96,7 +96,7 @@ const DEFAULT_CASES_NOTIFY_EMAIL = "case@dmhrgroup.com";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_ORG_NOTIFY_EMAILS = 20;
 
-/** Shared DM.HR cases inbox (SMTP setting, else default case@…). */
+/** Shared DMHR cases inbox (SMTP setting, else default case@…). */
 export async function getCasesNotifyEmails(): Promise<string[]> {
   const row = await prisma.smtpSettings.findUnique({ where: { id: "default" } });
   const raw = (row?.casesNotifyEmail || DEFAULT_CASES_NOTIFY_EMAIL).trim().toLowerCase();
@@ -196,9 +196,9 @@ export async function notifyOrgCcAlert(params: {
   const fallbackSubject = `Update for ${orgName}`;
   const fallbackBody = `${params.detail}
 
-This is a notification only. You do not have a portal login for this organisation. Please ask your company's portal user to review the update in the DM.HR portal.
+This is a notification only. You do not have a portal login for this organisation. Please ask your company's portal user to review the update in the DMHR portal.
 
-— DM.HR Group`;
+— DMHR Group`;
 
   let subject = fallbackSubject;
   let body = fallbackBody;

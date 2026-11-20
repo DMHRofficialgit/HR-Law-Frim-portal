@@ -18,7 +18,7 @@ router.get("/smtp-settings", async (_req, res) => {
     update: {},
     create: {
       id: "default",
-      fromDisplayName: "DM.HR Group",
+      fromDisplayName: "DMHR Group",
       casesNotifyEmail: "case@dmhrgroup.com",
     },
   });
@@ -58,7 +58,7 @@ router.patch("/smtp-settings", async (req, res) => {
     update: {},
     create: {
       id: "default",
-      fromDisplayName: "DM.HR Group",
+      fromDisplayName: "DMHR Group",
       casesNotifyEmail: "case@dmhrgroup.com",
     },
   });
@@ -147,7 +147,7 @@ router.post("/smtp-settings/test", async (req, res) => {
       username: (data.username || "").trim(),
       password,
       fromAddress: (data.fromAddress || "").trim(),
-      fromDisplayName: data.fromDisplayName || "DM.HR Group",
+      fromDisplayName: data.fromDisplayName || "DMHR Group",
     };
   } else {
     config = stored;
@@ -173,16 +173,16 @@ router.post("/smtp-settings/test", async (req, res) => {
   });
   const result = await sendMailWithConfig(config, {
     to: [to],
-    subject: rendered?.subject || "DM.HR Portal — SMTP test email",
+    subject: rendered?.subject || "DMHR Portal — SMTP test email",
     text:
       rendered?.body ||
       [
-        "This is a product test email from the DM.HR Group client portal.",
+        "This is a product test email from the DMHR Group client portal.",
         "",
         `Test source: ${testDetail}`,
         `Sent at: ${new Date().toISOString()}`,
         "",
-        "— DM.HR Group portal",
+        "— DMHR Group portal",
       ].join("\n"),
   });
 

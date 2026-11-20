@@ -179,7 +179,7 @@ export async function createCase(params: {
 
   const byAdmin = params.createdByRole === "admin";
   const openBody = byAdmin
-    ? "Case opened by DM.HR Group."
+    ? "Case opened by DMHR Group."
     : "Case submitted.";
 
   const ref = await nextCaseRef();
@@ -445,7 +445,7 @@ export async function updateCase(params: {
       userIds: clients,
       organisationId: existing.organisationId,
       title: "Case details updated",
-      body: `${existing.ref}: DM.HR updated case details`,
+      body: `${existing.ref}: DMHR updated case details`,
       href: `/portal/cases/${existing.id}`,
       emailGroup: "cases",
       extraEmails: casesMailbox,
@@ -453,7 +453,7 @@ export async function updateCase(params: {
     await notifyOrgCcAlert({
       organisationId: existing.organisationId,
       orgName: existing.organisation?.name,
-      detail: `Case details were updated by DM.HR.\n\nRef: ${existing.ref}`,
+      detail: `Case details were updated by DMHR.\n\nRef: ${existing.ref}`,
     });
   }
 
@@ -581,7 +581,7 @@ export async function addCaseMessage(params: {
       await notifyOrgCcAlert({
         organisationId: existing.organisationId,
         orgName: existing.organisation?.name,
-        detail: `There is a new update from DM.HR on a case.\n\nRef: ${existing.ref}`,
+        detail: `There is a new update from DMHR on a case.\n\nRef: ${existing.ref}`,
       });
     } else {
       const admins = await adminUserIds();
