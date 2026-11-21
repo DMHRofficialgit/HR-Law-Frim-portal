@@ -36,9 +36,16 @@ const caseInclude = {
   },
 };
 
-export async function listCases(organisationId?: string) {
+export async function listCases(
+  organisationId?: string,
+  options?: { archived?: boolean }
+) {
+  const showArchived = options?.archived === true;
   return prisma.case.findMany({
-    where: organisationId ? { organisationId } : undefined,
+    where: {
+      archivedAt: showArchived ? { not: null } : null,
+      ...(organisationId ? { organisationId } : {}),
+    },
     orderBy: { updatedAt: "desc" },
     include: {
       category: true,
@@ -663,8 +670,28 @@ export type BulkCaseResult = {
   failed: Array<{ id: string; message: string; code?: string }>;
 };
 
+export async function archiveCase(caseId: string) {
+  const existing = await prisma.case.findUnique({ where: { id: caseId } });
+  if (!existing) return null;
+  if (existing.archivedAt) return existing;
+  return prisma.case.update({
+    where: { id: caseId },
+    data: { archivedAt: new Date() },
+  });
+}
+
+export async function restoreCase(caseId: string) {
+  const existing = await prisma.case.findUnique({ where: { id: caseId } });
+  if (!existing) return null;
+  if (!existing.archivedAt) return existing;
+  return prisma.case.update({
+    where: { id: caseId },
+    data: { archivedAt: null },
+  });
+}
+
 export async function bulkCases(params: {
-  action: "close" | "delete";
+  action: "close" | "archive" | "restore";
   ids: string[];
   actorUserId: string;
 }): Promise<BulkCaseResult> {
@@ -694,46 +721,55 @@ export async function bulkCases(params: {
   let skipped = 0;
   const failed: BulkCaseResult["failed"] = [];
 
-  for (const id of ids) {
-    if (params.action === "close") {
-      const existing = await getCase(id);
-      if (!existing) {
-        failed.push({ id, message: "Case not found", code: "NOT_FOUND" });
-        continue;
-      }
-      if (existing.status === CaseStatus.closed) {
-        skipped += 1;
-        continue;
-      }
-      const result = await updateCaseStatus({
-        caseId: id,
-        status: CaseStatus.closed,
-        actorUserId: params.actorUserId,
-      });
-      if (result.error) {
-        failed.push({
-          id,
-          message: result.error.message,
-          code: result.error.code,
-        });
-        continue;
-      }
-      updated += 1;
-      continue;
-    }
+  if (params.action === "archive") {
+    const result = await prisma.case.updateMany({
+      where: { id: { in: ids }, archivedAt: null },
+      data: { archivedAt: new Date() },
+    });
+    return {
+      updated: result.count,
+      skipped: Math.max(0, ids.length - result.count),
+      failed: [],
+    };
+  }
 
+  if (params.action === "restore") {
+    const result = await prisma.case.updateMany({
+      where: { id: { in: ids }, archivedAt: { not: null } },
+      data: { archivedAt: null },
+    });
+    return {
+      updated: result.count,
+      skipped: Math.max(0, ids.length - result.count),
+      failed: [],
+    };
+  }
+
+  for (const id of ids) {
     const existing = await getCase(id);
     if (!existing) {
       failed.push({ id, message: "Case not found", code: "NOT_FOUND" });
       continue;
     }
-    if (existing.status !== CaseStatus.closed) {
+    if (existing.archivedAt) {
       skipped += 1;
       continue;
     }
-    const deleted = await deleteCase(id);
-    if (!deleted) {
-      failed.push({ id, message: "Case not found", code: "NOT_FOUND" });
+    if (existing.status === CaseStatus.closed) {
+      skipped += 1;
+      continue;
+    }
+    const result = await updateCaseStatus({
+      caseId: id,
+      status: CaseStatus.closed,
+      actorUserId: params.actorUserId,
+    });
+    if (result.error) {
+      failed.push({
+        id,
+        message: result.error.message,
+        code: result.error.code,
+      });
       continue;
     }
     updated += 1;

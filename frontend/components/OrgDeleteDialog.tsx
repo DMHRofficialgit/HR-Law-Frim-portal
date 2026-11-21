@@ -104,14 +104,15 @@ export const OrgDeleteDialog = ({
           <p id={descId} className="lead confirm-dialog-desc">
             {mode === "bulk" ? (
               <>
-                This permanently removes {titleName}, including client logins,
-                documents, cases, and signatures. This cannot be undone.
+                This permanently removes {titleName} now (before the 30-day
+                auto-purge), including client logins, documents, cases, and
+                signatures. This cannot be undone.
               </>
             ) : (
               <>
-                This permanently removes <strong>{titleName}</strong>, including
-                client logins, documents, cases, and signatures. Deactivate first
-                if it is still active. This cannot be undone.
+                This permanently removes <strong>{titleName}</strong> now
+                (before the 30-day auto-purge), including client logins,
+                documents, cases, and signatures. This cannot be undone.
               </>
             )}
           </p>

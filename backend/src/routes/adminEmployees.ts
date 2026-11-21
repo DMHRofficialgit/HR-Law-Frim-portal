@@ -4,11 +4,13 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
 import {
+  archiveEmployee,
   bulkEmployees,
   createEmployee,
   deleteEmployee,
   getEmployeeById,
   listEmployees,
+  restoreEmployee,
   updateEmployee,
 } from "../services/employees";
 
@@ -47,6 +49,7 @@ router.get("/employees", async (req, res) => {
   const status =
     typeof req.query.status === "string" && req.query.status ? req.query.status : undefined;
   const q = typeof req.query.q === "string" ? req.query.q : undefined;
+  const archived = String(req.query.archived || "") === "1";
 
   if (organisationId && !orgIdSchema.safeParse(organisationId).success) {
     return res.status(400).json({
@@ -61,8 +64,50 @@ router.get("/employees", async (req, res) => {
     });
   }
 
-  const employees = await listEmployees({ organisationId, status, q });
+  const employees = await listEmployees({ organisationId, status, q, archived });
   return res.status(200).json({ success: true, data: { employees } });
+});
+
+router.post("/employees/:id/archive", async (req, res) => {
+  if (!idSchema.safeParse(req.params.id).success) {
+    return res.status(400).json({
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "Invalid employee id" },
+    });
+  }
+  const employee = await archiveEmployee(req.params.id);
+  if (!employee) {
+    return res.status(404).json({
+      success: false,
+      error: { code: "NOT_FOUND", message: "Employee not found" },
+    });
+  }
+  return res.status(200).json({
+    success: true,
+    data: { employee },
+    message: "Employee archived — permanently removed after 30 days unless restored",
+  });
+});
+
+router.post("/employees/:id/restore", async (req, res) => {
+  if (!idSchema.safeParse(req.params.id).success) {
+    return res.status(400).json({
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "Invalid employee id" },
+    });
+  }
+  const employee = await restoreEmployee(req.params.id);
+  if (!employee) {
+    return res.status(404).json({
+      success: false,
+      error: { code: "NOT_FOUND", message: "Employee not found" },
+    });
+  }
+  return res.status(200).json({
+    success: true,
+    data: { employee },
+    message: "Employee restored",
+  });
 });
 
 router.get("/employees/:id", async (req, res) => {
@@ -308,7 +353,7 @@ router.delete("/employees/:id", async (req, res) => {
 });
 
 const bulkEmployeeSchema = z.object({
-  action: z.enum(["activate", "deactivate", "delete"]),
+  action: z.enum(["activate", "deactivate", "archive", "restore"]),
   ids: z.array(z.string().min(1)).min(1).max(50),
 });
 

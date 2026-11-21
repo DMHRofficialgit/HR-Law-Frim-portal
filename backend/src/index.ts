@@ -2,6 +2,7 @@ import { createApp } from "./app";
 import { env } from "./config/env";
 import { ensureSystemCaseCategories } from "./lib/caseCategories";
 import { ensureEmailTemplatesSeeded } from "./lib/emailTemplates";
+import { purgeExpiredArchives } from "./services/archive-purge";
 
 const app = createApp();
 
@@ -26,3 +27,19 @@ server.headersTimeout = 125_000;
 Promise.all([ensureSystemCaseCategories(), ensureEmailTemplatesSeeded()]).catch((err) => {
   console.error("Failed to ensure system seed data", err);
 });
+
+/** Daily soft-archive purge (orgs / employees / cases older than 30 days). */
+const DAY_MS = 24 * 60 * 60 * 1000;
+const runArchivePurge = () => {
+  purgeExpiredArchives()
+    .then((r) => {
+      const total =
+        r.organisations.purged + r.employees.purged + r.cases.purged;
+      if (total > 0) {
+        console.log("Archive purge:", JSON.stringify(r));
+      }
+    })
+    .catch((err) => console.error("Archive purge failed", err));
+};
+setTimeout(runArchivePurge, 60_000);
+setInterval(runArchivePurge, DAY_MS);

@@ -4,6 +4,8 @@ import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowLeft,
   Building2,
   Briefcase,
@@ -215,18 +217,19 @@ function AdminCaseDetailInner() {
     toastSuccess("File removed");
   }
 
-  async function onDelete() {
+  async function archiveCase() {
     if (!c) return;
     const ok = await confirm({
-      title: `Delete ${c.ref}?`,
-      description: "This cannot be undone.",
-      confirmLabel: "Delete case",
+      title: `Archive ${c.ref}?`,
+      description:
+        "Hidden from active lists. Restore within 30 days or it is permanently removed with its files.",
+      confirmLabel: "Archive",
       tone: "danger",
     });
     if (!ok) return;
     setBusy(true);
-    const result = await apiFetch<{ id: string }>(`/admin/cases/${c.id}`, {
-      method: "DELETE",
+    const result = await apiFetch<{ case: CaseRow }>(`/admin/cases/${c.id}/archive`, {
+      method: "POST",
       token: getToken(),
     });
     setBusy(false);
@@ -234,8 +237,24 @@ function AdminCaseDetailInner() {
       toastError(result.error.message);
       return;
     }
-    toastSuccess("Case deleted");
-    router.replace("/admin/cases");
+    toastSuccess("Case archived");
+    router.replace("/admin/cases?archived=1");
+  }
+
+  async function restoreCase() {
+    if (!c) return;
+    setBusy(true);
+    const result = await apiFetch<{ case: CaseRow }>(`/admin/cases/${c.id}/restore`, {
+      method: "POST",
+      token: getToken(),
+    });
+    setBusy(false);
+    if (!result.success) {
+      toastError(result.error.message);
+      return;
+    }
+    toastSuccess("Case restored");
+    setCase({ ...c, ...result.data.case });
   }
 
   if (!user) return null;
@@ -336,15 +355,28 @@ function AdminCaseDetailInner() {
                     disabled: !empId,
                     onSelect: () => router.push(`/admin/employees/${empId}`),
                   },
-                  {
-                    id: "delete",
-                    label: "Delete",
-                    icon: <Trash2 size={14} strokeWidth={1.75} />,
-                    tone: "danger",
-                    separatorBefore: true,
-                    disabled: busy,
-                    onSelect: () => onDelete(),
-                  },
+                  ...(c.archivedAt
+                    ? [
+                        {
+                          id: "restore",
+                          label: "Restore",
+                          icon: <ArchiveRestore size={14} strokeWidth={1.75} />,
+                          separatorBefore: true,
+                          disabled: busy,
+                          onSelect: () => void restoreCase(),
+                        },
+                      ]
+                    : [
+                        {
+                          id: "archive",
+                          label: "Archive",
+                          icon: <Archive size={14} strokeWidth={1.75} />,
+                          tone: "danger" as const,
+                          separatorBefore: true,
+                          disabled: busy,
+                          onSelect: () => void archiveCase(),
+                        },
+                      ]),
                 ]}
               />
             </div>

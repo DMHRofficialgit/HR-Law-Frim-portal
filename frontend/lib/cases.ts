@@ -56,6 +56,7 @@ export type CaseRow = {
   investigation?: string | null;
   outcome?: string | null;
   status: string;
+  archivedAt?: string | null;
   categoryId?: string;
   categoryOther?: string | null;
   employeeId?: string | null;

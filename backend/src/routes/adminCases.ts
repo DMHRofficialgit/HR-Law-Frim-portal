@@ -8,6 +8,7 @@ import { absoluteStoragePath } from "../lib/storage";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
 import {
   addCaseMessage,
+  archiveCase,
   bulkCases,
   createCase,
   deleteCase,
@@ -15,9 +16,11 @@ import {
   getCase,
   getCaseAttachment,
   listCases,
+  restoreCase,
   updateCase,
   updateCaseStatus,
 } from "../services/cases";
+import { purgeExpiredArchives } from "../services/archive-purge";
 
 const router = Router();
 router.use(requireAuth, requireAdmin, requirePasswordSettled);
@@ -90,8 +93,56 @@ router.get("/cases", async (req, res) => {
     typeof req.query.organisationId === "string" && req.query.organisationId.length > 0
       ? req.query.organisationId
       : undefined;
-  const cases = await listCases(organisationId);
+  const archived = String(req.query.archived || "") === "1";
+  const cases = await listCases(organisationId, { archived });
   return res.status(200).json({ success: true, data: { cases } });
+});
+
+router.post("/cases/:id/archive", async (req, res) => {
+  const c = await archiveCase(String(req.params.id));
+  if (!c) {
+    return res.status(404).json({
+      success: false,
+      error: { code: "NOT_FOUND", message: "Case not found" },
+    });
+  }
+  return res.status(200).json({
+    success: true,
+    data: { case: c },
+    message: "Case archived — permanently removed after 30 days unless restored",
+  });
+});
+
+router.post("/cases/:id/restore", async (req, res) => {
+  const c = await restoreCase(String(req.params.id));
+  if (!c) {
+    return res.status(404).json({
+      success: false,
+      error: { code: "NOT_FOUND", message: "Case not found" },
+    });
+  }
+  return res.status(200).json({
+    success: true,
+    data: { case: c },
+    message: "Case restored",
+  });
+});
+
+router.post("/maintenance/purge-archives", async (_req, res) => {
+  try {
+    const result = await purgeExpiredArchives();
+    return res.status(200).json({
+      success: true,
+      data: result,
+      message: "Archive purge completed",
+    });
+  } catch (err) {
+    const e = err as { message?: string };
+    return res.status(500).json({
+      success: false,
+      error: { code: "SERVER_ERROR", message: e.message || "Purge failed" },
+    });
+  }
 });
 
 router.post("/cases", (req, res) => {
@@ -252,7 +303,7 @@ router.patch("/cases/:id/status", async (req, res) => {
 });
 
 const bulkCaseSchema = z.object({
-  action: z.enum(["close", "delete"]),
+  action: z.enum(["close", "archive", "restore"]),
   ids: z.array(z.string().min(1)).min(1).max(50),
 });
 

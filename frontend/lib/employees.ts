@@ -25,6 +25,7 @@ export type EmployeeRow = {
   workEmail: string | null;
   notes: string | null;
   status: string;
+  archivedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
   organisation?: EmployeeOrg;

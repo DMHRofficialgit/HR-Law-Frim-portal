@@ -29,6 +29,7 @@ export type OrgListRow = {
   notifyEmails?: string | null;
   onboardingStatus: string;
   status: string;
+  archivedAt?: string | null;
   users: OrgClientUser[];
   openCaseCount?: number;
   employeeCount?: number;

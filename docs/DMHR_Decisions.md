@@ -528,6 +528,7 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-21 | **Uploads widen:** Documents + Firm Library + cases accept PDF/Word/images; e-sign remains PDF-only. |
 | 2026-11-21 | **Phase 2 WP5+WP6:** Bulk resend pending invites; case attachments PDF+Word+images. |
 | 2026-11-21 | **Phase 2 S2:** Org hard delete (inactive + typed confirm) + directory bulk activate/deactivate/delete. |
+| 2026-11-21 | **Archive + 30-day purge:** Orgs/Employees/Cases use `archivedAt` (not Users — keep Disable/Enable). Default lists exclude archived; Admin **Show archived** + Archive/Restore (bulk + ⋮ + hubs). Deactivate/close ≠ archive. Daily purge + `POST /admin/maintenance/purge-archives`; org archived view can **Delete now** (typed confirm). Employee purge skips linked cases. |
 | 2026-11-20 | **Phase 2 S1:** HTML access emails (CTA button) + template editor/API guard against `DM.HR`. |
 | 2026-11-19 | **Cases mailbox Phase 1:** client-visible case activity always CC `casesNotifyEmail` (case@). |
 | 2026-11-19 | **Org CC Phase 2:** `Organisation.notifyEmails`; Add/Edit “Also notify (CC)”; client-facing case/doc/onboarding/e-sign mail = login users + CC (no login for CC). |

@@ -14,10 +14,15 @@ import { normalizeNotifyEmailsInput } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
 import { publicUser } from "../lib/tokens";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
+import { archivedWhere } from "../lib/archive";
 import {
+  archiveOrganisation,
+  bulkArchiveOrganisations,
   bulkHardDeleteOrganisations,
+  bulkRestoreOrganisations,
   bulkSetOrganisationStatus,
   hardDeleteOrganisation,
+  restoreOrganisation,
 } from "../services/organisations";
 import { issueInviteForUser } from "./auth";
 
@@ -36,8 +41,10 @@ function serviceError(err: unknown, res: import("express").Response) {
   });
 }
 
-router.get("/organisations", async (_req, res) => {
+router.get("/organisations", async (req, res) => {
+  const showArchived = String(req.query.archived || "") === "1";
   const organisations = await prisma.organisation.findMany({
+    where: archivedWhere(showArchived),
     orderBy: { createdAt: "desc" },
     include: {
       users: {
@@ -206,9 +213,9 @@ const updateOrgSchema = z.object({
 });
 
 const bulkOrgSchema = z.object({
-  action: z.enum(["activate", "deactivate", "delete"]),
+  action: z.enum(["activate", "deactivate", "archive", "restore", "delete"]),
   ids: z.array(z.string().min(1)).min(1).max(100),
-  /** Required for action=delete — must be exactly DELETE */
+  /** Required for action=delete (purge archived) — must be exactly DELETE */
   confirmPhrase: z.string().optional(),
 });
 
@@ -239,6 +246,24 @@ router.post("/organisations/bulk", async (req, res) => {
       });
     }
 
+    if (action === "archive") {
+      const result = await bulkArchiveOrganisations(ids);
+      return res.status(200).json({
+        success: true,
+        data: result,
+        message: `Archived ${result.updated} organisation(s)`,
+      });
+    }
+
+    if (action === "restore") {
+      const result = await bulkRestoreOrganisations(ids);
+      return res.status(200).json({
+        success: true,
+        data: result,
+        message: `Restored ${result.updated} organisation(s)`,
+      });
+    }
+
     const result = await bulkHardDeleteOrganisations({
       ids,
       confirmPhrase: confirmPhrase || "",
@@ -252,6 +277,32 @@ router.post("/organisations/bulk", async (req, res) => {
         failedCount === 0
           ? `Permanently deleted ${deletedCount} organisation(s)`
           : `Deleted ${deletedCount}; ${failedCount} could not be deleted`,
+    });
+  } catch (err) {
+    return serviceError(err, res);
+  }
+});
+
+router.post("/organisations/:id/archive", async (req, res) => {
+  try {
+    const organisation = await archiveOrganisation(String(req.params.id));
+    return res.status(200).json({
+      success: true,
+      data: { organisation },
+      message: "Organisation archived — permanently removed after 30 days unless restored",
+    });
+  } catch (err) {
+    return serviceError(err, res);
+  }
+});
+
+router.post("/organisations/:id/restore", async (req, res) => {
+  try {
+    const organisation = await restoreOrganisation(String(req.params.id));
+    return res.status(200).json({
+      success: true,
+      data: { organisation },
+      message: "Organisation restored",
     });
   } catch (err) {
     return serviceError(err, res);
@@ -278,7 +329,7 @@ router.delete("/organisations/:id", async (req, res) => {
     const result = await hardDeleteOrganisation({
       organisationId: String(req.params.id),
       confirmName: parsed.data.confirmName,
-      requireInactive: true,
+      requireArchivedOrInactive: true,
     });
     return res.status(200).json({
       success: true,

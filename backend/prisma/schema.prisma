@@ -111,6 +111,8 @@ model Organisation {
   notifyEmails       String?          @map("notify_emails") @db.Text
   onboardingStatus   OnboardingStatus @default(in_progress) @map("onboarding_status")
   status             String           @default("active")
+  /// Soft-archive (Transact Pro–style). Null = active list. Purge after 30 days.
+  archivedAt         DateTime?        @map("archived_at")
   createdAt          DateTime         @default(now()) @map("created_at")
   updatedAt          DateTime         @updatedAt @map("updated_at")
 
@@ -124,6 +126,7 @@ model Organisation {
   onboardingRuns      OnboardingRun[]
 
   @@index([onboardingStatus])
+  @@index([archivedAt])
   @@map("organisations")
 }
 
@@ -309,6 +312,7 @@ model Employee {
   workEmail      String?   @map("work_email")
   notes          String?
   status         String    @default("active")
+  archivedAt     DateTime? @map("archived_at")
   createdById    String?   @map("created_by_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
@@ -319,6 +323,7 @@ model Employee {
 
   @@unique([organisationId, ref])
   @@index([organisationId])
+  @@index([archivedAt])
   @@map("employees")
 }
 
@@ -350,6 +355,7 @@ model Case {
   categoryOther   String?    @map("category_other")
   employeeId      String?    @map("employee_id")
   createdById     String?    @map("created_by_id")
+  archivedAt      DateTime?  @map("archived_at")
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 
@@ -363,6 +369,7 @@ model Case {
   @@index([organisationId])
   @@index([status])
   @@index([categoryId])
+  @@index([archivedAt])
   @@map("cases")
 }
 
