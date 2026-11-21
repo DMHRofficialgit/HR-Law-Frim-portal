@@ -1,5 +1,11 @@
-import { sanitizeDmHrForEmail } from "./brandEmail";
+import {
+  containsDmHrBrand,
+  DM_HR_BRAND_EMAIL_HINT,
+  sanitizeDmHrForEmail,
+} from "./brandEmail";
 import { prisma } from "./prisma";
+
+export { containsDmHrBrand, DM_HR_BRAND_EMAIL_HINT };
 
 export type EmailTemplateTokens = Record<string, string | null | undefined>;
 
@@ -388,11 +394,22 @@ export async function renderEmailTemplate(
 export async function updateEmailTemplate(
   key: string,
   data: { subject?: string; body?: string; active?: boolean; name?: string }
-) {
+): Promise<
+  | { ok: true; template: Awaited<ReturnType<typeof prisma.emailTemplate.update>> }
+  | { ok: false; code: "NOT_FOUND" | "VALIDATION_ERROR"; message: string }
+> {
   await ensureEmailTemplatesSeeded();
   const existing = await prisma.emailTemplate.findUnique({ where: { key } });
-  if (!existing) return null;
-  return prisma.emailTemplate.update({
+  if (!existing) {
+    return { ok: false, code: "NOT_FOUND", message: "Template not found" };
+  }
+  if (
+    (data.subject !== undefined && containsDmHrBrand(data.subject)) ||
+    (data.body !== undefined && containsDmHrBrand(data.body))
+  ) {
+    return { ok: false, code: "VALIDATION_ERROR", message: DM_HR_BRAND_EMAIL_HINT };
+  }
+  const template = await prisma.emailTemplate.update({
     where: { key },
     data: {
       ...(data.subject !== undefined ? { subject: data.subject } : {}),
@@ -401,6 +418,7 @@ export async function updateEmailTemplate(
       ...(data.name !== undefined ? { name: data.name.trim() } : {}),
     },
   });
+  return { ok: true, template };
 }
 
 export async function resetEmailTemplate(key: string) {

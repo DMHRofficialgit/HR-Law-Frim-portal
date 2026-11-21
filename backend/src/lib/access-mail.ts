@@ -1,5 +1,6 @@
 import { renderEmailTemplate } from "./emailTemplates";
 import { sendMail } from "./mail";
+import { buildSimpleMailHtml } from "./mailHtml";
 
 export type AccessMailStatus = "sent" | "skipped" | "failed";
 
@@ -41,13 +42,37 @@ export async function sendAccessCredentialsMail(
     const key = purpose === "reset" ? "password_reset" : "invite";
     const rendered = await renderEmailTemplate(key, baseTokens);
     if (!rendered) return "skipped";
-    return sendMail({ to: [to], subject: rendered.subject, text: rendered.body });
+    const ctaLabel =
+      purpose === "reset" ? "Reset your password" : "Set your password";
+    const html = buildSimpleMailHtml({
+      subject: rendered.subject,
+      textBody: rendered.body,
+      ctaUrl: params.inviteUrl,
+      ctaLabel,
+    });
+    return sendMail({
+      to: [to],
+      subject: rendered.subject,
+      text: rendered.body,
+      html,
+    });
   }
 
   if (params.authMode === "temporary_password" && params.temporaryPassword) {
     const rendered = await renderEmailTemplate("temp_password", baseTokens);
     if (!rendered) return "skipped";
-    return sendMail({ to: [to], subject: rendered.subject, text: rendered.body });
+    const html = buildSimpleMailHtml({
+      subject: rendered.subject,
+      textBody: rendered.body,
+      ctaUrl: params.loginUrl,
+      ctaLabel: "Open login page",
+    });
+    return sendMail({
+      to: [to],
+      subject: rendered.subject,
+      text: rendered.body,
+      html,
+    });
   }
 
   return "skipped";

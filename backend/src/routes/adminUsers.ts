@@ -4,6 +4,7 @@ import { z } from "zod";
 import { accessMailMessage } from "../lib/access-mail";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
 import {
+  bulkResendUserInvites,
   createPortalUser,
   listPortalUsers,
   resendUserInvite,
@@ -92,6 +93,49 @@ router.patch("/users/:id/status", async (req, res) => {
       success: true,
       data: { user },
       message: status === "disabled" ? "User disabled" : "User enabled",
+    });
+  } catch (err) {
+    return serviceError(err, res);
+  }
+});
+
+const bulkResendSchema = z
+  .object({
+    organisationId: z.string().uuid().optional().nullable(),
+    userIds: z.array(z.string().min(1)).max(50).optional(),
+    /** Default true — only clients who have never set a password. */
+    onlyPending: z.boolean().optional(),
+  })
+  .refine(
+    (data) =>
+      Boolean(data.organisationId) ||
+      (Array.isArray(data.userIds) && data.userIds.length > 0),
+    { message: "Provide organisationId or userIds" }
+  );
+
+router.post("/users/resend-invites", async (req, res) => {
+  const parsed = bulkResendSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsed.error.issues[0]?.message || "Invalid bulk resend payload",
+      },
+    });
+  }
+
+  try {
+    const result = await bulkResendUserInvites({
+      organisationId: parsed.data.organisationId || undefined,
+      userIds: parsed.data.userIds,
+      onlyPending: parsed.data.onlyPending,
+      actorRole: UserRole.admin,
+    });
+    return res.status(200).json({
+      success: true,
+      data: result,
+      message: `Invites: sent ${result.sent}, failed ${result.failed}, skipped ${result.skipped}`,
     });
   } catch (err) {
     return serviceError(err, res);

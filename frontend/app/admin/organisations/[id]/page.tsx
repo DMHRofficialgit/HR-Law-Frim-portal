@@ -16,6 +16,7 @@ import {
   Mail,
   Pencil,
   Phone,
+  Trash2,
   UserRound,
   Users,
 } from "lucide-react";
@@ -23,6 +24,7 @@ import { AccessCredentialsBanner } from "../../../../components/AccessCredential
 import { AppShell } from "../../../../components/AppShell";
 import { FilePreviewSheet, type FilePreviewTarget } from "../../../../components/FilePreviewSheet";
 import { IconButton } from "../../../../components/IconButton";
+import { OrgDeleteDialog } from "../../../../components/OrgDeleteDialog";
 import { PortalSelect } from "../../../../components/PortalSelect";
 import { StatusLiquidToggle } from "../../../../components/StatusLiquidToggle";
 import {
@@ -99,6 +101,8 @@ const AdminOrganisationProfilePage = () => {
   const [startingOnboarding, setStartingOnboarding] = useState(false);
   const [resendingInvite, setResendingInvite] = useState(false);
   const [busyStatus, setBusyStatus] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [preview, setPreview] = useState<FilePreviewTarget | null>(null);
   const [accessCreds, setAccessCreds] = useState<AccessCredentialsPayload | null>(null);
   const [form, setForm] = useState({
@@ -378,6 +382,79 @@ const AdminOrganisationProfilePage = () => {
     }
   }
 
+  async function hardDeleteOrg(confirmName: string) {
+    if (!org) return;
+    setDeleteBusy(true);
+    try {
+      const result = await apiFetch<{ organisation: { id: string; name: string } }>(
+        `/admin/organisations/${org.id}`,
+        {
+          method: "DELETE",
+          token: getToken(),
+          body: JSON.stringify({ confirmName }),
+        }
+      );
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      toastSuccess(`${org.name} permanently deleted.`);
+      setDeleteOpen(false);
+      router.replace("/admin/organisations");
+    } catch {
+      toastError("Unable to delete organisation.");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
+  async function resendPendingInvitesForOrg() {
+    if (!org) return;
+    const pending = org.users.filter(
+      (u) => u.status === "active" && !u.passwordChangedAt
+    );
+    if (pending.length === 0) {
+      toastError("No pending client invites for this organisation.");
+      return;
+    }
+    const ok = await confirm({
+      title: `Resend ${pending.length} pending invite${pending.length === 1 ? "" : "s"}?`,
+      description: `Sends a fresh set-password link to each client login for ${org.name} that has not set a password yet.`,
+      confirmLabel: "Resend invites",
+    });
+    if (!ok) return;
+    setResendingInvite(true);
+    try {
+      const result = await apiFetch<{
+        sent: number;
+        failed: number;
+        skipped: number;
+      }>("/admin/users/resend-invites", {
+        method: "POST",
+        token: getToken(),
+        body: JSON.stringify({
+          organisationId: org.id,
+          onlyPending: true,
+        }),
+      });
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      toastSuccess(
+        `Invites: sent ${result.data.sent}, failed ${result.data.failed}, skipped ${result.data.skipped}`
+      );
+      if (result.data.failed > 0) {
+        toastError(`${result.data.failed} invite(s) could not be sent.`);
+      }
+      await load();
+    } catch {
+      toastError("Unable to resend invites.");
+    } finally {
+      setResendingInvite(false);
+    }
+  }
+
   if (!user) return null;
 
   const run = org?.latestOnboardingRun;
@@ -548,6 +625,19 @@ const AdminOrganisationProfilePage = () => {
                     onSelect: () => sendPrimaryAccessLink(),
                   },
                   {
+                    id: "resend-pending",
+                    label: resendingInvite
+                      ? "Sending…"
+                      : "Resend pending invites",
+                    icon: <KeyRound size={14} strokeWidth={1.75} />,
+                    disabled:
+                      resendingInvite ||
+                      !org.users.some(
+                        (u) => u.status === "active" && !u.passwordChangedAt
+                      ),
+                    onSelect: () => void resendPendingInvitesForOrg(),
+                  },
+                  {
                     id: "docs",
                     label: "Open documents",
                     icon: <FolderOpen size={14} strokeWidth={1.75} />,
@@ -568,6 +658,14 @@ const AdminOrganisationProfilePage = () => {
                     disabled: busyStatus,
                     onSelect: () =>
                       setOrgStatus(org.status === "active" ? "inactive" : "active"),
+                  },
+                  {
+                    id: "delete",
+                    label: "Delete permanently",
+                    icon: <Trash2 size={14} strokeWidth={1.75} />,
+                    tone: "danger",
+                    disabled: busyStatus || org.status !== "inactive",
+                    onSelect: () => setDeleteOpen(true),
                   },
                 ]}
               />
@@ -876,6 +974,20 @@ const AdminOrganisationProfilePage = () => {
       ) : null}
 
       <FilePreviewSheet target={preview} onClose={() => setPreview(null)} />
+
+      <OrgDeleteDialog
+        open={deleteOpen}
+        mode="single"
+        titleName={org?.name || ""}
+        expectedConfirm={org?.name || ""}
+        busy={deleteBusy}
+        onClose={() => {
+          if (!deleteBusy) setDeleteOpen(false);
+        }}
+        onConfirm={(typed) => {
+          void hardDeleteOrg(typed);
+        }}
+      />
     </AppShell>
   );
 };

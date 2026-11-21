@@ -7,7 +7,11 @@ import {
 } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
 import { removeStoredFile, writeStoredFile } from "../lib/storage";
-import { extensionOf, getUploadSettings } from "../lib/uploadSettings";
+import {
+  extensionOf,
+  getUploadSettings,
+  isProductUploadAllowed,
+} from "../lib/uploadSettings";
 
 export type UploadedFileInput = {
   originalName: string;
@@ -73,26 +77,11 @@ export async function validateUpload(file: UploadedFileInput) {
   const settings = await getUploadSettings();
   const ext = extensionOf(file.originalName);
 
-  if (!ext || !settings.allowedExtensions.map((e) => e.toLowerCase()).includes(ext)) {
+  if (!isProductUploadAllowed({ originalName: file.originalName, mimeType: file.mimeType })) {
     return {
       ok: false as const,
-      message: `File type .${ext || "unknown"} is not allowed`,
+      message: `File type .${ext || "unknown"} is not allowed — use PDF, Word, or images (e-signature needs PDF)`,
     };
-  }
-
-  if (
-    settings.allowedMimeTypes.length > 0 &&
-    file.mimeType &&
-    !settings.allowedMimeTypes.includes(file.mimeType)
-  ) {
-    // Some browsers send empty/octet-stream — allow if extension is OK and mime is generic
-    const generic = ["application/octet-stream", "binary/octet-stream", ""];
-    if (!generic.includes(file.mimeType)) {
-      return {
-        ok: false as const,
-        message: `MIME type ${file.mimeType} is not allowed`,
-      };
-    }
   }
 
   if (file.size > settings.maxUploadBytes) {

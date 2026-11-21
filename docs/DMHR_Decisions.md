@@ -76,7 +76,10 @@
 ### Email brand spelling (locked 2026-11-20 — incident)
 - **Never** put bare **`DM.HR`** in outbound email subject/body (or SMTP From display). Mail clients + Proofpoint treat `.hr` as Croatia’s TLD → fake `http://DM.HR` links (“foreign website”).
 - Outbound copy uses **`DMHR` / `DMHR Group`**. `sanitizeDmHrForEmail` runs on send + template render; boot migrates stored `email_templates` and cached onboarding welcome fields.
-- After deploy: **Resend invite** for affected clients. Optional later: HTML mail with “Set password” link text.
+- **Phase 2 S1 (locked 2026-11-20):** Access mails (invite / reset / temp password) send **HTML + text** via `buildSimpleMailHtml` — primary CTA button (“Set your password” / etc.). Template editor + PATCH reject `DM.HR` (`DM_HR_BRAND_EMAIL_HINT`).
+- **Phase 2 S2 (locked 2026-11-21):** Org **hard delete** + directory **bulk**. Soft deactivate remains default. Permanent delete only when **inactive**; typed confirm (org name single / `DELETE` bulk). API: `DELETE /admin/organisations/:id` (`confirmName`) + `POST /admin/organisations/bulk` (`activate` | `deactivate` | `delete`). Service deletes client users then org (cascade), then best-effort disk unlink of collected storage paths. UI: directory checkboxes + select bar; hub/directory ⋮ **Delete permanently** (disabled while active).
+- **Phase 2 WP5 (locked 2026-11-21):** Bulk resend access invites — `POST /admin/users/resend-invites` (`organisationId` and/or `userIds`, default `onlyPending`). Active client users with `passwordChangedAt` null; max 50; returns sent/failed/skipped. UI: Users directory checkboxes + **Resend pending invites**; org hub ⋮ **Resend pending invites**.
+- **Phase 2 WP6 (locked 2026-11-21; widened 2026-11-21):** Portal uploads (Documents, Firm Library / staging, cases) allow **PDF + Word (doc/docx) + images (png/jpeg/webp/gif)**. Product-locked types in `uploadSettings`; Settings only edits max size. **E-sign still PDF-only** (Request signature / place fields / ceremony). Preview: PDF + images in-portal; Word = download only.
 
 ### Password / invite flow
 - Support **both**: email invite link to set password, **and** DM.HR temporary passwords.
@@ -130,9 +133,10 @@
 - **Complete gate:** welcome email sent + ≥1 pack doc + required signatures reviewed + both payment links (no per-role Terms/Compliance checks).
 
 ### File upload rules
-- **PDF only** for portal uploads (locked 2026-11-02) — matches e-sign (PDF-only) so clients are not misled by Word files they cannot sign.
+- **PDF + Word + images** for Documents, Firm Library / staging, and cases (locked 2026-11-21 for David) — shared product allowlist; Settings Storage shows types read-only; **max size** editable.
+- **E-signature requires PDF** (unchanged): Request signature, Firm Library field placement, and e-sign ceremony reject/hide for non-PDF. Dropzone hints say “e-signature needs PDF”.
 - Max size remains configurable in Admin Settings.
-- Existing Word files already stored may still download/preview; new uploads must be PDF.
+- Preview: PDF + images in-portal; Word = download only.
 
 ### Document folders (final names)
 **Operational (ongoing client library — 6):**
@@ -237,7 +241,7 @@
 Locked 2026-11-03. Not blocking go-live; ship on request.
 
 1. **Categories tab:** Soft-deactivate / Activate custom categories in UI (API `PATCH /admin/case-categories/:id` already supports `active` / rename). Optional rename for custom. System categories stay non-deletable.
-2. **Storage tab:** Lock extensions + MIME to PDF in the UI (read-only / product lock); keep **max upload size (MB)** editable only — so Settings cannot undo PDF-only.
+2. **Storage tab:** Lock extensions + MIME to product allowlist (PDF + Word + images) in the UI (read-only); keep **max upload size (MB)** editable only. E-sign remains PDF-only elsewhere.
 3. **Account (Admin + Client):** Deep link / CTA “Manage signature ink” → Admin/Client Signatures queue (profile ink lives there; do not rebuild PNG editor in Settings).
 4. **Admin Account — notification prefs:** Same email opt-in groups as Client (`cases` / `documents` / `signatures` / `onboarding`) so firm admins can mute mail; in-app still always on.
 
@@ -288,13 +292,13 @@ Locked 2026-11-03 as optional follow-ons (not Phase A–C).
 - **Routes (locked 2026-11-01):** Admin **Overview** = `/admin` (dashboard only). **Organisations / clients directory + add** = `/admin/organisations` — never conflate the two. Client home = `/portal`.
 - **Sidebar groups:** Admin `home` (Overview) → `Clients` (Organisations) → `Workspace` (Documents, Firm Library, Employees, Cases, Onboarding, Signatures) → `System` (Users, Notifications, Settings, Payments). Client: Overview → Workspace → System. Collapsed rail shows thin dividers between groups.
 - **Organisations journey:** Directory (search/filters/table + **Open profile**) → **Client profile hub** `/admin/organisations/[id]`. Mock = journey ideas; we own data flow + components (Apple shell). No fake “view as client”.
-- **Client profile hub (locked 2026-11-02):** Compact density — icon **Back** + org name as page title + status pill + **Start/Open onboarding** CTA + **⋮** (Edit / Resend invite|password reset / Open documents / Deactivate|Activate). Identity row: avatar + icon meta (contact, email, phone, login) + pencil edit. Four metric tiles (docs / employees / open cases / onboarding + pack bar) deep-link. Scrollable **Documents** + **Recent cases** panels (`ProfileActivityPanel` + Eye preview). Compact **Company users** list. Shared tokens `.profile-hub-*`.
+- **Client profile hub (locked 2026-11-02; hard delete 2026-11-21):** Compact density — icon **Back** + org name as page title + status pill + **Start/Open onboarding** CTA + **⋮** (Edit / Resend invite|password reset / Open documents / Deactivate|Activate / **Delete permanently** when inactive). Identity row: avatar + icon meta (contact, email, phone, login) + pencil edit. Four metric tiles (docs / employees / open cases / onboarding + pack bar) deep-link. Scrollable **Documents** + **Recent cases** panels (`ProfileActivityPanel` + Eye preview). Compact **Company users** list. Shared tokens `.profile-hub-*`.
 - **Organisations audit polish (locked 2026-11-03):** `AddOrganisationDialog` resets on `open` only (stable close). Hub `?edit=1` opens once then cleared on save/cancel. Deactivate/Activate uses `useConfirm` on directory + hub. Open cases tile → `/admin/cases?org=&open=1` (register hides closed). Stable toast callbacks; directory lead uses skeleton not “Loading…”.
-- **Documents hub (locked 2026-11-02; upload/actions polish 2026-11-02):** Keep **folder IA** (org select → fixed folders → files). Compact company toolbar (Admin). Files card: sleek **dropzone + Select files** (drag and click; multi-file into active folder; **PDF only**). Dense rows: checkbox + type chip + title/meta + **icon actions** (not ⋮) — Preview · Download · Rename (unsigned) · Request signature (Admin PDF unsigned) · Delete. Signed rows omit Rename / Request signature. In-folder search + sort (Name/Date/Size) — no type filter (uploads are PDF-only). Multi-select → Download selected / Remove selected (confirm). Shared `DocumentsPanel` Admin+Client. No flat cross-org mock library. **No Versions UI** — history stays in DB quietly.
+- **Documents hub (locked 2026-11-02; upload widen 2026-11-21):** Keep **folder IA** (org select → fixed folders → files). Compact company toolbar (Admin). Files card: dropzone + Select files (multi-file; **PDF, Word, images**; hint: e-signature needs PDF). Dense rows: checkbox + type chip + title/meta + icon actions — Preview · Download · Rename (unsigned) · **Request signature (Admin PDF unsigned only)** · Delete. Signed rows omit Rename / Request signature. In-folder search + sort. Multi-select → Download / Remove selected. Shared `DocumentsPanel` Admin+Client. **No Versions UI**.
 - **Documents audit polish (locked 2026-11-03):** Bulk delete variable fix + partial-failure toasts. Same-name upload may version an **unsigned** row (toast says updated); never versions onto `isSignedCopy`. Deep links: Admin `?org=` + `?folder=`; Client `?folder=` (honored when query changes). Onboarding “My Onboarding folder” → `folder=my_onboarding`. Stable toast callbacks; dead type-filter helpers removed.
 - **Document rename (locked 2026-11-02):** Compact rename dialog → PATCH title for normal files only. **Signed copies cannot be renamed** (API `SIGNED_COPY_LOCKED` + no Rename icon). Title unique per folder.
 - **Signed library copies (locked 2026-11-02):** DB flags on `documents`: `isSignedCopy` + optional `signatureRequestId`, set when e-sign **Reviewed** publishes the stamped PDF. List APIs expose `isSignedCopy`. UI shows compact **Signed** badge and **hides Request signature** on those rows. Title patterns (` — Signed — ` / sanitized variants) are fallback for older rows only.
-- **Org directory table (locked 2026-11-01):** Dense containerized table (avatar + company/ref, contact, type, **regulatory**, onboarding **progress bar + short text**, open cases, status pill). Filters: search + status + type + **regulatory context**. Row **⋮** menu (portal + flip up when near bottom): Open / Edit / Resend invite|password reset / Deactivate|Activate. No hard delete — soft inactive only.
+- **Org directory table (locked 2026-11-01; hard delete + bulk 2026-11-21):** Dense containerized table (checkbox + avatar + company/ref, contact, type, **regulatory**, onboarding **progress bar + short text**, open cases, status pill). Filters: search + status + type + **regulatory context**. Row **⋮**: Open / Edit / Resend invite|password reset / Deactivate|Activate / **Delete permanently** (inactive only). Multi-select bar: Deactivate / Activate / Delete permanently (inactive only). Soft inactive is still the default path; hard delete is typed-confirm + irreversible.
 - **Org chrome rule:** Sidebar + top bar = general only. Section CTAs (Add organisation, Open documents, Start/Open onboarding) sit **inside the page** beside that section’s heading — never in shell `actions` for org-specific work.
 - **Add organisation:** Modal/dialog (not a form buried under the directory). Create = folders + client login only; does **not** auto-start onboarding or issue pack.
 - **Onboarding CTA:** Needs onboarding + no run → **Start onboarding** (creates run). Active run → **Open onboarding**. Pack docs only after Admin issues from Firm Library on the run page.
@@ -331,7 +335,7 @@ Before calling a section done, check what this product needs (not generic SaaS c
 | Detail / hub | Entities with related activity (org profile, case, employee, onboarding run) |
 | Create | Admin/Client must add records |
 | Edit / update | Fields that change after create (org contact, employee, case status…) |
-| Delete / archive / disable | With confirm; prefer `active`/`inactive` for orgs/users where hard delete is risky |
+| Delete / archive / disable | With confirm; orgs prefer soft `inactive`, then typed hard delete (inactive only) |
 | **Preview (eye)** | Files/PDFs/images — docs, Firm Library, attachments, pack/signed PDFs — shared component |
 | Download | Same file surfaces (always, even if preview N/A for Word etc.) |
 | Versions | Backend keep quietly — **no Documents UI** (locked 2026-11-02) |
@@ -519,6 +523,10 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-06 | **Overview D1–D3:** Admin + Client action dashboards — icon KPIs, cases attention, activity feed, onboarding progress bars, quick actions; no charts. |
 | 2026-11-06 | **Auth UI split:** `AuthShell` brand panel + form; password eye toggle; login / set-password / change-password; hero `/auth/dmhr-auth-hero.jpg`; no public register. |
 | 2026-11-20 | **Email DM.HR autolink fix (Phase 1):** Outbound copy uses DMHR/DMHR Group; `sanitizeDmHrForEmail` on send/render; boot migrates `email_templates` + cached welcome fields. |
+| 2026-11-21 | **Uploads widen:** Documents + Firm Library + cases accept PDF/Word/images; e-sign remains PDF-only. |
+| 2026-11-21 | **Phase 2 WP5+WP6:** Bulk resend pending invites; case attachments PDF+Word+images. |
+| 2026-11-21 | **Phase 2 S2:** Org hard delete (inactive + typed confirm) + directory bulk activate/deactivate/delete. |
+| 2026-11-20 | **Phase 2 S1:** HTML access emails (CTA button) + template editor/API guard against `DM.HR`. |
 | 2026-11-19 | **Cases mailbox Phase 1:** client-visible case activity always CC `casesNotifyEmail` (case@). |
 | 2026-11-19 | **Org CC Phase 2:** `Organisation.notifyEmails`; Add/Edit “Also notify (CC)”; client-facing case/doc/onboarding/e-sign mail = login users + CC (no login for CC). |
 | 2026-11-19 | **Org CC alert emails:** `cc_alert` template + `notifyOrgCcAlert`; CC get FYI only (no portal link); login clients keep actionable mail. |

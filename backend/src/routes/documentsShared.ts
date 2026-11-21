@@ -3,7 +3,11 @@ import { createReadStream } from "fs";
 import { z } from "zod";
 import { ensureFoldersForOrganisation } from "../lib/folders";
 import { absoluteStoragePath } from "../lib/storage";
-import { getUploadSettings } from "../lib/uploadSettings";
+import {
+  getUploadSettings,
+  PRODUCT_UPLOAD_EXTENSIONS,
+  PRODUCT_UPLOAD_MIME_TYPES,
+} from "../lib/uploadSettings";
 import {
   deleteDocument,
   getDocumentForOrg,
@@ -284,16 +288,9 @@ export async function handlePatchUploadSettings(req: Request, res: Response) {
   const settings = await prisma.uploadSettings.update({
     where: { id: "default" },
     data: {
-      ...(parsed.data.allowedExtensions
-        ? {
-            allowedExtensions: parsed.data.allowedExtensions.map((e) =>
-              e.replace(/^\./, "").toLowerCase()
-            ),
-          }
-        : {}),
-      ...(parsed.data.allowedMimeTypes
-        ? { allowedMimeTypes: parsed.data.allowedMimeTypes }
-        : {}),
+      // Product-locked types (PDF + Word + images); only max size is Admin-editable.
+      allowedExtensions: [...PRODUCT_UPLOAD_EXTENSIONS],
+      allowedMimeTypes: [...PRODUCT_UPLOAD_MIME_TYPES],
       ...(parsed.data.maxUploadBytes !== undefined
         ? { maxUploadBytes: parsed.data.maxUploadBytes }
         : {}),

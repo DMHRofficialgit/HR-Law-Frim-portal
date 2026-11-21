@@ -39,7 +39,10 @@ import {
   type FirmStagingFolder,
 } from "../../../../lib/firm-staging";
 import { adminNav } from "../../../../lib/nav";
-import { isPdfDocument } from "../../../../lib/signatures";
+import {
+  PORTAL_UPLOAD_ACCEPT,
+  PORTAL_UPLOAD_HINT,
+} from "../../../../lib/portal-uploads";
 
 type OrgOption = { id: string; name: string; status?: string };
 
@@ -164,10 +167,6 @@ export default function AdminFirmLibraryStagingPage() {
     const failures: string[] = [];
 
     for (const file of picked) {
-      if (!isPdfDocument(file.type, file.name)) {
-        failures.push(`${file.name}: PDF only`);
-        continue;
-      }
       const fd = new FormData();
       fd.append("file", file);
       fd.append("folderId", folderId);
@@ -470,8 +469,8 @@ export default function AdminFirmLibraryStagingPage() {
         </div>
 
         <DocsDropzone
-          accept=".pdf,application/pdf"
-          hint="PDF only · multi-select · drag and drop or select"
+          accept={PORTAL_UPLOAD_ACCEPT}
+          hint={`${PORTAL_UPLOAD_HINT} · multi-select`}
           title="Drop PDFs into this vault folder"
           selectLabel="Select files"
           multiple

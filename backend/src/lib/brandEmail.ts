@@ -13,3 +13,11 @@ export function sanitizeDmHrForEmail(text: string): string {
     .replace(/DM\.HR client/g, "DMHR client")
     .replace(/DM\.HR/g, "DMHR");
 }
+
+/** True if text still contains auto-linkable brand spelling. */
+export function containsDmHrBrand(text: string): boolean {
+  return /DM\.HR/.test(text || "");
+}
+
+export const DM_HR_BRAND_EMAIL_HINT =
+  'Do not use "DM.HR" in email copy — mail clients treat .hr as a website. Use "DMHR Group" instead.';

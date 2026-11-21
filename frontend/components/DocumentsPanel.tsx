@@ -30,6 +30,7 @@ import {
   isSignedLibraryDocument,
 } from "../lib/documents";
 import { triggerBlobDownload } from "../lib/download-file";
+import { PORTAL_UPLOAD_ACCEPT } from "../lib/portal-uploads";
 import { isPdfDocument } from "../lib/signatures";
 import { useConfirm } from "../context/ConfirmContext";
 import { useToast } from "../context/ToastContext";
@@ -64,8 +65,16 @@ const formatBytes = (n: number): string => {
 };
 
 const DEFAULT_SETTINGS: UploadSettings = {
-  allowedExtensions: ["pdf"],
-  allowedMimeTypes: ["application/pdf"],
+  allowedExtensions: ["pdf", "doc", "docx", "png", "jpg", "jpeg", "webp", "gif"],
+  allowedMimeTypes: [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/gif",
+  ],
   maxUploadBytes: 25 * 1024 * 1024,
 };
 
@@ -104,16 +113,10 @@ export const DocumentsPanel = ({
   const settingsPath =
     mode === "client" ? "/client/upload-settings" : "/admin/upload-settings";
 
-  const acceptAttr = useMemo(() => {
-    const exts = uploadSettings.allowedExtensions.map((e) => `.${e.replace(/^\./, "")}`);
-    return [...exts, ...uploadSettings.allowedMimeTypes].join(",");
-  }, [uploadSettings]);
+  const acceptAttr = useMemo(() => PORTAL_UPLOAD_ACCEPT, []);
 
   const dropHint = useMemo(() => {
-    const types = uploadSettings.allowedExtensions
-      .map((e) => e.toUpperCase())
-      .join(" · ");
-    return `${types} · up to ${formatBytes(uploadSettings.maxUploadBytes)} each`;
+    return `PDF, Word, or images · e-signature needs PDF · up to ${formatBytes(uploadSettings.maxUploadBytes)} each`;
   }, [uploadSettings]);
 
   const resetDocArea = useCallback(() => {
