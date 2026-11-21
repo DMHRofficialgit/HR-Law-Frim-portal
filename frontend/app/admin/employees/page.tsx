@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Ban, CircleCheck, Eye, Pencil } from "lucide-react";
+import { Ban, CircleCheck, Eye, Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "../../../components/AppShell";
 import { EmployeeFormDialog } from "../../../components/EmployeeFormDialog";
 import { PortalSearch } from "../../../components/PortalSearch";
@@ -42,6 +42,8 @@ function AdminEmployeesInner() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editEmployee, setEditEmployee] = useState<EmployeeRow | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -108,6 +110,40 @@ function AdminEmployeesInner() {
     });
   }, [employees, filter]);
 
+  const selectedCount = filtered.filter((e) => selectedIds.has(e.id)).length;
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((e) => selectedIds.has(e.id));
+  const selectedActive = filtered.filter(
+    (e) => selectedIds.has(e.id) && e.status === "active"
+  );
+  const selectedInactive = filtered.filter(
+    (e) => selectedIds.has(e.id) && e.status === "inactive"
+  );
+  const selectedDeletable = filtered.filter(
+    (e) => selectedIds.has(e.id) && (e._count?.cases ?? 0) === 0
+  );
+
+  const toggleSelectAllFiltered = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (filtered.every((e) => next.has(e.id))) {
+        for (const e of filtered) next.delete(e.id);
+      } else {
+        for (const e of filtered) next.add(e.id);
+      }
+      return next;
+    });
+  }, [filtered]);
+
+  const toggleSelectOne = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   async function setEmployeeStatus(emp: EmployeeRow, status: "active" | "inactive") {
     const label = status === "inactive" ? "Deactivate" : "Activate";
     const ok = await confirm({
@@ -130,6 +166,61 @@ function AdminEmployeesInner() {
     }
     toastSuccess(status === "inactive" ? "Employee deactivated" : "Employee activated");
     await load();
+  }
+
+  async function runBulk(action: "activate" | "deactivate" | "delete") {
+    const ids =
+      action === "activate"
+        ? selectedInactive.map((e) => e.id)
+        : action === "deactivate"
+          ? selectedActive.map((e) => e.id)
+          : selectedDeletable.map((e) => e.id);
+    if (ids.length === 0) {
+      if (action === "delete") {
+        toastError("Only employees with no linked cases can be deleted.");
+      }
+      return;
+    }
+    const label =
+      action === "activate" ? "Activate" : action === "deactivate" ? "Deactivate" : "Delete";
+    const ok = await confirm({
+      title: `${label} ${ids.length} employee${ids.length === 1 ? "" : "s"}?`,
+      description:
+        action === "delete"
+          ? "Permanently removes employees that have no linked cases. This cannot be undone."
+          : action === "deactivate"
+            ? "Selected employees will be marked inactive."
+            : "Selected employees will be marked active.",
+      confirmLabel: label,
+      tone: action === "activate" ? "default" : "danger",
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    try {
+      const result = await apiFetch<{
+        updated: number;
+        skipped: number;
+        failed: Array<{ id: string; message: string }>;
+      }>("/admin/employees/bulk", {
+        method: "POST",
+        token: getToken(),
+        body: JSON.stringify({ action, ids }),
+      });
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      toastSuccess(
+        `${label}d ${result.data.updated}; skipped ${result.data.skipped}; failed ${result.data.failed.length}`
+      );
+      if (result.data.failed[0]?.message) toastError(result.data.failed[0].message);
+      setSelectedIds(new Set());
+      await load();
+    } catch {
+      toastError("Unable to update employees.");
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   if (!user) return null;
@@ -200,7 +291,7 @@ function AdminEmployeesInner() {
         </div>
 
         {loading ? (
-          <TableSkeleton rows={7} cols={8} />
+          <TableSkeleton rows={7} cols={9} />
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <p>No employees match these filters.</p>
@@ -217,118 +308,175 @@ function AdminEmployeesInner() {
             </button>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table className="data-table org-table">
-              <thead>
-                <tr>
-                  <th>Employee</th>
-                  <th>Client</th>
-                  <th>Job title</th>
-                  <th>Department / service</th>
-                  <th>Start date</th>
-                  <th>Cases</th>
-                  <th>Status</th>
-                  <th className="org-table-actions-col">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((emp) => (
-                  <tr
-                    key={emp.id}
-                    className={emp.status === "inactive" ? "is-inactive" : ""}
-                  >
-                    <td>
-                      <div className="org-table-company">
-                        <span className="org-table-avatar" aria-hidden>
-                          {employeeInitials(emp.name)}
-                        </span>
-                        <div>
-                          <span className="primary-cell">{emp.name}</span>
-                          <span className="secondary-cell">
-                            {[emp.ref, emp.workEmail].filter(Boolean).join(" · ") || "—"}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      {emp.organisation ? (
-                        <Link
-                          href={`/admin/organisations/${emp.organisation.id}`}
-                          className="primary-cell"
-                        >
-                          {emp.organisation.name}
-                        </Link>
-                      ) : (
-                        <span className="org-table-muted">—</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className="org-table-muted">{emp.jobTitle || "—"}</span>
-                    </td>
-                    <td>
-                      <span className="org-table-muted">{emp.department || "—"}</span>
-                    </td>
-                    <td>
-                      <span className="org-table-muted">
-                        {formatEmployeeStartDate(emp.startDate)}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="org-table-cases">{emp._count?.cases ?? 0}</span>
-                    </td>
-                    <td>
-                      <span className={`status-pill status-pill-${emp.status}`}>
-                        {employeeStatusLabel(emp.status)}
-                      </span>
-                    </td>
-                    <td className="org-table-actions-col">
-                      <RowActionsMenu
-                        label={`Actions for ${emp.name}`}
-                        items={[
-                          {
-                            id: "view",
-                            label: "View",
-                            icon: <Eye size={14} strokeWidth={1.75} />,
-                            onSelect: () => router.push(`/admin/employees/${emp.id}`),
-                          },
-                          {
-                            id: "edit",
-                            label: "Edit",
-                            icon: <Pencil size={14} strokeWidth={1.75} />,
-                            onSelect: () => {
-                              setEditEmployee(emp);
-                              setDialogOpen(true);
-                            },
-                          },
-                          {
-                            id: "toggle",
-                            label:
-                              emp.status === "active" ? "Deactivate" : "Activate",
-                            icon:
-                              emp.status === "active" ? (
-                                <Ban size={14} strokeWidth={1.75} />
-                              ) : (
-                                <CircleCheck size={14} strokeWidth={1.75} />
-                              ),
-                            tone: emp.status === "active" ? "danger" : "default",
-                            separatorBefore: true,
-                            disabled: busyId === emp.id,
-                            onSelect: () =>
-                              setEmployeeStatus(
-                                emp,
-                                emp.status === "active" ? "inactive" : "active"
-                              ),
-                          },
-                        ]}
-                      />
-                    </td>
+          <>
+            <div className="docs-select-bar">
+              <label className="docs-select-all">
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  onChange={toggleSelectAllFiltered}
+                  aria-label="Select all visible employees"
+                />
+                <span>
+                  {selectedCount}/{filtered.length} selected
+                </span>
+              </label>
+              <div className="docs-select-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={selectedActive.length === 0 || bulkBusy}
+                  onClick={() => void runBulk("deactivate")}
+                >
+                  <Ban size={14} strokeWidth={1.75} aria-hidden />
+                  Deactivate
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={selectedInactive.length === 0 || bulkBusy}
+                  onClick={() => void runBulk("activate")}
+                >
+                  <CircleCheck size={14} strokeWidth={1.75} aria-hidden />
+                  Activate
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm docs-btn-danger"
+                  disabled={selectedDeletable.length === 0 || bulkBusy}
+                  onClick={() => void runBulk("delete")}
+                >
+                  <Trash2 size={14} strokeWidth={1.75} aria-hidden />
+                  Delete
+                </button>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table className="data-table org-table">
+                <thead>
+                  <tr>
+                    <th className="org-table-check-col">
+                      <span className="sr-only">Select</span>
+                    </th>
+                    <th>Employee</th>
+                    <th>Client</th>
+                    <th>Job title</th>
+                    <th>Department / service</th>
+                    <th>Start date</th>
+                    <th>Cases</th>
+                    <th>Status</th>
+                    <th className="org-table-actions-col">
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filtered.map((emp) => (
+                    <tr
+                      key={emp.id}
+                      className={emp.status === "inactive" ? "is-inactive" : ""}
+                    >
+                      <td className="org-table-check-col">
+                        <label className="docs-row-check">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(emp.id)}
+                            onChange={() => toggleSelectOne(emp.id)}
+                            aria-label={`Select ${emp.name}`}
+                          />
+                        </label>
+                      </td>
+                      <td>
+                        <div className="org-table-company">
+                          <span className="org-table-avatar" aria-hidden>
+                            {employeeInitials(emp.name)}
+                          </span>
+                          <div>
+                            <span className="primary-cell">{emp.name}</span>
+                            <span className="secondary-cell">
+                              {[emp.ref, emp.workEmail].filter(Boolean).join(" · ") || "—"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        {emp.organisation ? (
+                          <Link
+                            href={`/admin/organisations/${emp.organisation.id}`}
+                            className="primary-cell"
+                          >
+                            {emp.organisation.name}
+                          </Link>
+                        ) : (
+                          <span className="org-table-muted">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="org-table-muted">{emp.jobTitle || "—"}</span>
+                      </td>
+                      <td>
+                        <span className="org-table-muted">{emp.department || "—"}</span>
+                      </td>
+                      <td>
+                        <span className="org-table-muted">
+                          {formatEmployeeStartDate(emp.startDate)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="org-table-cases">{emp._count?.cases ?? 0}</span>
+                      </td>
+                      <td>
+                        <span className={`status-pill status-pill-${emp.status}`}>
+                          {employeeStatusLabel(emp.status)}
+                        </span>
+                      </td>
+                      <td className="org-table-actions-col">
+                        <RowActionsMenu
+                          label={`Actions for ${emp.name}`}
+                          items={[
+                            {
+                              id: "view",
+                              label: "View",
+                              icon: <Eye size={14} strokeWidth={1.75} />,
+                              onSelect: () => router.push(`/admin/employees/${emp.id}`),
+                            },
+                            {
+                              id: "edit",
+                              label: "Edit",
+                              icon: <Pencil size={14} strokeWidth={1.75} />,
+                              onSelect: () => {
+                                setEditEmployee(emp);
+                                setDialogOpen(true);
+                              },
+                            },
+                            {
+                              id: "toggle",
+                              label:
+                                emp.status === "active" ? "Deactivate" : "Activate",
+                              icon:
+                                emp.status === "active" ? (
+                                  <Ban size={14} strokeWidth={1.75} />
+                                ) : (
+                                  <CircleCheck size={14} strokeWidth={1.75} />
+                                ),
+                              tone: emp.status === "active" ? "danger" : "default",
+                              separatorBefore: true,
+                              disabled: busyId === emp.id,
+                              onSelect: () =>
+                                setEmployeeStatus(
+                                  emp,
+                                  emp.status === "active" ? "inactive" : "active"
+                                ),
+                            },
+                          ]}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
         <p className="lead" style={{ marginTop: 12, marginBottom: 0, fontSize: "0.85rem" }}>

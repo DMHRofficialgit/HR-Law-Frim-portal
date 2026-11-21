@@ -654,3 +654,90 @@ export async function deleteCase(caseId: string, organisationId?: string) {
   await prisma.case.delete({ where: { id: caseId } });
   return existing;
 }
+
+const BULK_CASE_MAX = 50;
+
+export type BulkCaseResult = {
+  updated: number;
+  skipped: number;
+  failed: Array<{ id: string; message: string; code?: string }>;
+};
+
+export async function bulkCases(params: {
+  action: "close" | "delete";
+  ids: string[];
+  actorUserId: string;
+}): Promise<BulkCaseResult> {
+  const ids = [...new Set(params.ids.map(String).filter(Boolean))];
+  if (ids.length === 0) {
+    return {
+      updated: 0,
+      skipped: 0,
+      failed: [{ id: "", message: "Select at least one case", code: "VALIDATION_ERROR" }],
+    };
+  }
+  if (ids.length > BULK_CASE_MAX) {
+    return {
+      updated: 0,
+      skipped: 0,
+      failed: [
+        {
+          id: "",
+          message: `Select at most ${BULK_CASE_MAX} cases at a time`,
+          code: "VALIDATION_ERROR",
+        },
+      ],
+    };
+  }
+
+  let updated = 0;
+  let skipped = 0;
+  const failed: BulkCaseResult["failed"] = [];
+
+  for (const id of ids) {
+    if (params.action === "close") {
+      const existing = await getCase(id);
+      if (!existing) {
+        failed.push({ id, message: "Case not found", code: "NOT_FOUND" });
+        continue;
+      }
+      if (existing.status === CaseStatus.closed) {
+        skipped += 1;
+        continue;
+      }
+      const result = await updateCaseStatus({
+        caseId: id,
+        status: CaseStatus.closed,
+        actorUserId: params.actorUserId,
+      });
+      if (result.error) {
+        failed.push({
+          id,
+          message: result.error.message,
+          code: result.error.code,
+        });
+        continue;
+      }
+      updated += 1;
+      continue;
+    }
+
+    const existing = await getCase(id);
+    if (!existing) {
+      failed.push({ id, message: "Case not found", code: "NOT_FOUND" });
+      continue;
+    }
+    if (existing.status !== CaseStatus.closed) {
+      skipped += 1;
+      continue;
+    }
+    const deleted = await deleteCase(id);
+    if (!deleted) {
+      failed.push({ id, message: "Case not found", code: "NOT_FOUND" });
+      continue;
+    }
+    updated += 1;
+  }
+
+  return { updated, skipped, failed };
+}

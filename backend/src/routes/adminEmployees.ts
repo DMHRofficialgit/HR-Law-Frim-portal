@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
 import {
+  bulkEmployees,
   createEmployee,
   deleteEmployee,
   getEmployeeById,
@@ -304,6 +305,42 @@ router.delete("/employees/:id", async (req, res) => {
   return res
     .status(200)
     .json({ success: true, data: { id: existing.id }, message: "Employee deleted" });
+});
+
+const bulkEmployeeSchema = z.object({
+  action: z.enum(["activate", "deactivate", "delete"]),
+  ids: z.array(z.string().min(1)).min(1).max(50),
+});
+
+router.post("/employees/bulk", async (req, res) => {
+  const parsed = bulkEmployeeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsed.error.issues[0]?.message || "Invalid bulk employee payload",
+      },
+    });
+  }
+
+  try {
+    const result = await bulkEmployees(parsed.data);
+    return res.status(200).json({
+      success: true,
+      data: result,
+      message: `${parsed.data.action}: updated ${result.updated}, skipped ${result.skipped}, failed ${result.failed.length}`,
+    });
+  } catch (err) {
+    const e = err as { status?: number; code?: string; message?: string };
+    return res.status(e.status || 500).json({
+      success: false,
+      error: {
+        code: e.code || "SERVER_ERROR",
+        message: e.message || "Unexpected error",
+      },
+    });
+  }
 });
 
 export default router;

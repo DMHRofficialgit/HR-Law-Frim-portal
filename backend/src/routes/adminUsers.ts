@@ -5,6 +5,7 @@ import { accessMailMessage } from "../lib/access-mail";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
 import {
   bulkResendUserInvites,
+  bulkSetUserStatus,
   createPortalUser,
   listPortalUsers,
   resendUserInvite,
@@ -112,6 +113,42 @@ const bulkResendSchema = z
       (Array.isArray(data.userIds) && data.userIds.length > 0),
     { message: "Provide organisationId or userIds" }
   );
+
+const bulkUserStatusSchema = z.object({
+  action: z.enum(["disable", "enable"]),
+  ids: z.array(z.string().min(1)).min(1).max(50),
+});
+
+router.post("/users/bulk", async (req, res) => {
+  const parsed = bulkUserStatusSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsed.error.issues[0]?.message || "Invalid bulk user payload",
+      },
+    });
+  }
+
+  try {
+    const status =
+      parsed.data.action === "disable" ? UserStatus.disabled : UserStatus.active;
+    const result = await bulkSetUserStatus({
+      ids: parsed.data.ids,
+      status,
+      actorId: req.auth!.id,
+      actorRole: UserRole.admin,
+    });
+    return res.status(200).json({
+      success: true,
+      data: result,
+      message: `${parsed.data.action === "disable" ? "Disabled" : "Enabled"} ${result.updated}; skipped ${result.skipped}; failed ${result.failed.length}`,
+    });
+  } catch (err) {
+    return serviceError(err, res);
+  }
+});
 
 router.post("/users/resend-invites", async (req, res) => {
   const parsed = bulkResendSchema.safeParse(req.body);

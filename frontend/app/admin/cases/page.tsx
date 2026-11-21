@@ -3,7 +3,15 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Briefcase, CheckCircle2, Clock3, Eye, Inbox, Pencil, Trash2 } from "lucide-react";
+import {
+  Briefcase,
+  CheckCircle2,
+  Clock3,
+  Eye,
+  Inbox,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { AppShell } from "../../../components/AppShell";
 import { CaseFormDialog } from "../../../components/CaseFormDialog";
 import { PortalSearch } from "../../../components/PortalSearch";
@@ -52,6 +60,8 @@ function AdminCasesInner() {
   const [kpi, setKpi] = useState<CaseKpiKey>("all");
   const [dialogOpen, setDialogOpen] = useState(createFromUrl);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,6 +146,37 @@ function AdminCasesInner() {
     });
   }, [cases, filter, kpi, statusFilter, categoryFilter, employeeFromUrl, openOnlyFromUrl]);
 
+  const selectedCount = filtered.filter((c) => selectedIds.has(c.id)).length;
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
+  const selectedOpen = filtered.filter(
+    (c) => selectedIds.has(c.id) && c.status !== "closed"
+  );
+  const selectedClosed = filtered.filter(
+    (c) => selectedIds.has(c.id) && c.status === "closed"
+  );
+
+  const toggleSelectAllFiltered = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (filtered.every((c) => next.has(c.id))) {
+        for (const c of filtered) next.delete(c.id);
+      } else {
+        for (const c of filtered) next.add(c.id);
+      }
+      return next;
+    });
+  }, [filtered]);
+
+  const toggleSelectOne = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
   async function onDelete(c: CaseRow) {
     const ok = await confirm({
       title: `Delete ${c.ref}?`,
@@ -156,6 +197,56 @@ function AdminCasesInner() {
     }
     toastSuccess("Case deleted");
     await load();
+  }
+
+  async function runBulk(action: "close" | "delete") {
+    const ids =
+      action === "close"
+        ? selectedOpen.map((c) => c.id)
+        : selectedClosed.map((c) => c.id);
+    if (ids.length === 0) {
+      if (action === "delete") {
+        toastError("Only closed cases can be bulk-deleted.");
+      }
+      return;
+    }
+    const label = action === "close" ? "Close" : "Delete";
+    const ok = await confirm({
+      title: `${label} ${ids.length} case${ids.length === 1 ? "" : "s"}?`,
+      description:
+        action === "close"
+          ? "Selected cases will be marked closed. Clients are notified per case."
+          : "Permanently deletes closed cases and their files. This cannot be undone.",
+      confirmLabel: label,
+      tone: action === "delete" ? "danger" : "default",
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    try {
+      const result = await apiFetch<{
+        updated: number;
+        skipped: number;
+        failed: Array<{ id: string; message: string }>;
+      }>("/admin/cases/bulk", {
+        method: "POST",
+        token: getToken(),
+        body: JSON.stringify({ action, ids }),
+      });
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      toastSuccess(
+        `${label}d ${result.data.updated}; skipped ${result.data.skipped}; failed ${result.data.failed.length}`
+      );
+      if (result.data.failed[0]?.message) toastError(result.data.failed[0].message);
+      setSelectedIds(new Set());
+      await load();
+    } catch {
+      toastError("Unable to update cases.");
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   if (!user) return null;
@@ -293,7 +384,7 @@ function AdminCasesInner() {
         </div>
 
         {loading ? (
-          <TableSkeleton rows={7} cols={7} />
+          <TableSkeleton rows={7} cols={8} />
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <p>No cases match these filters.</p>
@@ -307,99 +398,147 @@ function AdminCasesInner() {
             </button>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table className="data-table org-table">
-              <thead>
-                <tr>
-                  <th>Case reference</th>
-                  <th>Client</th>
-                  <th>Case title</th>
-                  <th>Submitted</th>
-                  <th>Last updated</th>
-                  <th>Status</th>
-                  <th className="org-table-actions-col">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <div>
-                        <Link href={`/admin/cases/${c.id}`} className="primary-cell">
-                          {c.ref}
-                        </Link>
-                        <span className="secondary-cell">
-                          {categoryDisplayName(c.category, c.categoryOther)}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      {c.organisation ? (
-                        <Link
-                          href={`/admin/organisations/${c.organisation.id}`}
-                          className="primary-cell"
-                        >
-                          {c.organisation.name}
-                        </Link>
-                      ) : (
-                        <span className="org-table-muted">—</span>
-                      )}
-                    </td>
-                    <td>
-                      <div>
-                        <span className="primary-cell">{c.title}</span>
-                        <span className="secondary-cell">
-                          {c.employee?.name || "No employee linked"}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="org-table-muted">{formatCaseDate(c.createdAt)}</span>
-                    </td>
-                    <td>
-                      <span className="org-table-muted">{formatCaseDate(c.updatedAt)}</span>
-                    </td>
-                    <td>
-                      <span className={`status-pill status-pill-${caseBadgeTone(c.status)}`}>
-                        {statusLabel(c.status)}
-                      </span>
-                    </td>
-                    <td className="org-table-actions-col">
-                      <RowActionsMenu
-                        label={`Actions for ${c.ref}`}
-                        items={[
-                          {
-                            id: "view",
-                            label: "View case",
-                            icon: <Eye size={14} strokeWidth={1.75} />,
-                            onSelect: () => router.push(`/admin/cases/${c.id}`),
-                          },
-                          {
-                            id: "edit",
-                            label: "Edit",
-                            icon: <Pencil size={14} strokeWidth={1.75} />,
-                            onSelect: () =>
-                              router.push(`/admin/cases/${c.id}?edit=1`),
-                          },
-                          {
-                            id: "delete",
-                            label: "Delete",
-                            icon: <Trash2 size={14} strokeWidth={1.75} />,
-                            tone: "danger",
-                            separatorBefore: true,
-                            disabled: busyId === c.id,
-                            onSelect: () => onDelete(c),
-                          },
-                        ]}
-                      />
-                    </td>
+          <>
+            <div className="docs-select-bar">
+              <label className="docs-select-all">
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  onChange={toggleSelectAllFiltered}
+                  aria-label="Select all visible cases"
+                />
+                <span>
+                  {selectedCount}/{filtered.length} selected
+                </span>
+              </label>
+              <div className="docs-select-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={selectedOpen.length === 0 || bulkBusy}
+                  onClick={() => void runBulk("close")}
+                >
+                  <CheckCircle2 size={14} strokeWidth={1.75} aria-hidden />
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm docs-btn-danger"
+                  disabled={selectedClosed.length === 0 || bulkBusy}
+                  onClick={() => void runBulk("delete")}
+                >
+                  <Trash2 size={14} strokeWidth={1.75} aria-hidden />
+                  Delete closed
+                </button>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table className="data-table org-table">
+                <thead>
+                  <tr>
+                    <th className="org-table-check-col">
+                      <span className="sr-only">Select</span>
+                    </th>
+                    <th>Case reference</th>
+                    <th>Client</th>
+                    <th>Case title</th>
+                    <th>Submitted</th>
+                    <th>Last updated</th>
+                    <th>Status</th>
+                    <th className="org-table-actions-col">
+                      <span className="sr-only">Actions</span>
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filtered.map((c) => (
+                    <tr key={c.id}>
+                      <td className="org-table-check-col">
+                        <label className="docs-row-check">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(c.id)}
+                            onChange={() => toggleSelectOne(c.id)}
+                            aria-label={`Select ${c.ref}`}
+                          />
+                        </label>
+                      </td>
+                      <td>
+                        <div>
+                          <Link href={`/admin/cases/${c.id}`} className="primary-cell">
+                            {c.ref}
+                          </Link>
+                          <span className="secondary-cell">
+                            {categoryDisplayName(c.category, c.categoryOther)}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        {c.organisation ? (
+                          <Link
+                            href={`/admin/organisations/${c.organisation.id}`}
+                            className="primary-cell"
+                          >
+                            {c.organisation.name}
+                          </Link>
+                        ) : (
+                          <span className="org-table-muted">—</span>
+                        )}
+                      </td>
+                      <td>
+                        <div>
+                          <span className="primary-cell">{c.title}</span>
+                          <span className="secondary-cell">
+                            {c.employee?.name || "No employee linked"}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="org-table-muted">{formatCaseDate(c.createdAt)}</span>
+                      </td>
+                      <td>
+                        <span className="org-table-muted">{formatCaseDate(c.updatedAt)}</span>
+                      </td>
+                      <td>
+                        <span className={`status-pill status-pill-${caseBadgeTone(c.status)}`}>
+                          {statusLabel(c.status)}
+                        </span>
+                      </td>
+                      <td className="org-table-actions-col">
+                        <RowActionsMenu
+                          label={`Actions for ${c.ref}`}
+                          items={[
+                            {
+                              id: "view",
+                              label: "View case",
+                              icon: <Eye size={14} strokeWidth={1.75} />,
+                              onSelect: () => router.push(`/admin/cases/${c.id}`),
+                            },
+                            {
+                              id: "edit",
+                              label: "Edit",
+                              icon: <Pencil size={14} strokeWidth={1.75} />,
+                              onSelect: () =>
+                                router.push(`/admin/cases/${c.id}?edit=1`),
+                            },
+                            {
+                              id: "delete",
+                              label: "Delete",
+                              icon: <Trash2 size={14} strokeWidth={1.75} />,
+                              tone: "danger",
+                              separatorBefore: true,
+                              disabled: busyId === c.id,
+                              onSelect: () => onDelete(c),
+                            },
+                          ]}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
 

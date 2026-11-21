@@ -80,6 +80,7 @@
 - **Phase 2 S2 (locked 2026-11-21):** Org **hard delete** + directory **bulk**. Soft deactivate remains default. Permanent delete only when **inactive**; typed confirm (org name single / `DELETE` bulk). API: `DELETE /admin/organisations/:id` (`confirmName`) + `POST /admin/organisations/bulk` (`activate` | `deactivate` | `delete`). Service deletes client users then org (cascade), then best-effort disk unlink of collected storage paths. UI: directory checkboxes + select bar; hub/directory ⋮ **Delete permanently** (disabled while active).
 - **Phase 2 WP5 (locked 2026-11-21):** Bulk resend access invites — `POST /admin/users/resend-invites` (`organisationId` and/or `userIds`, default `onlyPending`). Active client users with `passwordChangedAt` null; max 50; returns sent/failed/skipped. UI: Users directory checkboxes + **Resend pending invites**; org hub ⋮ **Resend pending invites**.
 - **Phase 2 WP6 (locked 2026-11-21; widened 2026-11-21):** Portal uploads (Documents, Firm Library / staging, cases) allow **PDF + Word (doc/docx) + images (png/jpeg/webp/gif)**. Product-locked types in `uploadSettings`; Settings only edits max size. **E-sign still PDF-only** (Request signature / place fields / ceremony). Preview: PDF + images in-portal; Word = download only.
+- **Directory bulk (locked 2026-11-21):** Admin directories share checkbox + select-bar pattern; **actions differ by table**. Orgs: deactivate/activate/hard delete. Users: disable/enable + resend pending. Employees: deactivate/activate/delete (no linked cases). Cases: close / delete closed only. Max 50 IDs; partial success with counts. Client directories not in this pass.
 
 ### Password / invite flow
 - Support **both**: email invite link to set password, **and** DM.HR temporary passwords.
@@ -523,6 +524,7 @@ David’s direct answers (2026-10-30) are authoritative for product rules where 
 | 2026-11-06 | **Overview D1–D3:** Admin + Client action dashboards — icon KPIs, cases attention, activity feed, onboarding progress bars, quick actions; no charts. |
 | 2026-11-06 | **Auth UI split:** `AuthShell` brand panel + form; password eye toggle; login / set-password / change-password; hero `/auth/dmhr-auth-hero.jpg`; no public register. |
 | 2026-11-20 | **Email DM.HR autolink fix (Phase 1):** Outbound copy uses DMHR/DMHR Group; `sanitizeDmHrForEmail` on send/render; boot migrates `email_templates` + cached welcome fields. |
+| 2026-11-21 | **Directory bulk:** Users disable/enable; Employees deactivate/activate/delete; Cases close/delete-closed. |
 | 2026-11-21 | **Uploads widen:** Documents + Firm Library + cases accept PDF/Word/images; e-sign remains PDF-only. |
 | 2026-11-21 | **Phase 2 WP5+WP6:** Bulk resend pending invites; case attachments PDF+Word+images. |
 | 2026-11-21 | **Phase 2 S2:** Org hard delete (inactive + typed confirm) + directory bulk activate/deactivate/delete. |

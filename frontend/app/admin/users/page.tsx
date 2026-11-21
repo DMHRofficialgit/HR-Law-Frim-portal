@@ -148,6 +148,12 @@ function AdminUsersInner() {
       u.status === "active" &&
       !u.passwordChangedAt
   );
+  const selectedActive = filtered.filter(
+    (u) => selectedIds.has(u.id) && u.status === "active"
+  );
+  const selectedDisabled = filtered.filter(
+    (u) => selectedIds.has(u.id) && u.status === "disabled"
+  );
 
   const toggleSelectAllFiltered = useCallback(() => {
     setSelectedIds((prev) => {
@@ -259,6 +265,48 @@ function AdminUsersInner() {
     storeAccessCredentials(payload);
     setCredentials(payload);
     toastSuccess(purpose === "reset" ? "Password reset link ready" : "Invite link refreshed");
+  }
+
+  async function bulkSetStatus(action: "disable" | "enable") {
+    const targets = action === "disable" ? selectedActive : selectedDisabled;
+    if (targets.length === 0) return;
+    const label = action === "disable" ? "Disable" : "Enable";
+    const ok = await confirm({
+      title: `${label} ${targets.length} user${targets.length === 1 ? "" : "s"}?`,
+      description:
+        action === "disable"
+          ? "Selected users will not be able to sign in until enabled again."
+          : "Selected users will be able to sign in again.",
+      confirmLabel: label,
+      tone: action === "disable" ? "danger" : "default",
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    try {
+      const result = await apiFetch<{
+        updated: number;
+        skipped: number;
+        failed: Array<{ id: string; message: string }>;
+      }>("/admin/users/bulk", {
+        method: "POST",
+        token: getToken(),
+        body: JSON.stringify({ action, ids: targets.map((u) => u.id) }),
+      });
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      toastSuccess(
+        `${label}d ${result.data.updated}; skipped ${result.data.skipped}; failed ${result.data.failed.length}`
+      );
+      if (result.data.failed[0]?.message) toastError(result.data.failed[0].message);
+      setSelectedIds(new Set());
+      await load();
+    } catch {
+      toastError("Unable to update users.");
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   async function bulkResendPending() {
@@ -460,6 +508,24 @@ function AdminUsersInner() {
                 </span>
               </label>
               <div className="docs-select-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={selectedActive.length === 0 || bulkBusy}
+                  onClick={() => void bulkSetStatus("disable")}
+                >
+                  <Ban size={14} strokeWidth={1.75} aria-hidden />
+                  Disable
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={selectedDisabled.length === 0 || bulkBusy}
+                  onClick={() => void bulkSetStatus("enable")}
+                >
+                  <CircleCheck size={14} strokeWidth={1.75} aria-hidden />
+                  Enable
+                </button>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
