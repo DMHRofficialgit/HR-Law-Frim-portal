@@ -166,3 +166,70 @@ export async function deleteEmployee(organisationId: string, id: string) {
   await prisma.employee.delete({ where: { id } });
   return { ok: true as const, employee: existing };
 }
+
+const BULK_EMPLOYEE_MAX = 50;
+
+export type BulkEmployeeResult = {
+  updated: number;
+  skipped: number;
+  failed: Array<{ id: string; message: string; code?: string }>;
+};
+
+export async function bulkEmployees(params: {
+  action: "activate" | "deactivate" | "delete";
+  ids: string[];
+}): Promise<BulkEmployeeResult> {
+  const ids = [...new Set(params.ids.map(String).filter(Boolean))];
+  if (ids.length === 0) {
+    throw Object.assign(new Error("Select at least one employee"), {
+      status: 400,
+      code: "VALIDATION_ERROR",
+    });
+  }
+  if (ids.length > BULK_EMPLOYEE_MAX) {
+    throw Object.assign(new Error(`Select at most ${BULK_EMPLOYEE_MAX} employees at a time`), {
+      status: 400,
+      code: "VALIDATION_ERROR",
+    });
+  }
+
+  let updated = 0;
+  let skipped = 0;
+  const failed: BulkEmployeeResult["failed"] = [];
+  const targetStatus = params.action === "activate" ? "active" : "inactive";
+
+  for (const id of ids) {
+    const existing = await prisma.employee.findUnique({
+      where: { id },
+      include: { _count: { select: { cases: true } } },
+    });
+    if (!existing) {
+      failed.push({ id, message: "Employee not found", code: "NOT_FOUND" });
+      continue;
+    }
+
+    if (params.action === "delete") {
+      const result = await deleteEmployee(existing.organisationId, existing.id);
+      if (result.ok) {
+        updated += 1;
+      } else if (result.reason === "has_cases") {
+        skipped += 1;
+      } else {
+        failed.push({ id, message: "Employee not found", code: "NOT_FOUND" });
+      }
+      continue;
+    }
+
+    if (existing.status === targetStatus) {
+      skipped += 1;
+      continue;
+    }
+    await prisma.employee.update({
+      where: { id },
+      data: { status: targetStatus },
+    });
+    updated += 1;
+  }
+
+  return { updated, skipped, failed };
+}

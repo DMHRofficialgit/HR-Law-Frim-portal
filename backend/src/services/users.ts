@@ -383,3 +383,65 @@ export async function bulkResendUserInvites(params: {
 
   return { sent, failed, skipped, results };
 }
+
+const BULK_STATUS_MAX = 50;
+
+export type BulkUserStatusResult = {
+  updated: number;
+  skipped: number;
+  failed: Array<{ id: string; message: string; code?: string }>;
+};
+
+/** Bulk enable/disable portal users. Reuses setUserStatus guards (self, last admin). */
+export async function bulkSetUserStatus(params: {
+  ids: string[];
+  status: UserStatus;
+  actorId: string;
+  actorRole: UserRole;
+}): Promise<BulkUserStatusResult> {
+  const ids = [...new Set(params.ids.map(String).filter(Boolean))];
+  if (ids.length === 0) {
+    throw httpError("Select at least one user", 400, "VALIDATION_ERROR");
+  }
+  if (ids.length > BULK_STATUS_MAX) {
+    throw httpError(
+      `Select at most ${BULK_STATUS_MAX} users at a time`,
+      400,
+      "VALIDATION_ERROR"
+    );
+  }
+
+  let updated = 0;
+  let skipped = 0;
+  const failed: BulkUserStatusResult["failed"] = [];
+
+  for (const id of ids) {
+    try {
+      const target = await prisma.user.findUnique({ where: { id } });
+      if (!target) {
+        failed.push({ id, message: "User not found", code: "NOT_FOUND" });
+        continue;
+      }
+      if (target.status === params.status) {
+        skipped += 1;
+        continue;
+      }
+      await setUserStatus({
+        userId: id,
+        status: params.status,
+        actorId: params.actorId,
+        actorRole: params.actorRole,
+      });
+      updated += 1;
+    } catch (err) {
+      const e = err as { message?: string; code?: string };
+      failed.push({
+        id,
+        message: e.message || "Unable to update user",
+        code: e.code,
+      });
+    }
+  }
+
+  return { updated, skipped, failed };
+}

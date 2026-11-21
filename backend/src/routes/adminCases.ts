@@ -8,6 +8,7 @@ import { absoluteStoragePath } from "../lib/storage";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
 import {
   addCaseMessage,
+  bulkCases,
   createCase,
   deleteCase,
   deleteCaseAttachment,
@@ -248,6 +249,50 @@ router.patch("/cases/:id/status", async (req, res) => {
     });
   }
   return res.status(200).json({ success: true, data: { case: result.case }, message: "Status updated" });
+});
+
+const bulkCaseSchema = z.object({
+  action: z.enum(["close", "delete"]),
+  ids: z.array(z.string().min(1)).min(1).max(50),
+});
+
+router.post("/cases/bulk", async (req, res) => {
+  const parsed = bulkCaseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsed.error.issues[0]?.message || "Invalid bulk case payload",
+      },
+    });
+  }
+
+  const result = await bulkCases({
+    action: parsed.data.action,
+    ids: parsed.data.ids,
+    actorUserId: req.auth!.id,
+  });
+
+  if (
+    result.updated === 0 &&
+    result.failed.length === 1 &&
+    result.failed[0]?.code === "VALIDATION_ERROR"
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: result.failed[0].message,
+      },
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: result,
+    message: `${parsed.data.action}: updated ${result.updated}, skipped ${result.skipped}, failed ${result.failed.length}`,
+  });
 });
 
 router.post("/cases/:id/messages", (req, res) => {
