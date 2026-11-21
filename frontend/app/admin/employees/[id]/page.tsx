@@ -4,6 +4,8 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowLeft,
   Ban,
   Briefcase,
@@ -13,7 +15,6 @@ import {
   Layers,
   Mail,
   Plus,
-  Trash2,
   Users,
 } from "lucide-react";
 import { AppShell } from "../../../../components/AppShell";
@@ -115,32 +116,48 @@ function AdminEmployeeDetailInner() {
     setEmployee({ ...employee, ...result.data.employee });
   }
 
-  async function onDelete() {
+  async function archiveEmployee() {
     if (!employee) return;
     const ok = await confirm({
-      title: `Delete ${employee.name}?`,
-      description: "Permanently delete this employee? Only allowed with no linked cases.",
-      confirmLabel: "Delete",
+      title: `Archive ${employee.name}?`,
+      description:
+        "Hidden from active lists. Restore within 30 days or it is permanently removed (if no linked cases).",
+      confirmLabel: "Archive",
       tone: "danger",
     });
     if (!ok) return;
     setBusy(true);
-    const result = await apiFetch(`/admin/employees/${employee.id}`, {
-      method: "DELETE",
-      token: getToken(),
-    });
+    const result = await apiFetch<{ employee: EmployeeRow }>(
+      `/admin/employees/${employee.id}/archive`,
+      { method: "POST", token: getToken() }
+    );
     setBusy(false);
     if (!result.success) {
       toastError(result.error.message);
       return;
     }
-    toastSuccess("Employee deleted");
-    router.push("/admin/employees");
+    toastSuccess("Employee archived");
+    router.push("/admin/employees?archived=1");
+  }
+
+  async function restoreEmployee() {
+    if (!employee) return;
+    setBusy(true);
+    const result = await apiFetch<{ employee: EmployeeRow }>(
+      `/admin/employees/${employee.id}/restore`,
+      { method: "POST", token: getToken() }
+    );
+    setBusy(false);
+    if (!result.success) {
+      toastError(result.error.message);
+      return;
+    }
+    toastSuccess("Employee restored");
+    setEmployee({ ...employee, ...result.data.employee });
   }
 
   const cases = employee?.cases || [];
   const linkedCaseCount = employee?._count?.cases ?? cases.length;
-  const hasLinkedCases = linkedCaseCount > 0;
   const openCaseCount = useMemo(
     () => cases.filter((c) => c.status !== "closed").length,
     [cases]
@@ -260,29 +277,45 @@ function AdminEmployeeDetailInner() {
                         `/admin/employees?org=${encodeURIComponent(employee.organisationId)}`
                       ),
                   },
-                  {
-                    id: "toggle",
-                    label: employee.status === "active" ? "Deactivate" : "Activate",
-                    icon:
-                      employee.status === "active" ? (
-                        <Ban size={14} strokeWidth={1.75} />
-                      ) : (
-                        <CircleCheck size={14} strokeWidth={1.75} />
-                      ),
-                    tone: employee.status === "active" ? "danger" : "default",
-                    separatorBefore: true,
-                    disabled: busy,
-                    onSelect: () => toggleStatus(),
-                  },
-                  {
-                    id: "delete",
-                    label: hasLinkedCases ? "Delete (has cases)" : "Delete",
-                    icon: <Trash2 size={14} strokeWidth={1.75} />,
-                    tone: "danger",
-                    separatorBefore: true,
-                    disabled: busy || hasLinkedCases,
-                    onSelect: () => onDelete(),
-                  },
+                  ...(employee.archivedAt
+                    ? [
+                        {
+                          id: "restore",
+                          label: "Restore",
+                          icon: <ArchiveRestore size={14} strokeWidth={1.75} />,
+                          separatorBefore: true,
+                          disabled: busy,
+                          onSelect: () => void restoreEmployee(),
+                        },
+                      ]
+                    : [
+                        {
+                          id: "toggle",
+                          label:
+                            employee.status === "active" ? "Deactivate" : "Activate",
+                          icon:
+                            employee.status === "active" ? (
+                              <Ban size={14} strokeWidth={1.75} />
+                            ) : (
+                              <CircleCheck size={14} strokeWidth={1.75} />
+                            ),
+                          tone:
+                            employee.status === "active"
+                              ? ("danger" as const)
+                              : ("default" as const),
+                          separatorBefore: true,
+                          disabled: busy,
+                          onSelect: () => toggleStatus(),
+                        },
+                        {
+                          id: "archive",
+                          label: "Archive",
+                          icon: <Archive size={14} strokeWidth={1.75} />,
+                          tone: "danger" as const,
+                          disabled: busy,
+                          onSelect: () => void archiveEmployee(),
+                        },
+                      ]),
                 ]}
               />
             </div>

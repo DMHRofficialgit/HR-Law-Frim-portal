@@ -4,19 +4,21 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  Archive,
+  ArchiveRestore,
   Briefcase,
   CheckCircle2,
   Clock3,
   Eye,
   Inbox,
   Pencil,
-  Trash2,
 } from "lucide-react";
 import { AppShell } from "../../../components/AppShell";
 import { CaseFormDialog } from "../../../components/CaseFormDialog";
 import { PortalSearch } from "../../../components/PortalSearch";
 import { PortalSelect } from "../../../components/PortalSelect";
 import { RowActionsMenu } from "../../../components/RowActionsMenu";
+import { ShowArchivedToggle } from "../../../components/ShowArchivedToggle";
 import { MetricSkeleton, TableSkeleton } from "../../../components/Skeleton";
 import { useConfirm } from "../../../context/ConfirmContext";
 import { useToast } from "../../../context/ToastContext";
@@ -46,6 +48,7 @@ function AdminCasesInner() {
   const employeeFromUrl = search.get("employee") || "";
   const createFromUrl = search.get("create") === "1";
   const openOnlyFromUrl = search.get("open") === "1";
+  const archivedFromUrl = search.get("archived") === "1";
 
   const [user, setUser] = useState<PublicUser | null>(null);
   const [orgs, setOrgs] = useState<OrgOption[]>([]);
@@ -62,22 +65,27 @@ function AdminCasesInner() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [showArchived, setShowArchived] = useState(archivedFromUrl);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const q = orgFilter ? `?organisationId=${encodeURIComponent(orgFilter)}` : "";
-    const result = await apiFetch<{ cases: CaseRow[] }>(`/admin/cases${q}`, {
+    const params = new URLSearchParams();
+    if (orgFilter) params.set("organisationId", orgFilter);
+    if (showArchived) params.set("archived", "1");
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const result = await apiFetch<{ cases: CaseRow[] }>(`/admin/cases${qs}`, {
       token: getToken(),
     });
     if (result.success) {
       setCases(result.data.cases);
       setError("");
+      setSelectedIds(new Set());
     } else {
       setError(result.error.message);
       toastError(result.error.message);
     }
     setLoading(false);
-  }, [orgFilter, toastError]);
+  }, [orgFilter, showArchived, toastError]);
 
   useEffect(() => {
     const token = getToken();
@@ -113,6 +121,10 @@ function AdminCasesInner() {
   useEffect(() => {
     if (createFromUrl) setDialogOpen(true);
   }, [createFromUrl]);
+
+  useEffect(() => {
+    setShowArchived(archivedFromUrl);
+  }, [archivedFromUrl]);
 
   const kpiCounts = useMemo(() => countCasesByKpi(cases), [cases]);
 
@@ -152,10 +164,6 @@ function AdminCasesInner() {
   const selectedOpen = filtered.filter(
     (c) => selectedIds.has(c.id) && c.status !== "closed"
   );
-  const selectedClosed = filtered.filter(
-    (c) => selectedIds.has(c.id) && c.status === "closed"
-  );
-
   const toggleSelectAllFiltered = useCallback(() => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -177,17 +185,18 @@ function AdminCasesInner() {
     });
   }, []);
 
-  async function onDelete(c: CaseRow) {
+  async function archiveOne(c: CaseRow) {
     const ok = await confirm({
-      title: `Delete ${c.ref}?`,
-      description: "This cannot be undone.",
-      confirmLabel: "Delete case",
+      title: `Archive ${c.ref}?`,
+      description:
+        "Hidden from active lists. Restore within 30 days or it is permanently removed with its files.",
+      confirmLabel: "Archive",
       tone: "danger",
     });
     if (!ok) return;
     setBusyId(c.id);
-    const result = await apiFetch<{ id: string }>(`/admin/cases/${c.id}`, {
-      method: "DELETE",
+    const result = await apiFetch<{ case: CaseRow }>(`/admin/cases/${c.id}/archive`, {
+      method: "POST",
       token: getToken(),
     });
     setBusyId(null);
@@ -195,30 +204,43 @@ function AdminCasesInner() {
       toastError(result.error.message);
       return;
     }
-    toastSuccess("Case deleted");
+    toastSuccess("Case archived");
     await load();
   }
 
-  async function runBulk(action: "close" | "delete") {
+  async function restoreOne(c: CaseRow) {
+    setBusyId(c.id);
+    const result = await apiFetch<{ case: CaseRow }>(`/admin/cases/${c.id}/restore`, {
+      method: "POST",
+      token: getToken(),
+    });
+    setBusyId(null);
+    if (!result.success) {
+      toastError(result.error.message);
+      return;
+    }
+    toastSuccess("Case restored");
+    await load();
+  }
+
+  async function runBulk(action: "close" | "archive" | "restore") {
     const ids =
       action === "close"
         ? selectedOpen.map((c) => c.id)
-        : selectedClosed.map((c) => c.id);
-    if (ids.length === 0) {
-      if (action === "delete") {
-        toastError("Only closed cases can be bulk-deleted.");
-      }
-      return;
-    }
-    const label = action === "close" ? "Close" : "Delete";
+        : filtered.filter((c) => selectedIds.has(c.id)).map((c) => c.id);
+    if (ids.length === 0) return;
+    const label =
+      action === "close" ? "Close" : action === "archive" ? "Archive" : "Restore";
     const ok = await confirm({
       title: `${label} ${ids.length} case${ids.length === 1 ? "" : "s"}?`,
       description:
         action === "close"
           ? "Selected cases will be marked closed. Clients are notified per case."
-          : "Permanently deletes closed cases and their files. This cannot be undone.",
+          : action === "archive"
+            ? "Hidden from active lists. Restore within 30 days or they are permanently removed with their files."
+            : "Selected cases will return to the active register.",
       confirmLabel: label,
-      tone: action === "delete" ? "danger" : "default",
+      tone: action === "restore" || action === "close" ? "default" : "danger",
     });
     if (!ok) return;
     setBulkBusy(true);
@@ -236,8 +258,10 @@ function AdminCasesInner() {
         toastError(result.error.message);
         return;
       }
+      const verb =
+        action === "archive" ? "Archived" : action === "restore" ? "Restored" : `${label}d`;
       toastSuccess(
-        `${label}d ${result.data.updated}; skipped ${result.data.skipped}; failed ${result.data.failed.length}`
+        `${verb} ${result.data.updated}; skipped ${result.data.skipped}; failed ${result.data.failed.length}`
       );
       if (result.data.failed[0]?.message) toastError(result.data.failed[0].message);
       setSelectedIds(new Set());
@@ -319,14 +343,30 @@ function AdminCasesInner() {
               {!loading && cases.length !== filtered.length ? ` · ${cases.length} total` : ""}
             </p>
           </div>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={() => setDialogOpen(true)}
-          >
-            + Create case
-          </button>
+          <div className="org-directory-head-actions">
+            <ShowArchivedToggle
+              checked={showArchived}
+              onChange={setShowArchived}
+              disabled={loading}
+            />
+            {!showArchived ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setDialogOpen(true)}
+              >
+                + Create case
+              </button>
+            ) : null}
+          </div>
         </div>
+
+        {showArchived ? (
+          <p className="lead archive-hint">
+            Archived cases are hidden from active work. Use <strong>Restore</strong> within 30
+            days or they are permanently removed with their files.
+          </p>
+        ) : null}
 
         <div className="org-toolbar org-directory-toolbar">
           <div className="org-toolbar-search">
@@ -412,24 +452,38 @@ function AdminCasesInner() {
                 </span>
               </label>
               <div className="docs-select-actions">
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  disabled={selectedOpen.length === 0 || bulkBusy}
-                  onClick={() => void runBulk("close")}
-                >
-                  <CheckCircle2 size={14} strokeWidth={1.75} aria-hidden />
-                  Close
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm docs-btn-danger"
-                  disabled={selectedClosed.length === 0 || bulkBusy}
-                  onClick={() => void runBulk("delete")}
-                >
-                  <Trash2 size={14} strokeWidth={1.75} aria-hidden />
-                  Delete closed
-                </button>
+                {!showArchived ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={selectedOpen.length === 0 || bulkBusy}
+                      onClick={() => void runBulk("close")}
+                    >
+                      <CheckCircle2 size={14} strokeWidth={1.75} aria-hidden />
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm docs-btn-danger"
+                      disabled={selectedCount === 0 || bulkBusy}
+                      onClick={() => void runBulk("archive")}
+                    >
+                      <Archive size={14} strokeWidth={1.75} aria-hidden />
+                      Archive
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={selectedCount === 0 || bulkBusy}
+                    onClick={() => void runBulk("restore")}
+                  >
+                    <ArchiveRestore size={14} strokeWidth={1.75} aria-hidden />
+                    Restore
+                  </button>
+                )}
               </div>
             </div>
             <div className="table-wrap">
@@ -521,15 +575,28 @@ function AdminCasesInner() {
                               onSelect: () =>
                                 router.push(`/admin/cases/${c.id}?edit=1`),
                             },
-                            {
-                              id: "delete",
-                              label: "Delete",
-                              icon: <Trash2 size={14} strokeWidth={1.75} />,
-                              tone: "danger",
-                              separatorBefore: true,
-                              disabled: busyId === c.id,
-                              onSelect: () => onDelete(c),
-                            },
+                            ...(showArchived
+                              ? [
+                                  {
+                                    id: "restore",
+                                    label: "Restore",
+                                    icon: <ArchiveRestore size={14} strokeWidth={1.75} />,
+                                    separatorBefore: true,
+                                    disabled: busyId === c.id,
+                                    onSelect: () => void restoreOne(c),
+                                  },
+                                ]
+                              : [
+                                  {
+                                    id: "archive",
+                                    label: "Archive",
+                                    icon: <Archive size={14} strokeWidth={1.75} />,
+                                    tone: "danger" as const,
+                                    separatorBefore: true,
+                                    disabled: busyId === c.id,
+                                    onSelect: () => void archiveOne(c),
+                                  },
+                                ]),
                           ]}
                         />
                       </td>

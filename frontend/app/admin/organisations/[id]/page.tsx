@@ -16,6 +16,8 @@ import {
   Mail,
   Pencil,
   Phone,
+  Archive,
+  ArchiveRestore,
   Trash2,
   UserRound,
   Users,
@@ -382,6 +384,56 @@ const AdminOrganisationProfilePage = () => {
     }
   }
 
+  async function archiveOrg() {
+    if (!org) return;
+    const ok = await confirm({
+      title: `Archive ${org.name}?`,
+      description:
+        "Hidden from active lists. Restore within 30 days or it is permanently removed.",
+      confirmLabel: "Archive",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setBusyStatus(true);
+    try {
+      const result = await apiFetch<{ organisation: OrgDetail }>(
+        `/admin/organisations/${org.id}/archive`,
+        { method: "POST", token: getToken() }
+      );
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      toastSuccess(`${org.name} archived.`);
+      router.replace("/admin/organisations?archived=1");
+    } catch {
+      toastError("Unable to archive organisation.");
+    } finally {
+      setBusyStatus(false);
+    }
+  }
+
+  async function restoreOrg() {
+    if (!org) return;
+    setBusyStatus(true);
+    try {
+      const result = await apiFetch<{ organisation: OrgDetail }>(
+        `/admin/organisations/${org.id}/restore`,
+        { method: "POST", token: getToken() }
+      );
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      toastSuccess(`${org.name} restored.`);
+      await load();
+    } catch {
+      toastError("Unable to restore organisation.");
+    } finally {
+      setBusyStatus(false);
+    }
+  }
+
   async function hardDeleteOrg(confirmName: string) {
     if (!org) return;
     setDeleteBusy(true);
@@ -644,29 +696,55 @@ const AdminOrganisationProfilePage = () => {
                     onSelect: () =>
                       router.push(`/admin/documents?org=${encodeURIComponent(org.id)}`),
                   },
-                  {
-                    id: "toggle",
-                    label: org.status === "active" ? "Deactivate" : "Activate",
-                    icon:
-                      org.status === "active" ? (
-                        <Ban size={14} strokeWidth={1.75} />
-                      ) : (
-                        <CircleCheck size={14} strokeWidth={1.75} />
-                      ),
-                    tone: org.status === "active" ? "danger" : "default",
-                    separatorBefore: true,
-                    disabled: busyStatus,
-                    onSelect: () =>
-                      setOrgStatus(org.status === "active" ? "inactive" : "active"),
-                  },
-                  {
-                    id: "delete",
-                    label: "Delete permanently",
-                    icon: <Trash2 size={14} strokeWidth={1.75} />,
-                    tone: "danger",
-                    disabled: busyStatus || org.status !== "inactive",
-                    onSelect: () => setDeleteOpen(true),
-                  },
+                  ...(org.archivedAt
+                    ? [
+                        {
+                          id: "restore",
+                          label: "Restore",
+                          icon: <ArchiveRestore size={14} strokeWidth={1.75} />,
+                          separatorBefore: true,
+                          disabled: busyStatus,
+                          onSelect: () => void restoreOrg(),
+                        },
+                        {
+                          id: "delete",
+                          label: "Delete now",
+                          icon: <Trash2 size={14} strokeWidth={1.75} />,
+                          tone: "danger" as const,
+                          disabled: busyStatus,
+                          onSelect: () => setDeleteOpen(true),
+                        },
+                      ]
+                    : [
+                        {
+                          id: "toggle",
+                          label: org.status === "active" ? "Deactivate" : "Activate",
+                          icon:
+                            org.status === "active" ? (
+                              <Ban size={14} strokeWidth={1.75} />
+                            ) : (
+                              <CircleCheck size={14} strokeWidth={1.75} />
+                            ),
+                          tone:
+                            org.status === "active"
+                              ? ("danger" as const)
+                              : ("default" as const),
+                          separatorBefore: true,
+                          disabled: busyStatus,
+                          onSelect: () =>
+                            setOrgStatus(
+                              org.status === "active" ? "inactive" : "active"
+                            ),
+                        },
+                        {
+                          id: "archive",
+                          label: "Archive",
+                          icon: <Archive size={14} strokeWidth={1.75} />,
+                          tone: "danger" as const,
+                          disabled: busyStatus,
+                          onSelect: () => void archiveOrg(),
+                        },
+                      ]),
                 ]}
               />
             </div>

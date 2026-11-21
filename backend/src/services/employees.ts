@@ -15,6 +15,8 @@ export type EmployeeListFilters = {
   organisationId?: string;
   status?: string;
   q?: string;
+  /** When true, only archived; default active (non-archived). */
+  archived?: boolean;
 };
 
 const employeeInclude = {
@@ -52,8 +54,10 @@ async function nextEmployeeRef(organisationId: string): Promise<string> {
 
 export async function listEmployees(filters: EmployeeListFilters = {}) {
   const q = filters.q?.trim();
+  const showArchived = filters.archived === true;
   return prisma.employee.findMany({
     where: {
+      archivedAt: showArchived ? { not: null } : null,
       ...(filters.organisationId ? { organisationId: filters.organisationId } : {}),
       ...(filters.status ? { status: filters.status } : {}),
       ...(q
@@ -175,8 +179,30 @@ export type BulkEmployeeResult = {
   failed: Array<{ id: string; message: string; code?: string }>;
 };
 
+export async function archiveEmployee(id: string) {
+  const existing = await prisma.employee.findUnique({ where: { id } });
+  if (!existing) return null;
+  if (existing.archivedAt) return existing;
+  return prisma.employee.update({
+    where: { id },
+    data: { archivedAt: new Date(), status: "inactive" },
+    include: employeeInclude,
+  });
+}
+
+export async function restoreEmployee(id: string) {
+  const existing = await prisma.employee.findUnique({ where: { id } });
+  if (!existing) return null;
+  if (!existing.archivedAt) return existing;
+  return prisma.employee.update({
+    where: { id },
+    data: { archivedAt: null },
+    include: employeeInclude,
+  });
+}
+
 export async function bulkEmployees(params: {
-  action: "activate" | "deactivate" | "delete";
+  action: "activate" | "deactivate" | "archive" | "restore";
   ids: string[];
 }): Promise<BulkEmployeeResult> {
   const ids = [...new Set(params.ids.map(String).filter(Boolean))];
@@ -196,30 +222,43 @@ export async function bulkEmployees(params: {
   let updated = 0;
   let skipped = 0;
   const failed: BulkEmployeeResult["failed"] = [];
+
+  if (params.action === "archive") {
+    const result = await prisma.employee.updateMany({
+      where: { id: { in: ids }, archivedAt: null },
+      data: { archivedAt: new Date(), status: "inactive" },
+    });
+    return {
+      updated: result.count,
+      skipped: Math.max(0, ids.length - result.count),
+      failed: [],
+    };
+  }
+
+  if (params.action === "restore") {
+    const result = await prisma.employee.updateMany({
+      where: { id: { in: ids }, archivedAt: { not: null } },
+      data: { archivedAt: null },
+    });
+    return {
+      updated: result.count,
+      skipped: Math.max(0, ids.length - result.count),
+      failed: [],
+    };
+  }
+
   const targetStatus = params.action === "activate" ? "active" : "inactive";
 
   for (const id of ids) {
-    const existing = await prisma.employee.findUnique({
-      where: { id },
-      include: { _count: { select: { cases: true } } },
-    });
+    const existing = await prisma.employee.findUnique({ where: { id } });
     if (!existing) {
       failed.push({ id, message: "Employee not found", code: "NOT_FOUND" });
       continue;
     }
-
-    if (params.action === "delete") {
-      const result = await deleteEmployee(existing.organisationId, existing.id);
-      if (result.ok) {
-        updated += 1;
-      } else if (result.reason === "has_cases") {
-        skipped += 1;
-      } else {
-        failed.push({ id, message: "Employee not found", code: "NOT_FOUND" });
-      }
+    if (existing.archivedAt) {
+      skipped += 1;
       continue;
     }
-
     if (existing.status === targetStatus) {
       skipped += 1;
       continue;

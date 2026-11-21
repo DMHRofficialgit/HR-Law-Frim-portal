@@ -88,12 +88,71 @@ export type HardDeleteOrganisationResult = {
  * Requires exact confirmName match and inactive status (unless requireInactive=false for tests).
  * Collects storage paths → deletes users + org in a transaction → unlinks files best-effort.
  */
+export async function archiveOrganisation(organisationId: string) {
+  const org = await prisma.organisation.findUnique({ where: { id: organisationId } });
+  if (!org) throw httpError("Organisation not found", 404, "NOT_FOUND");
+  if (org.archivedAt) {
+    return org;
+  }
+  return prisma.organisation.update({
+    where: { id: organisationId },
+    data: { archivedAt: new Date(), status: "inactive" },
+  });
+}
+
+export async function restoreOrganisation(organisationId: string) {
+  const org = await prisma.organisation.findUnique({ where: { id: organisationId } });
+  if (!org) throw httpError("Organisation not found", 404, "NOT_FOUND");
+  if (!org.archivedAt) {
+    return org;
+  }
+  return prisma.organisation.update({
+    where: { id: organisationId },
+    data: { archivedAt: null },
+  });
+}
+
+export async function bulkArchiveOrganisations(ids: string[]) {
+  const unique = [...new Set(ids.map(String).filter(Boolean))];
+  if (unique.length === 0) {
+    throw httpError("Select at least one organisation", 400, "VALIDATION_ERROR");
+  }
+  const result = await prisma.organisation.updateMany({
+    where: { id: { in: unique }, archivedAt: null },
+    data: { archivedAt: new Date(), status: "inactive" },
+  });
+  return {
+    updated: result.count,
+    skipped: Math.max(0, unique.length - result.count),
+  };
+}
+
+export async function bulkRestoreOrganisations(ids: string[]) {
+  const unique = [...new Set(ids.map(String).filter(Boolean))];
+  if (unique.length === 0) {
+    throw httpError("Select at least one organisation", 400, "VALIDATION_ERROR");
+  }
+  const result = await prisma.organisation.updateMany({
+    where: { id: { in: unique }, archivedAt: { not: null } },
+    data: { archivedAt: null },
+  });
+  return {
+    updated: result.count,
+    skipped: Math.max(0, unique.length - result.count),
+  };
+}
+
+/**
+ * Permanently delete an organisation and its client users.
+ * Requires exact confirmName match. Prefer archived (or inactive) unless requireArchived=false for jobs.
+ */
 export async function hardDeleteOrganisation(input: {
   organisationId: string;
   confirmName: string;
-  requireInactive?: boolean;
+  /** When true (default for UI), must be archived or inactive. */
+  requireArchivedOrInactive?: boolean;
 }): Promise<HardDeleteOrganisationResult> {
-  const requireInactive = input.requireInactive !== false;
+  const requireArchivedOrInactive = input.requireArchivedOrInactive !== false;
   const confirmName = input.confirmName.trim();
   if (!confirmName) {
     throw httpError("Type the organisation name to confirm deletion", 400, "CONFIRM_REQUIRED");
@@ -101,7 +160,7 @@ export async function hardDeleteOrganisation(input: {
 
   const org = await prisma.organisation.findUnique({
     where: { id: input.organisationId },
-    select: { id: true, name: true, status: true },
+    select: { id: true, name: true, status: true, archivedAt: true },
   });
   if (!org) {
     throw httpError("Organisation not found", 404, "NOT_FOUND");
@@ -113,11 +172,15 @@ export async function hardDeleteOrganisation(input: {
       "CONFIRM_MISMATCH"
     );
   }
-  if (requireInactive && org.status !== "inactive") {
+  if (
+    requireArchivedOrInactive &&
+    !org.archivedAt &&
+    org.status !== "inactive"
+  ) {
     throw httpError(
-      "Deactivate the organisation before permanently deleting it",
+      "Archive or deactivate the organisation before permanently deleting it",
       409,
-      "MUST_BE_INACTIVE"
+      "MUST_BE_ARCHIVED"
     );
   }
 
@@ -155,6 +218,7 @@ export async function bulkSetOrganisationStatus(input: {
   const result = await prisma.organisation.updateMany({
     where: {
       id: { in: ids },
+      archivedAt: null,
       status: { not: input.status },
     },
     data: { status: input.status },
@@ -169,9 +233,8 @@ export async function bulkSetOrganisationStatus(input: {
 export const BULK_DELETE_PHRASE = "DELETE";
 
 /**
- * Hard-delete multiple inactive organisations.
- * confirmPhrase must be exactly "DELETE". Each org is deleted independently;
- * partial success returns counts + errors.
+ * Hard-delete multiple archived organisations (purge-now).
+ * confirmPhrase must be exactly "DELETE".
  */
 export async function bulkHardDeleteOrganisations(input: {
   ids: string[];
@@ -195,7 +258,7 @@ export async function bulkHardDeleteOrganisations(input: {
 
   const orgs = await prisma.organisation.findMany({
     where: { id: { in: ids } },
-    select: { id: true, name: true, status: true },
+    select: { id: true, name: true, status: true, archivedAt: true },
   });
   const byId = new Map(orgs.map((o) => [o.id, o]));
 
@@ -208,11 +271,11 @@ export async function bulkHardDeleteOrganisations(input: {
       failed.push({ id, message: "Organisation not found", code: "NOT_FOUND" });
       continue;
     }
-    if (org.status !== "inactive") {
+    if (!org.archivedAt && org.status !== "inactive") {
       failed.push({
         id,
-        message: `${org.name} must be inactive before permanent delete`,
-        code: "MUST_BE_INACTIVE",
+        message: `${org.name} must be archived before permanent delete`,
+        code: "MUST_BE_ARCHIVED",
       });
       continue;
     }
@@ -220,7 +283,7 @@ export async function bulkHardDeleteOrganisations(input: {
       const result = await hardDeleteOrganisation({
         organisationId: org.id,
         confirmName: org.name,
-        requireInactive: true,
+        requireArchivedOrInactive: true,
       });
       deleted.push(result);
     } catch (err) {

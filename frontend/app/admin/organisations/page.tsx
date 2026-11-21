@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Archive,
+  ArchiveRestore,
   Ban,
   CircleCheck,
   Eye,
@@ -16,6 +18,7 @@ import { OrgDeleteDialog } from "../../../components/OrgDeleteDialog";
 import { PortalSearch } from "../../../components/PortalSearch";
 import { PortalSelect } from "../../../components/PortalSelect";
 import { RowActionsMenu } from "../../../components/RowActionsMenu";
+import { ShowArchivedToggle } from "../../../components/ShowArchivedToggle";
 import { TableSkeleton } from "../../../components/Skeleton";
 import { useConfirm } from "../../../context/ConfirmContext";
 import { useToast } from "../../../context/ToastContext";
@@ -55,10 +58,17 @@ export default function AdminOrganisationsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<OrgListRow | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const closeAddDialog = useCallback(() => setAddOpen(false), []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("archived") === "1") setShowArchived(true);
+  }, []);
 
   const loadOrgs = useCallback(async () => {
     const token = getToken();
@@ -66,9 +76,11 @@ export default function AdminOrganisationsPage() {
     setLoading(true);
     setError("");
     try {
-      const result = await apiFetch<{ organisations: OrgListRow[] }>("/admin/organisations", {
-        token,
-      });
+      const qs = showArchived ? "?archived=1" : "";
+      const result = await apiFetch<{ organisations: OrgListRow[] }>(
+        `/admin/organisations${qs}`,
+        { token }
+      );
       if (!result.success) {
         if (result.error.code === "PASSWORD_CHANGE_REQUIRED") {
           router.replace("/change-password");
@@ -83,12 +95,13 @@ export default function AdminOrganisationsPage() {
         return;
       }
       setOrgs(result.data.organisations);
+      setSelectedIds(new Set());
     } catch {
       setError("Unable to load organisations.");
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, showArchived]);
 
   useEffect(() => {
     const token = getToken();
@@ -216,6 +229,54 @@ export default function AdminOrganisationsPage() {
     }
   }
 
+  async function archiveOne(org: OrgListRow) {
+    const ok = await confirm({
+      title: `Archive ${org.name}?`,
+      description:
+        "Hidden from active lists. You can restore within 30 days; after that it is permanently removed.",
+      confirmLabel: "Archive",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setBusyId(org.id);
+    try {
+      const result = await apiFetch<{ organisation: OrgListRow }>(
+        `/admin/organisations/${org.id}/archive`,
+        { method: "POST", token: getToken() }
+      );
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      toastSuccess(`${org.name} archived.`);
+      await loadOrgs();
+    } catch {
+      toastError("Unable to archive organisation.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function restoreOne(org: OrgListRow) {
+    setBusyId(org.id);
+    try {
+      const result = await apiFetch<{ organisation: OrgListRow }>(
+        `/admin/organisations/${org.id}/restore`,
+        { method: "POST", token: getToken() }
+      );
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      toastSuccess(`${org.name} restored.`);
+      await loadOrgs();
+    } catch {
+      toastError("Unable to restore organisation.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function hardDeleteOne(org: OrgListRow, confirmName: string) {
     setDeleteBusy(true);
     try {
@@ -243,6 +304,44 @@ export default function AdminOrganisationsPage() {
       toastError("Unable to delete organisation.");
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  async function runBulkArchiveOrRestore(action: "archive" | "restore") {
+    const ids = selectedOrgs.map((o) => o.id);
+    if (ids.length === 0) return;
+    const label = action === "archive" ? "Archive" : "Restore";
+    const ok = await confirm({
+      title: `${label} ${ids.length} client${ids.length === 1 ? "" : "s"}?`,
+      description:
+        action === "archive"
+          ? "Hidden from active lists for 30 days, then permanently removed unless restored."
+          : "Bring selected clients back into the active directory.",
+      confirmLabel: label,
+      tone: action === "archive" ? "danger" : "default",
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    try {
+      const result = await apiFetch<{ updated: number; skipped: number }>(
+        "/admin/organisations/bulk",
+        {
+          method: "POST",
+          token: getToken(),
+          body: JSON.stringify({ action, ids }),
+        }
+      );
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      toastSuccess(`${label}d ${result.data.updated}.`);
+      setSelectedIds(new Set());
+      await loadOrgs();
+    } catch {
+      toastError(`Unable to ${action} organisations.`);
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -290,10 +389,10 @@ export default function AdminOrganisationsPage() {
 
   async function runBulkDelete(confirmPhrase: string) {
     const ids = selectedOrgs
-      .filter((o) => o.status === "inactive")
+      .filter((o) => Boolean(o.archivedAt) || o.status === "inactive")
       .map((o) => o.id);
     if (ids.length === 0) {
-      toastError("Only inactive organisations can be permanently deleted.");
+      toastError("Only archived organisations can be permanently deleted.");
       return;
     }
     setDeleteBusy(true);
@@ -413,10 +512,30 @@ export default function AdminOrganisationsPage() {
                 : ""}
             </p>
           </div>
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => setAddOpen(true)}>
-            Add a client
-          </button>
+          <div className="org-directory-head-actions">
+            <ShowArchivedToggle
+              checked={showArchived}
+              onChange={setShowArchived}
+              disabled={loading}
+            />
+            {!showArchived ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setAddOpen(true)}
+              >
+                Add a client
+              </button>
+            ) : null}
+          </div>
         </div>
+
+        {showArchived ? (
+          <p className="lead archive-hint">
+            Archived clients are hidden from active work. Use <strong>Restore</strong> to bring
+            them back. They are permanently removed after 30 days.
+          </p>
+        ) : null}
 
         <div className="org-toolbar org-directory-toolbar">
           <div className="org-toolbar-search">
@@ -493,33 +612,58 @@ export default function AdminOrganisationsPage() {
                 </span>
               </label>
               <div className="docs-select-actions">
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  disabled={selectedCount === 0 || bulkBusy || selectedActiveCount === 0}
-                  onClick={() => void runBulkStatus("deactivate")}
-                >
-                  <Ban size={14} strokeWidth={1.75} aria-hidden />
-                  Deactivate
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  disabled={selectedCount === 0 || bulkBusy || selectedInactiveCount === 0}
-                  onClick={() => void runBulkStatus("activate")}
-                >
-                  <CircleCheck size={14} strokeWidth={1.75} aria-hidden />
-                  Activate
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm docs-btn-danger"
-                  disabled={selectedCount === 0 || bulkBusy || selectedInactiveCount === 0}
-                  onClick={() => setBulkDeleteOpen(true)}
-                >
-                  <Trash2 size={14} strokeWidth={1.75} aria-hidden />
-                  Delete permanently
-                </button>
+                {!showArchived ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={selectedCount === 0 || bulkBusy || selectedActiveCount === 0}
+                      onClick={() => void runBulkStatus("deactivate")}
+                    >
+                      <Ban size={14} strokeWidth={1.75} aria-hidden />
+                      Deactivate
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={selectedCount === 0 || bulkBusy || selectedInactiveCount === 0}
+                      onClick={() => void runBulkStatus("activate")}
+                    >
+                      <CircleCheck size={14} strokeWidth={1.75} aria-hidden />
+                      Activate
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm docs-btn-danger"
+                      disabled={selectedCount === 0 || bulkBusy}
+                      onClick={() => void runBulkArchiveOrRestore("archive")}
+                    >
+                      <Archive size={14} strokeWidth={1.75} aria-hidden />
+                      Archive
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={selectedCount === 0 || bulkBusy}
+                      onClick={() => void runBulkArchiveOrRestore("restore")}
+                    >
+                      <ArchiveRestore size={14} strokeWidth={1.75} aria-hidden />
+                      Restore
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm docs-btn-danger"
+                      disabled={selectedCount === 0 || bulkBusy}
+                      onClick={() => setBulkDeleteOpen(true)}
+                    >
+                      <Trash2 size={14} strokeWidth={1.75} aria-hidden />
+                      Delete now
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             <div className="table-wrap">
@@ -645,33 +789,57 @@ export default function AdminOrganisationsPage() {
                                   busyId === org.id || !client || client.status !== "active",
                                 onSelect: () => sendClientAccessLink(org),
                               },
-                              {
-                                id: "toggle",
-                                label:
-                                  org.status === "active" ? "Deactivate" : "Activate",
-                                icon:
-                                  org.status === "active" ? (
-                                    <Ban size={14} strokeWidth={1.75} />
-                                  ) : (
-                                    <CircleCheck size={14} strokeWidth={1.75} />
-                                  ),
-                                tone: org.status === "active" ? "danger" : "default",
-                                separatorBefore: true,
-                                disabled: busyId === org.id,
-                                onSelect: () =>
-                                  setOrgStatus(
-                                    org,
-                                    org.status === "active" ? "inactive" : "active"
-                                  ),
-                              },
-                              {
-                                id: "delete",
-                                label: "Delete permanently",
-                                icon: <Trash2 size={14} strokeWidth={1.75} />,
-                                tone: "danger",
-                                disabled: busyId === org.id || org.status !== "inactive",
-                                onSelect: () => setDeleteTarget(org),
-                              },
+                              ...(showArchived
+                                ? [
+                                    {
+                                      id: "restore",
+                                      label: "Restore",
+                                      icon: <ArchiveRestore size={14} strokeWidth={1.75} />,
+                                      separatorBefore: true,
+                                      disabled: busyId === org.id,
+                                      onSelect: () => void restoreOne(org),
+                                    },
+                                    {
+                                      id: "delete",
+                                      label: "Delete now",
+                                      icon: <Trash2 size={14} strokeWidth={1.75} />,
+                                      tone: "danger" as const,
+                                      disabled: busyId === org.id,
+                                      onSelect: () => setDeleteTarget(org),
+                                    },
+                                  ]
+                                : [
+                                    {
+                                      id: "toggle",
+                                      label:
+                                        org.status === "active" ? "Deactivate" : "Activate",
+                                      icon:
+                                        org.status === "active" ? (
+                                          <Ban size={14} strokeWidth={1.75} />
+                                        ) : (
+                                          <CircleCheck size={14} strokeWidth={1.75} />
+                                        ),
+                                      tone:
+                                        org.status === "active"
+                                          ? ("danger" as const)
+                                          : ("default" as const),
+                                      separatorBefore: true,
+                                      disabled: busyId === org.id,
+                                      onSelect: () =>
+                                        setOrgStatus(
+                                          org,
+                                          org.status === "active" ? "inactive" : "active"
+                                        ),
+                                    },
+                                    {
+                                      id: "archive",
+                                      label: "Archive",
+                                      icon: <Archive size={14} strokeWidth={1.75} />,
+                                      tone: "danger" as const,
+                                      disabled: busyId === org.id,
+                                      onSelect: () => void archiveOne(org),
+                                    },
+                                  ]),
                             ]}
                           />
                         </td>
@@ -727,9 +895,7 @@ export default function AdminOrganisationsPage() {
       <OrgDeleteDialog
         open={bulkDeleteOpen}
         mode="bulk"
-        titleName={`${selectedInactiveCount} inactive client${
-          selectedInactiveCount === 1 ? "" : "s"
-        }`}
+        titleName={`${selectedCount} archived client${selectedCount === 1 ? "" : "s"}`}
         expectedConfirm={BULK_DELETE_PHRASE}
         busy={deleteBusy}
         onClose={() => {
