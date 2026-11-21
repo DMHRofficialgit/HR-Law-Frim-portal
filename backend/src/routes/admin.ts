@@ -14,11 +14,27 @@ import { normalizeNotifyEmailsInput } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
 import { publicUser } from "../lib/tokens";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
+import {
+  bulkHardDeleteOrganisations,
+  bulkSetOrganisationStatus,
+  hardDeleteOrganisation,
+} from "../services/organisations";
 import { issueInviteForUser } from "./auth";
 
 const router = Router();
 
 router.use(requireAuth, requireAdmin, requirePasswordSettled);
+
+function serviceError(err: unknown, res: import("express").Response) {
+  const e = err as { status?: number; code?: string; message?: string };
+  return res.status(e.status || 500).json({
+    success: false,
+    error: {
+      code: e.code || "SERVER_ERROR",
+      message: e.message || "Unexpected error",
+    },
+  });
+}
 
 router.get("/organisations", async (_req, res) => {
   const organisations = await prisma.organisation.findMany({
@@ -187,6 +203,91 @@ const updateOrgSchema = z.object({
   /** Comma-separated CC emails (no login). Empty string clears. */
   notifyEmails: z.string().optional().nullable(),
   status: z.enum(["active", "inactive"]).optional(),
+});
+
+const bulkOrgSchema = z.object({
+  action: z.enum(["activate", "deactivate", "delete"]),
+  ids: z.array(z.string().min(1)).min(1).max(100),
+  /** Required for action=delete — must be exactly DELETE */
+  confirmPhrase: z.string().optional(),
+});
+
+router.post("/organisations/bulk", async (req, res) => {
+  const parsed = bulkOrgSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: parsed.error.issues[0]?.message || "Invalid bulk organisation payload",
+      },
+    });
+  }
+
+  try {
+    const { action, ids, confirmPhrase } = parsed.data;
+    if (action === "activate" || action === "deactivate") {
+      const status = action === "activate" ? "active" : "inactive";
+      const result = await bulkSetOrganisationStatus({ ids, status });
+      return res.status(200).json({
+        success: true,
+        data: result,
+        message:
+          action === "activate"
+            ? `Activated ${result.updated} organisation(s)`
+            : `Deactivated ${result.updated} organisation(s)`,
+      });
+    }
+
+    const result = await bulkHardDeleteOrganisations({
+      ids,
+      confirmPhrase: confirmPhrase || "",
+    });
+    const deletedCount = result.deleted.length;
+    const failedCount = result.failed.length;
+    return res.status(failedCount > 0 && deletedCount === 0 ? 400 : 200).json({
+      success: true,
+      data: result,
+      message:
+        failedCount === 0
+          ? `Permanently deleted ${deletedCount} organisation(s)`
+          : `Deleted ${deletedCount}; ${failedCount} could not be deleted`,
+    });
+  } catch (err) {
+    return serviceError(err, res);
+  }
+});
+
+const deleteOrgSchema = z.object({
+  confirmName: z.string().min(1),
+});
+
+router.delete("/organisations/:id", async (req, res) => {
+  const parsed = deleteOrgSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Type the organisation name to confirm permanent deletion",
+      },
+    });
+  }
+
+  try {
+    const result = await hardDeleteOrganisation({
+      organisationId: String(req.params.id),
+      confirmName: parsed.data.confirmName,
+      requireInactive: true,
+    });
+    return res.status(200).json({
+      success: true,
+      data: { organisation: result },
+      message: `${result.name} permanently deleted`,
+    });
+  } catch (err) {
+    return serviceError(err, res);
+  }
 });
 
 router.patch("/organisations/:id", async (req, res) => {

@@ -11,7 +11,11 @@ import {
 } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
 import { removeStoredFile, writeStoredFile } from "../lib/storage";
-import { extensionOf, getUploadSettings } from "../lib/uploadSettings";
+import {
+  extensionOf,
+  getUploadSettings,
+  isProductUploadAllowed,
+} from "../lib/uploadSettings";
 
 const caseInclude = {
   category: true,
@@ -109,8 +113,11 @@ async function validateCaseFile(file: {
 }) {
   const settings = await getUploadSettings();
   const ext = extensionOf(file.originalName);
-  if (!ext || !settings.allowedExtensions.map((e) => e.toLowerCase()).includes(ext)) {
-    return { ok: false as const, message: `File type .${ext || "unknown"} is not allowed` };
+  if (!isProductUploadAllowed({ originalName: file.originalName, mimeType: file.mimeType })) {
+    return {
+      ok: false as const,
+      message: `Case attachments allow PDF, Word, or images — .${ext || "unknown"} is not allowed`,
+    };
   }
   if (file.size > settings.maxUploadBytes) {
     return { ok: false as const, message: `File exceeds max size of ${settings.maxUploadBytes} bytes` };

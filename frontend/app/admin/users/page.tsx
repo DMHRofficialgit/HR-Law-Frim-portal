@@ -8,6 +8,7 @@ import {
   Building2,
   CircleCheck,
   KeyRound,
+  Mail,
   Shield,
   UserCog,
   UserPlus,
@@ -66,6 +67,8 @@ function AdminUsersInner() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [credentials, setCredentials] = useState<AccessCredentialsPayload | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -134,6 +137,38 @@ function AdminUsersInner() {
       return hay.includes(needle);
     });
   }, [users, filter, kpi, roleFilter, statusFilter, orgFilter]);
+
+  const selectedCount = filtered.filter((u) => selectedIds.has(u.id)).length;
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((u) => selectedIds.has(u.id));
+  const selectedPending = filtered.filter(
+    (u) =>
+      selectedIds.has(u.id) &&
+      u.role === "client" &&
+      u.status === "active" &&
+      !u.passwordChangedAt
+  );
+
+  const toggleSelectAllFiltered = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (filtered.every((u) => next.has(u.id))) {
+        for (const u of filtered) next.delete(u.id);
+      } else {
+        for (const u of filtered) next.add(u.id);
+      }
+      return next;
+    });
+  }, [filtered]);
+
+  const toggleSelectOne = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   function onCreated(result: UserCreateCredentials) {
     const orgName =
@@ -211,7 +246,7 @@ function AdminUsersInner() {
     const purpose = result.data.purpose || (isReset ? "reset" : "invite");
     const payload: AccessCredentialsPayload = {
       organisationId: u.organisationId || u.organisation?.id || "firm",
-      organisationName: u.organisation?.name || "DM.HR Group",
+      organisationName: u.organisation?.name || "DMHR Group",
       clientEmail: u.email,
       clientName: u.name,
       authMode: "invite",
@@ -224,6 +259,49 @@ function AdminUsersInner() {
     storeAccessCredentials(payload);
     setCredentials(payload);
     toastSuccess(purpose === "reset" ? "Password reset link ready" : "Invite link refreshed");
+  }
+
+  async function bulkResendPending() {
+    const targets = selectedPending;
+    if (targets.length === 0) {
+      toastError("Select active company users who still need access.");
+      return;
+    }
+    const ok = await confirm({
+      title: `Resend ${targets.length} pending invite${targets.length === 1 ? "" : "s"}?`,
+      description:
+        "Sends a fresh set-password link to each selected company user who has not set a password yet.",
+      confirmLabel: "Resend invites",
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    try {
+      const result = await apiFetch<{
+        sent: number;
+        failed: number;
+        skipped: number;
+      }>("/admin/users/resend-invites", {
+        method: "POST",
+        token: getToken(),
+        body: JSON.stringify({
+          userIds: targets.map((u) => u.id),
+          onlyPending: true,
+        }),
+      });
+      if (!result.success) {
+        toastError(result.error.message);
+        return;
+      }
+      const { sent, failed, skipped } = result.data;
+      toastSuccess(`Invites: sent ${sent}, failed ${failed}, skipped ${skipped}`);
+      if (failed > 0) toastError(`${failed} invite(s) could not be sent.`);
+      setSelectedIds(new Set());
+      await load();
+    } catch {
+      toastError("Unable to resend invites.");
+    } finally {
+      setBulkBusy(false);
+    }
   }
 
   if (!user) return null;
@@ -348,7 +426,7 @@ function AdminUsersInner() {
         </div>
 
         {loading ? (
-          <TableSkeleton rows={6} cols={5} />
+          <TableSkeleton rows={6} cols={6} />
         ) : filtered.length === 0 ? (
           <div className="empty-state">
             <p>
@@ -357,7 +435,7 @@ function AdminUsersInner() {
                 : "No users match these filters."}
             </p>
             <p className="lead">
-              Create a DM.HR admin or add a login for a client company.
+              Create a DMHR admin or add a login for a client company.
             </p>
             <button
               type="button"
@@ -368,121 +446,164 @@ function AdminUsersInner() {
             </button>
           </div>
         ) : (
-          <div className="table-wrap directory-table-scroll">
-            <table className="data-table org-table">
-              <thead>
-                <tr>
-                  <th>User</th>
-                  <th>Role</th>
-                  <th>Access</th>
-                  <th>Status</th>
-                  <th className="org-table-actions-col">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((u) => {
-                  const isSelf = u.id === user.id;
-                  return (
-                    <tr key={u.id} className={u.status !== "active" ? "is-inactive" : undefined}>
-                      <td>
-                        <div className="org-table-company">
-                          <span className="org-table-avatar" aria-hidden>
-                            {userInitials(u.name)}
-                          </span>
-                          <div>
-                            <div className="primary-cell">
-                              {u.name}
-                              {isSelf ? (
-                                <span className="user-you-pill">You</span>
-                              ) : null}
-                              {userNeedsAccess(u) ? (
-                                <span className="esign-queue-badge needs-you" style={{ marginLeft: 6 }}>
-                                  Needs access
-                                </span>
-                              ) : null}
+          <>
+            <div className="docs-select-bar">
+              <label className="docs-select-all">
+                <input
+                  type="checkbox"
+                  checked={allFilteredSelected}
+                  onChange={toggleSelectAllFiltered}
+                  aria-label="Select all visible users"
+                />
+                <span>
+                  {selectedCount}/{filtered.length} selected
+                </span>
+              </label>
+              <div className="docs-select-actions">
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  disabled={selectedPending.length === 0 || bulkBusy}
+                  onClick={() => void bulkResendPending()}
+                >
+                  <Mail size={14} strokeWidth={1.75} aria-hidden />
+                  Resend pending invites
+                  {selectedPending.length > 0 ? ` (${selectedPending.length})` : ""}
+                </button>
+              </div>
+            </div>
+            <div className="table-wrap directory-table-scroll">
+              <table className="data-table org-table">
+                <thead>
+                  <tr>
+                    <th className="org-table-check-col">
+                      <span className="sr-only">Select</span>
+                    </th>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Access</th>
+                    <th>Status</th>
+                    <th className="org-table-actions-col">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((u) => {
+                    const isSelf = u.id === user.id;
+                    return (
+                      <tr key={u.id} className={u.status !== "active" ? "is-inactive" : undefined}>
+                        <td className="org-table-check-col">
+                          <label className="docs-row-check">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(u.id)}
+                              onChange={() => toggleSelectOne(u.id)}
+                              aria-label={`Select ${u.name}`}
+                            />
+                          </label>
+                        </td>
+                        <td>
+                          <div className="org-table-company">
+                            <span className="org-table-avatar" aria-hidden>
+                              {userInitials(u.name)}
+                            </span>
+                            <div>
+                              <div className="primary-cell">
+                                {u.name}
+                                {isSelf ? (
+                                  <span className="user-you-pill">You</span>
+                                ) : null}
+                                {userNeedsAccess(u) ? (
+                                  <span
+                                    className="esign-queue-badge needs-you"
+                                    style={{ marginLeft: 6 }}
+                                  >
+                                    Needs access
+                                  </span>
+                                ) : null}
+                              </div>
+                              <div className="secondary-cell">{u.email}</div>
                             </div>
-                            <div className="secondary-cell">{u.email}</div>
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="org-table-muted">{userRoleLabel(u.role)}</span>
-                      </td>
-                      <td>
-                        {u.role === "client" && (u.organisationId || u.organisation?.id) ? (
-                          <Link
-                            href={`/admin/organisations/${u.organisationId || u.organisation?.id}`}
-                            className="org-table-muted"
-                            style={{ textDecoration: "underline" }}
+                        </td>
+                        <td>
+                          <span className="org-table-muted">{userRoleLabel(u.role)}</span>
+                        </td>
+                        <td>
+                          {u.role === "client" && (u.organisationId || u.organisation?.id) ? (
+                            <Link
+                              href={`/admin/organisations/${u.organisationId || u.organisation?.id}`}
+                              className="org-table-muted"
+                              style={{ textDecoration: "underline" }}
+                            >
+                              {userAccessLabel(u)}
+                            </Link>
+                          ) : (
+                            <span className="org-table-muted">{userAccessLabel(u)}</span>
+                          )}
+                        </td>
+                        <td>
+                          <span
+                            className={`status-pill status-pill-${userStatusPillTone(u.status)}`}
                           >
-                            {userAccessLabel(u)}
-                          </Link>
-                        ) : (
-                          <span className="org-table-muted">{userAccessLabel(u)}</span>
-                        )}
-                      </td>
-                      <td>
-                        <span
-                          className={`status-pill status-pill-${userStatusPillTone(u.status)}`}
-                        >
-                          {userStatusLabel(u.status)}
-                        </span>
-                      </td>
-                      <td className="org-table-actions-col">
-                        <RowActionsMenu
-                          label={`Actions for ${u.name}`}
-                          items={[
-                            {
-                              id: "access",
-                              label: userAccessActionLabel(u),
-                              icon: <KeyRound size={14} strokeWidth={1.75} />,
-                              disabled: busyId === u.id,
-                              onSelect: () => resendInvite(u),
-                            },
-                            ...(u.role === "client" &&
-                            (u.organisationId || u.organisation?.id)
-                              ? [
-                                  {
-                                    id: "org",
-                                    label: "Open organisation",
-                                    icon: <Building2 size={14} strokeWidth={1.75} />,
-                                    onSelect: () =>
-                                      router.push(
-                                        `/admin/organisations/${
-                                          u.organisationId || u.organisation?.id
-                                        }`
-                                      ),
-                                  },
-                                ]
-                              : []),
-                            {
-                              id: "toggle",
-                              label: u.status === "active" ? "Disable" : "Enable",
-                              icon:
-                                u.status === "active" ? (
-                                  <Ban size={14} strokeWidth={1.75} />
-                                ) : (
-                                  <CircleCheck size={14} strokeWidth={1.75} />
-                                ),
-                              tone:
-                                u.status === "active"
-                                  ? ("danger" as const)
-                                  : ("default" as const),
-                              disabled: isSelf || busyId === u.id,
-                              separatorBefore: true,
-                              onSelect: () => toggleStatus(u),
-                            },
-                          ]}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                            {userStatusLabel(u.status)}
+                          </span>
+                        </td>
+                        <td className="org-table-actions-col">
+                          <RowActionsMenu
+                            label={`Actions for ${u.name}`}
+                            items={[
+                              {
+                                id: "access",
+                                label: userAccessActionLabel(u),
+                                icon: <KeyRound size={14} strokeWidth={1.75} />,
+                                disabled: busyId === u.id,
+                                onSelect: () => resendInvite(u),
+                              },
+                              ...(u.role === "client" &&
+                              (u.organisationId || u.organisation?.id)
+                                ? [
+                                    {
+                                      id: "org",
+                                      label: "Open organisation",
+                                      icon: <Building2 size={14} strokeWidth={1.75} />,
+                                      onSelect: () =>
+                                        router.push(
+                                          `/admin/organisations/${
+                                            u.organisationId || u.organisation?.id
+                                          }`
+                                        ),
+                                    },
+                                  ]
+                                : []),
+                              {
+                                id: "toggle",
+                                label: u.status === "active" ? "Disable" : "Enable",
+                                icon:
+                                  u.status === "active" ? (
+                                    <Ban size={14} strokeWidth={1.75} />
+                                  ) : (
+                                    <CircleCheck size={14} strokeWidth={1.75} />
+                                  ),
+                                tone:
+                                  u.status === "active"
+                                    ? ("danger" as const)
+                                    : ("default" as const),
+                                disabled: isSelf || busyId === u.id,
+                                separatorBefore: true,
+                                onSelect: () => toggleStatus(u),
+                              },
+                            ]}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
 

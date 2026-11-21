@@ -24,6 +24,10 @@ import { useToast } from "../../../../context/ToastContext";
 import { API_URL, apiFetch, apiUpload, type PublicUser } from "../../../../lib/api";
 import { getStoredUser, getToken, homeForUser } from "../../../../lib/auth";
 import { adminNav } from "../../../../lib/nav";
+import {
+  PORTAL_UPLOAD_ACCEPT,
+  PORTAL_UPLOAD_HINT,
+} from "../../../../lib/portal-uploads";
 import { isPdfDocument } from "../../../../lib/signatures";
 
 type LibraryDoc = {
@@ -58,7 +62,7 @@ function readinessTone(doc: LibraryDoc): "ok" | "progress" | "muted" | "warn" {
 export default function AdminFirmLibraryOnboardingPage() {
   const router = useRouter();
   const { confirm } = useConfirm();
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess, error: toastError, info: toastInfo } = useToast();
   const [user, setUser] = useState<PublicUser | null>(null);
   const [docs, setDocs] = useState<LibraryDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,7 +102,7 @@ export default function AdminFirmLibraryOnboardingPage() {
   async function onUpload(e: FormEvent) {
     e.preventDefault();
     if (!file) {
-      toastError("Choose a PDF to add as a pack template.");
+      toastError("Choose a file to add as a pack template.");
       return;
     }
     setUploading(true);
@@ -123,11 +127,16 @@ export default function AdminFirmLibraryOnboardingPage() {
       setFile(null);
       setRequiresSignature(true);
       await load(getToken());
-      if (
-        result.data.document.requiresSignature &&
-        isPdfDocument(result.data.document.mimeType, result.data.document.fileName)
-      ) {
+      const pdf = isPdfDocument(
+        result.data.document.mimeType,
+        result.data.document.fileName
+      );
+      if (result.data.document.requiresSignature && pdf) {
         setPrepareId(result.data.document.id);
+      } else if (result.data.document.requiresSignature && !pdf) {
+        toastInfo(
+          "E-signature placement needs a PDF — place fields after uploading a PDF, or mark no signature."
+        );
       }
     } catch {
       toastError("Upload failed.");
@@ -255,14 +264,14 @@ export default function AdminFirmLibraryOnboardingPage() {
             />
           </div>
           <div className="field">
-            <label>PDF template</label>
+            <label>Template file</label>
             <DocsDropzone
               multiple={false}
               busy={uploading}
-              accept=".pdf,application/pdf"
-              hint="PDF only · drag and drop or select"
-              title="Drop a PDF template here"
-              selectLabel="Select PDF"
+              accept={PORTAL_UPLOAD_ACCEPT}
+              hint={PORTAL_UPLOAD_HINT}
+              title="Drop a template file here"
+              selectLabel="Select file"
               compact
               onFiles={(picked) => setFile(picked[0] || null)}
             />

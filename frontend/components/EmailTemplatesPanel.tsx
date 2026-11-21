@@ -86,9 +86,19 @@ export const EmailTemplatesPanel = ({ active }: EmailTemplatesPanelProps): React
     setFocusKey(null);
   }
 
+  function hasDmHrBrand(text: string): boolean {
+    return /DM\.HR/.test(text);
+  }
+
   async function onSave(e: FormEvent) {
     e.preventDefault();
     if (!focusKey) return;
+    if (hasDmHrBrand(editSubject) || hasDmHrBrand(editBody)) {
+      toast.error(
+        'Do not use "DM.HR" in email copy — mail clients treat .hr as a website. Use "DMHR Group" instead.'
+      );
+      return;
+    }
     setSaving(true);
     const result = await apiFetch<{ template: EmailTemplateRow }>(
       `/admin/email-templates/${focusKey}`,
@@ -189,7 +199,8 @@ export const EmailTemplatesPanel = ({ active }: EmailTemplatesPanelProps): React
           <h2>Email templates</h2>
           <p className="lead">
             System templates for every portal email. View, edit, deactivate, or send a test —
-            system keys cannot be deleted (deactivate uses built-in default instead).
+            system keys cannot be deleted (deactivate uses built-in default instead). Never use
+            “DM.HR” in copy — use “DMHR Group” so mail clients do not turn it into a website link.
           </p>
         </div>
       </div>
@@ -217,7 +228,13 @@ export const EmailTemplatesPanel = ({ active }: EmailTemplatesPanelProps): React
               value={editSubject}
               onChange={(e) => setEditSubject(e.target.value)}
               required
+              aria-invalid={hasDmHrBrand(editSubject) || undefined}
             />
+            {hasDmHrBrand(editSubject) ? (
+              <p className="lead settings-hint" style={{ color: "var(--danger)", marginTop: 6 }}>
+                Replace “DM.HR” with “DMHR” / “DMHR Group”.
+              </p>
+            ) : null}
           </div>
 
           <div className="field field-full">
@@ -249,7 +266,17 @@ export const EmailTemplatesPanel = ({ active }: EmailTemplatesPanelProps): React
               value={editBody}
               onChange={(e) => setEditBody(e.target.value)}
               required
+              aria-invalid={hasDmHrBrand(editBody) || undefined}
             />
+            {hasDmHrBrand(editBody) ? (
+              <p className="lead settings-hint" style={{ color: "var(--danger)", marginTop: 6 }}>
+                Replace “DM.HR” with “DMHR” / “DMHR Group” before saving.
+              </p>
+            ) : (
+              <p className="lead settings-hint" style={{ marginTop: 6 }}>
+                Brand spelling for email: DMHR Group (not DM.HR).
+              </p>
+            )}
           </div>
 
           <label className="smtp-secure-check">
@@ -262,7 +289,13 @@ export const EmailTemplatesPanel = ({ active }: EmailTemplatesPanelProps): React
           </label>
 
           <div className="smtp-actions">
-            <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>
+            <button
+              className="btn btn-primary btn-sm"
+              type="submit"
+              disabled={
+                saving || hasDmHrBrand(editSubject) || hasDmHrBrand(editBody)
+              }
+            >
               {saving ? "Saving…" : "Save template"}
             </button>
             <button

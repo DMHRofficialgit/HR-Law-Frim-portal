@@ -19,6 +19,10 @@ import {
   type CaseFormValues,
   type CaseRow,
 } from "../lib/cases";
+import {
+  CASE_ATTACHMENT_ACCEPT,
+  CASE_ATTACHMENT_HINT,
+} from "../lib/case-uploads";
 import { DocsDropzone } from "./DocsDropzone";
 import { IconButton } from "./IconButton";
 import { PortalSelect } from "./PortalSelect";
@@ -478,8 +482,8 @@ export const CaseFormDialog = ({
                   <label>Attachments (optional)</label>
                   <DocsDropzone
                     compact
-                    accept=".pdf,application/pdf"
-                    hint="PDF only · drag and drop or select"
+                    accept={CASE_ATTACHMENT_ACCEPT}
+                    hint={CASE_ATTACHMENT_HINT}
                     title="Drop attachments here"
                     selectLabel="Select files"
                     onFiles={(picked) =>

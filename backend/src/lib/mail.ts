@@ -6,6 +6,8 @@ export type MailPayload = {
   to: string[];
   subject: string;
   text: string;
+  /** Optional HTML alternative (access mails). Text remains required. */
+  html?: string;
 };
 
 export type SmtpConfig = {
@@ -84,11 +86,13 @@ export async function sendMailWithConfig(
       ? `"${displayName}" <${config.fromAddress.trim()}>`
       : config.fromAddress.trim();
 
+    const html = payload.html ? sanitizeDmHrForEmail(payload.html) : undefined;
     await transporter.sendMail({
       from,
       to: recipients.join(", "),
       subject: sanitizeDmHrForEmail(payload.subject),
       text: sanitizeDmHrForEmail(payload.text),
+      ...(html ? { html } : {}),
     });
     return { status: "sent" };
   } catch (err) {

@@ -236,3 +236,150 @@ export async function resendUserInvite(params: {
     passwordSet: Boolean(target.passwordChangedAt),
   };
 }
+
+const BULK_RESEND_MAX = 50;
+
+export type BulkResendInviteResult = {
+  sent: number;
+  failed: number;
+  skipped: number;
+  results: Array<{
+    userId: string;
+    email: string;
+    status: "sent" | "failed" | "skipped";
+    purpose?: AccessMailPurpose;
+    mailStatus?: AccessMailStatus;
+    message?: string;
+  }>;
+};
+
+/**
+ * Bulk resend access links for client users.
+ * Default onlyPending=true → passwordChangedAt null (invite).
+ * When onlyPending=false and userIds provided → invite or reset per user.
+ */
+export async function bulkResendUserInvites(params: {
+  organisationId?: string | null;
+  userIds?: string[];
+  onlyPending?: boolean;
+  actorRole: UserRole;
+}): Promise<BulkResendInviteResult> {
+  if (params.actorRole !== UserRole.admin) {
+    throw httpError("Only admins can bulk-resend invites", 403, "FORBIDDEN");
+  }
+
+  const onlyPending = params.onlyPending !== false;
+  const userIds = params.userIds?.length
+    ? [...new Set(params.userIds.map(String).filter(Boolean))]
+    : undefined;
+
+  if (userIds && userIds.length > BULK_RESEND_MAX) {
+    throw httpError(
+      `Select at most ${BULK_RESEND_MAX} users at a time`,
+      400,
+      "VALIDATION_ERROR"
+    );
+  }
+
+  const candidates = await prisma.user.findMany({
+    where: {
+      role: UserRole.client,
+      status: UserStatus.active,
+      ...(params.organisationId ? { organisationId: params.organisationId } : {}),
+      ...(userIds ? { id: { in: userIds } } : {}),
+      ...(onlyPending ? { passwordChangedAt: null } : {}),
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      organisationId: true,
+      passwordChangedAt: true,
+    },
+    orderBy: { createdAt: "asc" },
+    take: BULK_RESEND_MAX + 1,
+  });
+
+  if (!userIds && !params.organisationId && candidates.length === 0) {
+    throw httpError(
+      "Provide organisationId or userIds, or there are no pending client invites",
+      400,
+      "VALIDATION_ERROR"
+    );
+  }
+
+  if (candidates.length > BULK_RESEND_MAX) {
+    throw httpError(
+      `Too many matches — select at most ${BULK_RESEND_MAX} users or narrow by organisation`,
+      400,
+      "VALIDATION_ERROR"
+    );
+  }
+
+  if (candidates.length === 0) {
+    return { sent: 0, failed: 0, skipped: 0, results: [] };
+  }
+
+  const requestedIds = userIds ? new Set(userIds) : null;
+  const foundIds = new Set(candidates.map((c) => c.id));
+  const results: BulkResendInviteResult["results"] = [];
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+
+  if (requestedIds) {
+    for (const id of requestedIds) {
+      if (!foundIds.has(id)) {
+        skipped += 1;
+        results.push({
+          userId: id,
+          email: "",
+          status: "skipped",
+          message: onlyPending
+            ? "Not an active pending client invite"
+            : "Not an active client user in scope",
+        });
+      }
+    }
+  }
+
+  for (const target of candidates) {
+    try {
+      const result = await resendUserInvite({
+        userId: target.id,
+        actorRole: UserRole.admin,
+      });
+      if (result.mailStatus === "failed") {
+        failed += 1;
+        results.push({
+          userId: target.id,
+          email: target.email,
+          status: "failed",
+          purpose: result.purpose,
+          mailStatus: result.mailStatus,
+          message: "Mail send failed",
+        });
+      } else {
+        sent += 1;
+        results.push({
+          userId: target.id,
+          email: target.email,
+          status: "sent",
+          purpose: result.purpose,
+          mailStatus: result.mailStatus,
+        });
+      }
+    } catch (err) {
+      failed += 1;
+      const e = err as { message?: string };
+      results.push({
+        userId: target.id,
+        email: target.email,
+        status: "failed",
+        message: e.message || "Unable to resend invite",
+      });
+    }
+  }
+
+  return { sent, failed, skipped, results };
+}

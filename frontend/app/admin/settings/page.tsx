@@ -142,14 +142,6 @@ function AdminSettingsPageInner() {
         method: "PATCH",
         token: getToken(),
         body: JSON.stringify({
-          allowedExtensions: extensions
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          allowedMimeTypes: mimes
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
           maxUploadBytes: Number(maxMb) * 1024 * 1024,
         }),
       });
@@ -545,9 +537,9 @@ function AdminSettingsPageInner() {
               <div>
                 <h2>Storage</h2>
                 <p className="lead">
-                  Uploads are <strong>PDF only</strong> (same as e-sign). Adjust max size if needed;
-                  keep extensions as <code>pdf</code> so clients are not offered unsigned Word
-                  files.
+                  Documents, Firm Library, and cases accept <strong>PDF, Word, and images</strong>.
+                  E-signature still requires a <strong>PDF</strong>. File types are product-locked;
+                  only max size is editable here.
                 </p>
               </div>
             </div>
@@ -558,7 +550,8 @@ function AdminSettingsPageInner() {
                   <input
                     id="ext"
                     value={extensions}
-                    onChange={(e) => setExtensions(e.target.value)}
+                    readOnly
+                    aria-readonly="true"
                   />
                 </div>
                 <div className="field">
@@ -579,7 +572,8 @@ function AdminSettingsPageInner() {
                   id="mime"
                   rows={3}
                   value={mimes}
-                  onChange={(e) => setMimes(e.target.value)}
+                  readOnly
+                  aria-readonly="true"
                 />
               </div>
               <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>

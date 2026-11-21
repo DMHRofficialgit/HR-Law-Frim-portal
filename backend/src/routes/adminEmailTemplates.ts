@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  containsDmHrBrand,
+  DM_HR_BRAND_EMAIL_HINT,
   EMAIL_TEMPLATE_DEFAULTS,
   getEmailTemplateByKey,
   listEmailTemplates,
@@ -82,16 +84,17 @@ router.patch("/email-templates/:key", async (req, res) => {
       },
     });
   }
-  const template = await updateEmailTemplate(req.params.key, parsed.data);
-  if (!template) {
-    return res.status(404).json({
+  const result = await updateEmailTemplate(req.params.key, parsed.data);
+  if (!result.ok) {
+    const status = result.code === "NOT_FOUND" ? 404 : 400;
+    return res.status(status).json({
       success: false,
-      error: { code: "NOT_FOUND", message: "Template not found" },
+      error: { code: result.code, message: result.message },
     });
   }
   return res.status(200).json({
     success: true,
-    data: { template },
+    data: { template: result.template },
     message: "Template saved",
   });
 });
@@ -141,6 +144,16 @@ router.post("/email-templates/:key/test", async (req, res) => {
     return res.status(400).json({
       success: false,
       error: { code: "VALIDATION_ERROR", message: "Test recipient email is required" },
+    });
+  }
+
+  if (
+    (parsed.data.subject && containsDmHrBrand(parsed.data.subject)) ||
+    (parsed.data.body && containsDmHrBrand(parsed.data.body))
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: DM_HR_BRAND_EMAIL_HINT },
     });
   }
 

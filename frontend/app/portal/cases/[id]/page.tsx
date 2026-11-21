@@ -24,6 +24,10 @@ import {
   type CaseCategory,
   type CaseRow,
 } from "../../../../lib/cases";
+import {
+  CASE_ATTACHMENT_ACCEPT,
+  CASE_ATTACHMENT_HINT,
+} from "../../../../lib/case-uploads";
 import { clientNav } from "../../../../lib/nav";
 
 function ClientCaseDetailInner() {
@@ -368,8 +372,8 @@ function ClientCaseDetailInner() {
                     <label>Attachments (optional)</label>
                     <DocsDropzone
                       compact
-                      accept=".pdf,application/pdf"
-                      hint="PDF only · drag and drop or select"
+                      accept={CASE_ATTACHMENT_ACCEPT}
+                      hint={CASE_ATTACHMENT_HINT}
                       title="Drop files to attach"
                       onFiles={(picked) =>
                         setFiles((prev) => {
