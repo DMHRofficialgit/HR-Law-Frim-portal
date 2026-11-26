@@ -271,7 +271,7 @@ Locked 2026-11-03 as optional follow-ons (not Phase A–C).
 
 ### Branding & UI
 - **Logo:** from live site https://www.dmhrgroup.com/  
-  Asset: `https://www.dmhrgroup.com/wp-content/uploads/2025/06/DMHR-LOGO-LARGE.jpg`  
+  Asset: `https://www.dmhrgroup.com/wp-content/uploads/2025/06/DMHR-LOGO-LARGE.jpg`
   Prefer local: `frontend/public/logo/dmhr_transparent_logo.png` / `dmhr_logo.png`.
 - **Display name:** DMHR Group / DM.HR Group.
 - **Structure / journeys:** match HTML prototype IA (see **UX structure & user journeys**).

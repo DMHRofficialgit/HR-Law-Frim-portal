@@ -505,13 +505,13 @@ export default function AdminOrganisationsPage() {
         <div className="org-directory-head">
           <div>
             <h2>Client directory</h2>
-            <p className="lead">
+        <p className="lead">
               {loading ? "…" : `${filtered.length} clients`}
               {!loading && orgs.length !== filtered.length
                 ? ` · ${orgs.length} total`
                 : ""}
             </p>
-          </div>
+            </div>
           <div className="org-directory-head-actions">
             <ShowArchivedToggle
               checked={showArchived}
@@ -527,8 +527,8 @@ export default function AdminOrganisationsPage() {
                 Add a client
               </button>
             ) : null}
-          </div>
-        </div>
+            </div>
+            </div>
 
         {showArchived ? (
           <p className="lead archive-hint">
@@ -547,8 +547,8 @@ export default function AdminOrganisationsPage() {
               onQueryChange={setFilter}
               placeholder="Search name, email, company…"
               aria-label="Filter organisations"
-            />
-          </div>
+              />
+            </div>
           <PortalSelect
             className="org-filter"
             size="sm"
@@ -584,8 +584,8 @@ export default function AdminOrganisationsPage() {
               ...contextOptions.map((c) => ({ value: c, label: c })),
             ]}
             onChange={setContextFilter}
-          />
-        </div>
+              />
+            </div>
 
         {loading ? (
           <TableSkeleton rows={7} cols={9} />
@@ -596,7 +596,7 @@ export default function AdminOrganisationsPage() {
             <button type="button" className="btn btn-primary btn-sm" onClick={() => setAddOpen(true)}>
               Add a client
             </button>
-          </div>
+            </div>
         ) : (
           <>
             <div className="docs-select-bar">
@@ -640,19 +640,19 @@ export default function AdminOrganisationsPage() {
                     >
                       <Archive size={14} strokeWidth={1.75} aria-hidden />
                       Archive
-                    </button>
+          </button>
                   </>
                 ) : (
                   <>
-                    <button
-                      type="button"
+                  <button
+                    type="button"
                       className="btn btn-ghost btn-sm"
                       disabled={selectedCount === 0 || bulkBusy}
                       onClick={() => void runBulkArchiveOrRestore("restore")}
                     >
                       <ArchiveRestore size={14} strokeWidth={1.75} aria-hidden />
                       Restore
-                    </button>
+                  </button>
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm docs-btn-danger"
@@ -730,8 +730,8 @@ export default function AdminOrganisationsPage() {
                               <span className="org-onboard-label">{onboarding.label}</span>
                               {onboarding.total > 0 ? (
                                 <span className="org-onboard-pct">{onboarding.percent}%</span>
-                              ) : null}
-                            </div>
+                  ) : null}
+                </div>
                             {onboarding.total > 0 ? (
                               <div
                                 className="org-onboard-track"
@@ -844,8 +844,8 @@ export default function AdminOrganisationsPage() {
                           />
                         </td>
                       </tr>
-                    );
-                  })}
+            );
+          })}
                 </tbody>
               </table>
             </div>
