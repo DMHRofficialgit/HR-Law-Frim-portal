@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { clientIp } from "../lib/client-ip";
 import { prisma } from "../lib/prisma";
-import { createRawInviteToken, hashToken, publicUser, signAccessToken } from "../lib/tokens";
+import { hashToken, publicUser, signAccessToken } from "../lib/tokens";
 import { requireAuth } from "../middleware/auth";
 import {
   changePasswordLimiter,
@@ -13,6 +13,9 @@ import {
   setPasswordIpLimiter,
   setPasswordTokenLimiter,
 } from "../middleware/rateLimitAuth";
+import { ACCESS_TOKEN_REPLACED_MESSAGE } from "../services/access-tokens";
+
+export { issueInviteForUser } from "../services/access-tokens";
 
 const router = Router();
 
@@ -217,7 +220,7 @@ router.get("/auth/invite/:token", inviteGetIpLimiter, async (req, res) => {
   if (!invite || invite.user.status !== "active") {
     return res.status(400).json({
       success: false,
-      error: { code: "INVALID_TOKEN", message: "Invite link is invalid or expired" },
+      error: { code: "INVALID_TOKEN", message: ACCESS_TOKEN_REPLACED_MESSAGE },
     });
   }
 
@@ -257,26 +260,33 @@ router.post(
   if (!invite || invite.user.status !== "active") {
     return res.status(400).json({
       success: false,
-      error: { code: "INVALID_TOKEN", message: "Invite link is invalid or expired" },
+      error: { code: "INVALID_TOKEN", message: ACCESS_TOKEN_REPLACED_MESSAGE },
     });
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const now = new Date();
 
-  const [user] = await prisma.$transaction([
-    prisma.user.update({
+  const user = await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.update({
       where: { id: invite.userId },
       data: {
         passwordHash,
         mustChangePassword: false,
-        passwordChangedAt: new Date(),
+        passwordChangedAt: now,
       },
-    }),
-    prisma.inviteToken.update({
+    });
+    await tx.inviteToken.update({
       where: { id: invite.id },
-      data: { usedAt: new Date() },
-    }),
-  ]);
+      data: { usedAt: now },
+    });
+    // Invalidate any other outstanding invite/reset links for this user
+    await tx.inviteToken.updateMany({
+      where: { userId: invite.userId, usedAt: null, NOT: { id: invite.id } },
+      data: { usedAt: now },
+    });
+    return updated;
+  });
 
   const accessToken = signAccessToken(user);
 
@@ -290,18 +300,5 @@ router.post(
   });
   }
 );
-
-/** Helper used by admin routes — not a public route */
-export async function issueInviteForUser(userId: string) {
-  const raw = createRawInviteToken();
-  const tokenHash = hashToken(raw);
-  const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
-
-  await prisma.inviteToken.create({
-    data: { userId, tokenHash, expiresAt },
-  });
-
-  return raw;
-}
 
 export default router;

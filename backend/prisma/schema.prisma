@@ -202,6 +202,8 @@ model InviteToken {
   id        String    @id @default(uuid())
   userId    String    @map("user_id")
   tokenHash String    @map("token_hash")
+  /// "invite" (first access) | "reset" (password already set)
+  purpose   String    @default("invite")
   expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
   createdAt DateTime  @default(now()) @map("created_at")
@@ -210,6 +212,7 @@ model InviteToken {
 
   @@index([userId])
   @@index([tokenHash])
+  @@index([userId, purpose, usedAt])
   @@map("invite_tokens")
 }
 

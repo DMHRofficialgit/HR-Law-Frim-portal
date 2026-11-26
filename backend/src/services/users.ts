@@ -9,7 +9,7 @@ import {
 } from "../lib/access-mail";
 import { prisma } from "../lib/prisma";
 import { publicUser } from "../lib/tokens";
-import { issueInviteForUser } from "../routes/auth";
+import { issueAccessToken, issueInviteForUser } from "./access-tokens";
 
 function httpError(message: string, status: number, code: string) {
   return Object.assign(new Error(message), { status, code });
@@ -208,7 +208,7 @@ export async function resendUserInvite(params: {
   }
 
   const purpose: AccessMailPurpose = target.passwordChangedAt ? "reset" : "invite";
-  const raw = await issueInviteForUser(target.id);
+  const raw = await issueAccessToken(target.id, purpose);
   const inviteUrl = `${env.FRONTEND_URL}/set-password?token=${raw}`;
   const org =
     target.organisationId

@@ -24,7 +24,7 @@ import {
   hardDeleteOrganisation,
   restoreOrganisation,
 } from "../services/organisations";
-import { issueInviteForUser } from "./auth";
+import { issueInviteForUser } from "../services/access-tokens";
 
 const router = Router();
 

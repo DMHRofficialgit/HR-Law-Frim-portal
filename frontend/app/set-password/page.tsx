@@ -27,7 +27,9 @@ function SetPasswordForm() {
 
     async function loadInvite() {
       if (!token) {
-        setError("Invite link is missing a token.");
+        setError(
+          "This link has expired or been replaced by a newer one. Please use the latest email."
+        );
         setChecking(false);
         return;
       }

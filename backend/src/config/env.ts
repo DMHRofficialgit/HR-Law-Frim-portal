@@ -22,6 +22,10 @@ const envSchema = z.object({
   RATE_LIMIT_SET_PASSWORD_IP_MAX: z.coerce.number().int().min(5).max(100).default(20),
   RATE_LIMIT_SET_PASSWORD_TOKEN_MAX: z.coerce.number().int().min(3).max(50).default(10),
   RATE_LIMIT_CHANGE_PASSWORD_MAX: z.coerce.number().int().min(3).max(50).default(10),
+  /** First-access invite link lifetime (hours). */
+  INVITE_TOKEN_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(72),
+  /** Password-reset link lifetime (minutes). */
+  RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(20),
 });
 
 const parsed = envSchema.safeParse(process.env);
