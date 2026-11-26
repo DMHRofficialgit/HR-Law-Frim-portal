@@ -27,6 +27,9 @@ import profileRoutes from "./routes/profile";
 export function createApp() {
   const app = express();
 
+  // Real client IP behind Render/DO — number of hops, never `true`.
+  app.set("trust proxy", env.TRUST_PROXY_HOPS);
+
   app.use(
     cors({
       origin: env.CORS_ORIGIN,

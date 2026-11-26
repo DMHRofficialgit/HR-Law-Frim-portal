@@ -14,6 +14,14 @@ const envSchema = z.object({
   STORAGE_ROOT: z.string().default("./storage"),
   /** Base64 AES-256 key for SMTP mailbox password at rest. Empty in .env.example only. */
   SMTP_SECRET_KEY: z.string().optional().default(""),
+  /** Proxy hops in front of Node (Render/DO edge ≈ 1). Never use `true`. */
+  TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
+  RATE_LIMIT_LOGIN_IP_MAX: z.coerce.number().int().min(5).max(200).default(30),
+  RATE_LIMIT_LOGIN_EMAIL_MAX: z.coerce.number().int().min(3).max(100).default(10),
+  RATE_LIMIT_INVITE_IP_MAX: z.coerce.number().int().min(10).max(300).default(60),
+  RATE_LIMIT_SET_PASSWORD_IP_MAX: z.coerce.number().int().min(5).max(100).default(20),
+  RATE_LIMIT_SET_PASSWORD_TOKEN_MAX: z.coerce.number().int().min(3).max(50).default(10),
+  RATE_LIMIT_CHANGE_PASSWORD_MAX: z.coerce.number().int().min(3).max(50).default(10),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -1,9 +1,18 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { clientIp } from "../lib/client-ip";
 import { prisma } from "../lib/prisma";
 import { createRawInviteToken, hashToken, publicUser, signAccessToken } from "../lib/tokens";
 import { requireAuth } from "../middleware/auth";
+import {
+  changePasswordLimiter,
+  inviteGetIpLimiter,
+  loginEmailLimiter,
+  loginIpLimiter,
+  setPasswordIpLimiter,
+  setPasswordTokenLimiter,
+} from "../middleware/rateLimitAuth";
 
 const router = Router();
 
@@ -26,15 +35,7 @@ const updateProfileSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
 });
 
-function clientIp(req: { headers: Record<string, unknown>; socket: { remoteAddress?: string } }) {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && forwarded.length > 0) {
-    return forwarded.split(",")[0].trim();
-  }
-  return req.socket.remoteAddress || null;
-}
-
-router.post("/auth/login", async (req, res) => {
+router.post("/auth/login", loginIpLimiter, loginEmailLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -149,7 +150,11 @@ router.post("/auth/logout", requireAuth, (_req, res) => {
   });
 });
 
-router.post("/auth/change-password", requireAuth, async (req, res) => {
+router.post(
+  "/auth/change-password",
+  requireAuth,
+  changePasswordLimiter,
+  async (req, res) => {
   const parsed = changePasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -197,10 +202,11 @@ router.post("/auth/change-password", requireAuth, async (req, res) => {
     },
     message: "Password updated",
   });
-});
+  }
+);
 
-router.get("/auth/invite/:token", async (req, res) => {
-  const raw = req.params.token;
+router.get("/auth/invite/:token", inviteGetIpLimiter, async (req, res) => {
+  const raw = String(req.params.token || "");
   const tokenHash = hashToken(raw);
 
   const invite = await prisma.inviteToken.findFirst({
@@ -224,7 +230,11 @@ router.get("/auth/invite/:token", async (req, res) => {
   });
 });
 
-router.post("/auth/set-password", async (req, res) => {
+router.post(
+  "/auth/set-password",
+  setPasswordIpLimiter,
+  setPasswordTokenLimiter,
+  async (req, res) => {
   const parsed = setPasswordSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({
@@ -278,7 +288,8 @@ router.post("/auth/set-password", async (req, res) => {
     },
     message: "Password set",
   });
-});
+  }
+);
 
 /** Helper used by admin routes — not a public route */
 export async function issueInviteForUser(userId: string) {
