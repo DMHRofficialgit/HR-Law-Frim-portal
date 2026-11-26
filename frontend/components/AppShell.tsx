@@ -26,6 +26,7 @@ import {
 import { IconButton } from "./IconButton";
 import { PortalSearch } from "./PortalSearch";
 import { TooltipAnchor } from "./TooltipAnchor";
+import { SessionGuard } from "./SessionGuard";
 import { apiFetch, type PublicUser } from "../lib/api";
 import { clearSession, getToken } from "../lib/auth";
 import {
@@ -165,7 +166,15 @@ export function AppShell({ user, nav, title, actions, children }: AppShellProps)
     return () => clearRailTimers();
   }, []);
 
-  function logout() {
+  async function logout() {
+    const token = getToken();
+    if (token) {
+      try {
+        await apiFetch("/auth/logout", { method: "POST", token });
+      } catch {
+        /* still clear local session */
+      }
+    }
     clearSession();
     router.replace("/login");
   }
@@ -380,6 +389,7 @@ export function AppShell({ user, nav, title, actions, children }: AppShellProps)
         pinned ? " shell-pinned" : ""
       }`}
     >
+      <SessionGuard />
       <aside
         className="shell-sidebar"
         aria-label="Sidebar"

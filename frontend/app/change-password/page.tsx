@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthPasswordField } from "../../components/AuthPasswordField";
 import { AuthShell } from "../../components/AuthShell";
-import { apiFetch, type PublicUser } from "../../lib/api";
+import { apiFetch, type AuthBundle, type PublicUser } from "../../lib/api";
 import { clearSession, getStoredUser, getToken, homeForUser, saveSession } from "../../lib/auth";
 
 export default function ChangePasswordPage() {
@@ -41,7 +41,7 @@ export default function ChangePasswordPage() {
 
     setLoading(true);
     try {
-      const result = await apiFetch<{ token: string; user: PublicUser }>("/auth/change-password", {
+      const result = await apiFetch<AuthBundle>("/auth/change-password", {
         method: "POST",
         token: getToken(),
         body: JSON.stringify({ currentPassword, newPassword }),
@@ -52,7 +52,10 @@ export default function ChangePasswordPage() {
         return;
       }
 
-      saveSession(result.data.token, result.data.user);
+      saveSession(result.data.token, result.data.user, {
+        refreshToken: result.data.refreshToken,
+        session: result.data.session,
+      });
       router.replace(homeForUser(result.data.user));
     } catch {
       setError("Unable to reach the server.");
@@ -61,7 +64,15 @@ export default function ChangePasswordPage() {
     }
   }
 
-  function logout() {
+  async function logout() {
+    const token = getToken();
+    if (token) {
+      try {
+        await apiFetch("/auth/logout", { method: "POST", token });
+      } catch {
+        /* clear anyway */
+      }
+    }
     clearSession();
     router.replace("/login");
   }

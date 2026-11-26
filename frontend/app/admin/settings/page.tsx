@@ -6,7 +6,7 @@ import { AppShell } from "../../../components/AppShell";
 import { EmailTemplatesPanel } from "../../../components/EmailTemplatesPanel";
 import { PanelSkeleton } from "../../../components/Skeleton";
 import { useToast } from "../../../context/ToastContext";
-import { apiFetch, type PublicUser } from "../../../lib/api";
+import { apiFetch, type AuthBundle, type PublicUser } from "../../../lib/api";
 import { getStoredUser, getToken, homeForUser, saveSession } from "../../../lib/auth";
 import { adminNav } from "../../../lib/nav";
 import {
@@ -220,7 +220,7 @@ function AdminSettingsPageInner() {
     }
     setSavingPassword(true);
     try {
-      const result = await apiFetch<{ token: string; user: PublicUser }>(
+      const result = await apiFetch<AuthBundle>(
         "/auth/change-password",
         {
           method: "POST",
@@ -233,7 +233,10 @@ function AdminSettingsPageInner() {
         toast.error(result.error.message);
         return;
       }
-      saveSession(result.data.token, result.data.user);
+      saveSession(result.data.token, result.data.user, {
+        refreshToken: result.data.refreshToken,
+        session: result.data.session,
+      });
       setUser(result.data.user);
       setCurrentPassword("");
       setNewPassword("");

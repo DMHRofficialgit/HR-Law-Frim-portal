@@ -7,6 +7,7 @@ export type AuthUser = {
   role: UserRole;
   organisationId: string | null;
   mustChangePassword: boolean;
+  sessionId?: string;
 };
 
 declare global {

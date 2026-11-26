@@ -3,23 +3,39 @@ import jwt from "jsonwebtoken";
 import type { User } from "@prisma/client";
 import { env } from "../config/env";
 
-export function signAccessToken(user: Pick<User, "id" | "role" | "organisationId">) {
-  return jwt.sign(
-    {
-      sub: user.id,
-      role: user.role,
-      organisationId: user.organisationId,
-    },
-    env.JWT_SECRET,
-    { expiresIn: "7d" }
-  );
+export type AccessTokenClaims = {
+  sub: string;
+  role: "admin" | "client";
+  organisationId: string | null;
+  tv: number;
+  sid: string;
+};
+
+export function signAccessToken(
+  user: Pick<User, "id" | "role" | "organisationId" | "tokenVersion">,
+  sessionId: string
+): string {
+  const payload: AccessTokenClaims = {
+    sub: user.id,
+    role: user.role,
+    organisationId: user.organisationId,
+    tv: user.tokenVersion,
+    sid: sessionId,
+  };
+  return jwt.sign(payload, env.JWT_SECRET, {
+    expiresIn: `${env.JWT_ACCESS_TTL_MINUTES}m`,
+  });
 }
 
 export function createRawInviteToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
-/** Deterministic hash so invite tokens can be looked up by index. */
+export function createRawRefreshToken() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+/** Deterministic hash so invite/refresh tokens can be looked up by index. */
 export function hashToken(raw: string) {
   return crypto.createHash("sha256").update(raw).digest("hex");
 }

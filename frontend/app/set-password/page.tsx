@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthPasswordField } from "../../components/AuthPasswordField";
 import { AuthShell } from "../../components/AuthShell";
-import { apiFetch, type PublicUser } from "../../lib/api";
+import { apiFetch, type AuthBundle, type PublicUser } from "../../lib/api";
 import { homeForUser, saveSession } from "../../lib/auth";
 
 function SetPasswordForm() {
@@ -75,7 +75,7 @@ function SetPasswordForm() {
 
     setLoading(true);
     try {
-      const result = await apiFetch<{ token: string; user: PublicUser }>("/auth/set-password", {
+      const result = await apiFetch<AuthBundle>("/auth/set-password", {
         method: "POST",
         body: JSON.stringify({ token, password }),
       });
@@ -85,7 +85,10 @@ function SetPasswordForm() {
         return;
       }
 
-      saveSession(result.data.token, result.data.user);
+      saveSession(result.data.token, result.data.user, {
+        refreshToken: result.data.refreshToken,
+        session: result.data.session,
+      });
       router.replace(homeForUser(result.data.user));
     } catch {
       setError("Unable to reach the server.");

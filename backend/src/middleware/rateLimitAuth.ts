@@ -127,3 +127,10 @@ export const changePasswordLimiter = rateLimit({
     return `changepw:ip:${ipKey(req)}`;
   },
 });
+
+/** Refresh — per IP */
+export const refreshIpLimiter = makeIpLimiter(
+  "refresh_ip",
+  env.RATE_LIMIT_REFRESH_IP_MAX,
+  "refresh:ip"
+);

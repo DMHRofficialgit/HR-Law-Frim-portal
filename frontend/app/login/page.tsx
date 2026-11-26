@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthPasswordField } from "../../components/AuthPasswordField";
 import { AuthShell } from "../../components/AuthShell";
-import { apiFetch, type PublicUser } from "../../lib/api";
+import { apiFetch, type AuthBundle, type PublicUser } from "../../lib/api";
 import { getToken, homeForUser, saveSession } from "../../lib/auth";
 
 export default function LoginPage() {
@@ -33,7 +33,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await apiFetch<{ token: string; user: PublicUser }>("/auth/login", {
+      const result = await apiFetch<AuthBundle>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
@@ -43,7 +43,10 @@ export default function LoginPage() {
         return;
       }
 
-      saveSession(result.data.token, result.data.user);
+      saveSession(result.data.token, result.data.user, {
+        refreshToken: result.data.refreshToken,
+        session: result.data.session,
+      });
       router.replace(homeForUser(result.data.user));
     } catch {
       setError("Unable to reach the server. Is the API running?");

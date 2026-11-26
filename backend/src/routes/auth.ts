@@ -3,17 +3,25 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { clientIp } from "../lib/client-ip";
 import { prisma } from "../lib/prisma";
-import { hashToken, publicUser, signAccessToken } from "../lib/tokens";
+import { hashToken, publicUser } from "../lib/tokens";
 import { requireAuth } from "../middleware/auth";
 import {
   changePasswordLimiter,
   inviteGetIpLimiter,
   loginEmailLimiter,
   loginIpLimiter,
+  refreshIpLimiter,
   setPasswordIpLimiter,
   setPasswordTokenLimiter,
 } from "../middleware/rateLimitAuth";
 import { ACCESS_TOKEN_REPLACED_MESSAGE } from "../services/access-tokens";
+import {
+  createAuthBundle,
+  isHttpError,
+  refreshAuthBundle,
+  revokeSessionById,
+  rotateAuthAfterCredentialChange,
+} from "../services/auth-sessions";
 
 export { issueInviteForUser } from "../services/access-tokens";
 
@@ -36,6 +44,10 @@ const changePasswordSchema = z.object({
 
 const updateProfileSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(120),
+});
+
+const refreshSchema = z.object({
+  refreshToken: z.string().min(20),
 });
 
 router.post("/auth/login", loginIpLimiter, loginEmailLimiter, async (req, res) => {
@@ -85,16 +97,40 @@ router.post("/auth/login", loginIpLimiter, loginEmailLimiter, async (req, res) =
     data: { email, success: true, ip, userId: user.id },
   });
 
-  const token = signAccessToken(user);
+  const bundle = await createAuthBundle(user);
 
   return res.status(200).json({
     success: true,
-    data: {
-      token,
-      user: publicUser(user),
-    },
+    data: bundle,
     message: "Logged in",
   });
+});
+
+router.post("/auth/refresh", refreshIpLimiter, async (req, res) => {
+  const parsed = refreshSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({
+      success: false,
+      error: { code: "VALIDATION_ERROR", message: "Refresh token required" },
+    });
+  }
+
+  try {
+    const bundle = await refreshAuthBundle(parsed.data.refreshToken);
+    return res.status(200).json({
+      success: true,
+      data: bundle,
+      message: "Token refreshed",
+    });
+  } catch (err) {
+    if (isHttpError(err)) {
+      return res.status(err.status).json({
+        success: false,
+        error: { code: err.code, message: err.message },
+      });
+    }
+    throw err;
+  }
 });
 
 router.get("/auth/me", requireAuth, async (req, res) => {
@@ -145,11 +181,14 @@ router.patch("/auth/me", requireAuth, async (req, res) => {
   });
 });
 
-router.post("/auth/logout", requireAuth, (_req, res) => {
+router.post("/auth/logout", requireAuth, async (req, res) => {
+  if (req.auth?.sessionId) {
+    await revokeSessionById(req.auth.sessionId);
+  }
   return res.status(200).json({
     success: true,
     data: null,
-    message: "Logged out — clear the token on the client",
+    message: "Logged out",
   });
 });
 
@@ -158,53 +197,50 @@ router.post(
   requireAuth,
   changePasswordLimiter,
   async (req, res) => {
-  const parsed = changePasswordSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: "VALIDATION_ERROR",
-        message: parsed.error.issues[0]?.message || "Invalid password payload",
+    const parsed = changePasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parsed.error.issues[0]?.message || "Invalid password payload",
+        },
+      });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.auth!.id } });
+    if (!user || user.status !== "active") {
+      return res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "Authentication required" },
+      });
+    }
+
+    const matches = await bcrypt.compare(parsed.data.currentPassword, user.passwordHash);
+    if (!matches) {
+      return res.status(400).json({
+        success: false,
+        error: { code: "INVALID_PASSWORD", message: "Current password is incorrect" },
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        mustChangePassword: false,
+        passwordChangedAt: new Date(),
       },
     });
-  }
 
-  const user = await prisma.user.findUnique({ where: { id: req.auth!.id } });
-  if (!user || user.status !== "active") {
-    return res.status(401).json({
-      success: false,
-      error: { code: "UNAUTHORIZED", message: "Authentication required" },
+    const bundle = await rotateAuthAfterCredentialChange(user.id);
+
+    return res.status(200).json({
+      success: true,
+      data: bundle,
+      message: "Password updated",
     });
-  }
-
-  const matches = await bcrypt.compare(parsed.data.currentPassword, user.passwordHash);
-  if (!matches) {
-    return res.status(400).json({
-      success: false,
-      error: { code: "INVALID_PASSWORD", message: "Current password is incorrect" },
-    });
-  }
-
-  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
-  const updated = await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      passwordHash,
-      mustChangePassword: false,
-      passwordChangedAt: new Date(),
-    },
-  });
-
-  const token = signAccessToken(updated);
-
-  return res.status(200).json({
-    success: true,
-    data: {
-      token,
-      user: publicUser(updated),
-    },
-    message: "Password updated",
-  });
   }
 );
 
@@ -238,66 +274,67 @@ router.post(
   setPasswordIpLimiter,
   setPasswordTokenLimiter,
   async (req, res) => {
-  const parsed = setPasswordSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: "VALIDATION_ERROR",
-        message: parsed.error.issues[0]?.message || "Invalid password payload",
-      },
+    const parsed = setPasswordSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parsed.error.issues[0]?.message || "Invalid password payload",
+        },
+      });
+    }
+
+    const { token: raw, password } = parsed.data;
+    const tokenHash = hashToken(raw);
+
+    const invite = await prisma.inviteToken.findFirst({
+      where: { tokenHash, usedAt: null, expiresAt: { gt: new Date() } },
+      include: { user: true },
     });
-  }
 
-  const { token: raw, password } = parsed.data;
-  const tokenHash = hashToken(raw);
+    if (!invite || invite.user.status !== "active") {
+      return res.status(400).json({
+        success: false,
+        error: { code: "INVALID_TOKEN", message: ACCESS_TOKEN_REPLACED_MESSAGE },
+      });
+    }
 
-  const invite = await prisma.inviteToken.findFirst({
-    where: { tokenHash, usedAt: null, expiresAt: { gt: new Date() } },
-    include: { user: true },
-  });
+    const passwordHash = await bcrypt.hash(password, 10);
+    const now = new Date();
 
-  if (!invite || invite.user.status !== "active") {
-    return res.status(400).json({
-      success: false,
-      error: { code: "INVALID_TOKEN", message: ACCESS_TOKEN_REPLACED_MESSAGE },
+    const user = await prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: invite.userId },
+        data: {
+          passwordHash,
+          mustChangePassword: false,
+          passwordChangedAt: now,
+          tokenVersion: { increment: 1 },
+        },
+      });
+      await tx.inviteToken.update({
+        where: { id: invite.id },
+        data: { usedAt: now },
+      });
+      await tx.inviteToken.updateMany({
+        where: { userId: invite.userId, usedAt: null, NOT: { id: invite.id } },
+        data: { usedAt: now },
+      });
+      await tx.refreshSession.updateMany({
+        where: { userId: invite.userId, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      return updated;
     });
-  }
 
-  const passwordHash = await bcrypt.hash(password, 10);
-  const now = new Date();
+    const bundle = await createAuthBundle(user);
 
-  const user = await prisma.$transaction(async (tx) => {
-    const updated = await tx.user.update({
-      where: { id: invite.userId },
-      data: {
-        passwordHash,
-        mustChangePassword: false,
-        passwordChangedAt: now,
-      },
+    return res.status(200).json({
+      success: true,
+      data: bundle,
+      message: "Password set",
     });
-    await tx.inviteToken.update({
-      where: { id: invite.id },
-      data: { usedAt: now },
-    });
-    // Invalidate any other outstanding invite/reset links for this user
-    await tx.inviteToken.updateMany({
-      where: { userId: invite.userId, usedAt: null, NOT: { id: invite.id } },
-      data: { usedAt: now },
-    });
-    return updated;
-  });
-
-  const accessToken = signAccessToken(user);
-
-  return res.status(200).json({
-    success: true,
-    data: {
-      token: accessToken,
-      user: publicUser(user),
-    },
-    message: "Password set",
-  });
   }
 );
 

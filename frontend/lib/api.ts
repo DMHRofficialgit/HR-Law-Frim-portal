@@ -1,3 +1,11 @@
+import {
+  clearSession,
+  getRefreshToken,
+  getToken,
+  saveSession,
+  type SessionMeta,
+} from "./auth";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export type ApiError = {
@@ -19,6 +27,13 @@ export type PublicUser = {
   organisationId: string | null;
   mustChangePassword: boolean;
   status: string;
+};
+
+export type AuthBundle = {
+  token: string;
+  refreshToken: string;
+  user: PublicUser;
+  session: SessionMeta;
 };
 
 export type FolderRow = {
@@ -55,6 +70,14 @@ const NETWORK_ERROR: ApiError = {
   },
 };
 
+const SESSION_ENDED_CODES = new Set([
+  "UNAUTHORIZED",
+  "TOKEN_REVOKED",
+  "SESSION_REVOKED",
+  "SESSION_IDLE",
+  "SESSION_ABSOLUTE",
+]);
+
 async function parseJson<T>(res: Response): Promise<ApiSuccess<T> | ApiError> {
   try {
     return (await res.json()) as ApiSuccess<T> | ApiError;
@@ -79,21 +102,94 @@ export function authHeaders(
   return headers;
 }
 
+function shouldSkipRefresh(path: string): boolean {
+  return (
+    path.startsWith("/auth/login") ||
+    path.startsWith("/auth/refresh") ||
+    path.startsWith("/auth/set-password") ||
+    path.startsWith("/auth/invite/")
+  );
+}
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+/** Exchange refresh token for a new access JWT. Returns new access token or null. */
+export async function refreshAccessSession(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+      });
+      const body = await parseJson<AuthBundle>(res);
+      if (!body.success) {
+        clearSession();
+        return null;
+      }
+      saveSession(body.data.token, body.data.user, {
+        refreshToken: body.data.refreshToken,
+        session: body.data.session,
+      });
+      return body.data.token;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+function isAuthFailure(result: ApiError): boolean {
+  return SESSION_ENDED_CODES.has(result.error.code);
+}
+
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit & { token?: string | null } = {}
+  options: RequestInit & { token?: string | null; skipRefresh?: boolean } = {}
 ): Promise<ApiSuccess<T> | ApiError> {
-  const { token, headers, ...rest } = options;
+  const { token, headers, skipRefresh, ...rest } = options;
   const merged = authHeaders(token, headers);
   if (!merged.has("Content-Type")) {
     merged.set("Content-Type", "application/json");
   }
+
   try {
     const res = await fetch(`${API_URL}${path}`, {
       ...rest,
       headers: merged,
     });
-    return parseJson<T>(res);
+    const result = await parseJson<T>(res);
+
+    if (
+      !result.success &&
+      isAuthFailure(result) &&
+      !skipRefresh &&
+      !shouldSkipRefresh(path) &&
+      (token || getToken())
+    ) {
+      const next = await refreshAccessSession();
+      if (next) {
+        const retryHeaders = authHeaders(next, headers);
+        if (!retryHeaders.has("Content-Type")) {
+          retryHeaders.set("Content-Type", "application/json");
+        }
+        const retryRes = await fetch(`${API_URL}${path}`, {
+          ...rest,
+          headers: retryHeaders,
+        });
+        return parseJson<T>(retryRes);
+      }
+    }
+
+    return result;
   } catch {
     return NETWORK_ERROR;
   }
@@ -111,16 +207,38 @@ export async function apiUpload<T>(
       headers: authHeaders(token),
       body: formData,
     });
-    return parseJson<T>(res);
+    let result = await parseJson<T>(res);
+
+    if (!result.success && isAuthFailure(result) && token) {
+      const next = await refreshAccessSession();
+      if (next) {
+        const retry = await fetch(`${API_URL}${path}`, {
+          method: "POST",
+          headers: authHeaders(next),
+          body: formData,
+        });
+        result = await parseJson<T>(retry);
+      }
+    }
+
+    return result;
   } catch {
     return NETWORK_ERROR;
   }
 }
 
 export async function apiDownload(path: string, token: string | null) {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: authHeaders(token),
-  });
+  const run = async (bearer: string | null) =>
+    fetch(`${API_URL}${path}`, {
+      headers: authHeaders(bearer),
+    });
+
+  let res = await run(token);
+  if (res.status === 401 && token) {
+    const next = await refreshAccessSession();
+    if (next) res = await run(next);
+  }
+
   if (!res.ok) {
     let message = "Download failed";
     try {

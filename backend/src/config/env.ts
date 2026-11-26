@@ -22,10 +22,17 @@ const envSchema = z.object({
   RATE_LIMIT_SET_PASSWORD_IP_MAX: z.coerce.number().int().min(5).max(100).default(20),
   RATE_LIMIT_SET_PASSWORD_TOKEN_MAX: z.coerce.number().int().min(3).max(50).default(10),
   RATE_LIMIT_CHANGE_PASSWORD_MAX: z.coerce.number().int().min(3).max(50).default(10),
+  RATE_LIMIT_REFRESH_IP_MAX: z.coerce.number().int().min(10).max(500).default(120),
   /** First-access invite link lifetime (hours). */
   INVITE_TOKEN_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(72),
   /** Password-reset link lifetime (minutes). */
   RESET_TOKEN_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(20),
+  /** Short-lived access JWT lifetime (minutes). */
+  JWT_ACCESS_TTL_MINUTES: z.coerce.number().int().min(5).max(60).default(15),
+  /** End session after this many minutes without activity. */
+  SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).max(240).default(30),
+  /** Hard max session length from login (hours). */
+  SESSION_ABSOLUTE_HOURS: z.coerce.number().int().min(1).max(24).default(8),
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -40,6 +47,13 @@ const rawSmtpKey = parsed.data.SMTP_SECRET_KEY.trim();
 if (parsed.data.NODE_ENV === "production" && !rawSmtpKey) {
   console.error(
     "Invalid environment variables: SMTP_SECRET_KEY is required in production (openssl rand -base64 32)"
+  );
+  process.exit(1);
+}
+
+if (parsed.data.NODE_ENV === "production" && parsed.data.JWT_SECRET.length < 32) {
+  console.error(
+    "Invalid environment variables: JWT_SECRET must be at least 32 characters in production"
   );
   process.exit(1);
 }
