@@ -1,6 +1,12 @@
 import nodemailer from "nodemailer";
+import { requireSmtpSecretKey } from "../config/env";
 import { sanitizeDmHrForEmail } from "./brandEmail";
 import { prisma } from "./prisma";
+import {
+  decryptSecret,
+  isEncryptedSecretBlob,
+  SecretCryptoError,
+} from "./secret-crypto";
 
 export type MailPayload = {
   to: string[];
@@ -25,9 +31,34 @@ export type MailSendResult =
   | { status: "skipped"; reason: string }
   | { status: "failed"; reason: string };
 
+/** Decrypt SMTP password from DB for send/test only. Never log the result. */
+export function decryptSmtpPassword(stored: string): string {
+  if (!isEncryptedSecretBlob(stored)) {
+    // Legacy plaintext until migrate script runs — still usable once.
+    return stored;
+  }
+  try {
+    return decryptSecret(stored, requireSmtpSecretKey());
+  } catch (err) {
+    if (err instanceof SecretCryptoError) {
+      throw new SecretCryptoError("Unable to decrypt SMTP password");
+    }
+    throw err;
+  }
+}
+
 export async function getStoredSmtpConfig(): Promise<SmtpConfig | null> {
   const smtp = await prisma.smtpSettings.findUnique({ where: { id: "default" } });
   if (!smtp?.host || !smtp.fromAddress || !smtp.username || !smtp.password) {
+    return null;
+  }
+  let password: string;
+  try {
+    password = decryptSmtpPassword(smtp.password);
+  } catch (err) {
+    const message =
+      err instanceof SecretCryptoError ? err.message : "Unable to decrypt SMTP password";
+    console.error("[mail:smtp-decrypt-failed]", { message });
     return null;
   }
   return {
@@ -35,7 +66,7 @@ export async function getStoredSmtpConfig(): Promise<SmtpConfig | null> {
     port: smtp.port ?? (smtp.secure ? 465 : 587),
     secure: smtp.secure,
     username: smtp.username,
-    password: smtp.password,
+    password,
     fromAddress: smtp.fromAddress,
     fromDisplayName: smtp.fromDisplayName,
   };

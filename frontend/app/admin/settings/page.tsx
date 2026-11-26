@@ -291,9 +291,9 @@ function AdminSettingsPageInner() {
               <div>
                 <h2>Email / SMTP</h2>
                 <p className="lead">
-                  Outbound mail for invites, welcome, e-sign, cases, and document notifies. Password
-                  is stored encrypted and never shown again after save — leave blank to keep the
-                  current one.
+                  Outbound mail for invites, welcome, e-sign, cases, and document notifies. The
+                  mailbox password is encrypted at rest and never returned after save — leave blank
+                  to keep the current one.
                 </p>
               </div>
               <span

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { requireSmtpSecretKey } from "../config/env";
 import {
   getStoredSmtpConfig,
   publicSmtpSettings,
@@ -7,6 +8,7 @@ import {
   type SmtpConfig,
 } from "../lib/mail";
 import { prisma } from "../lib/prisma";
+import { encryptSecret, SecretCryptoError } from "../lib/secret-crypto";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
 
 const router = Router();
@@ -63,12 +65,28 @@ router.patch("/smtp-settings", async (req, res) => {
     },
   });
 
-  const passwordUpdate =
-    data.clearPassword === true
-      ? { password: null }
-      : data.password !== undefined && data.password !== null && data.password !== ""
-        ? { password: data.password }
-        : {};
+  let passwordUpdate: { password: string | null } | Record<string, never> = {};
+  if (data.clearPassword === true) {
+    passwordUpdate = { password: null };
+  } else if (
+    data.password !== undefined &&
+    data.password !== null &&
+    data.password !== ""
+  ) {
+    try {
+      const key = requireSmtpSecretKey();
+      passwordUpdate = { password: encryptSecret(data.password, key, 1) };
+    } catch (err) {
+      const message =
+        err instanceof SecretCryptoError
+          ? err.message
+          : "Unable to encrypt SMTP password";
+      return res.status(500).json({
+        success: false,
+        error: { code: "SMTP_ENCRYPT_FAILED", message },
+      });
+    }
+  }
 
   const fromAddress =
     data.fromAddress === undefined
