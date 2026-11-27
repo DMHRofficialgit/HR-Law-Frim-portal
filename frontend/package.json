@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "npm run copy:pdfjs-worker && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "copy:pdfjs-worker": "node scripts/copy-pdfjs-worker.mjs",
+    "postinstall": "node scripts/copy-pdfjs-worker.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.66.0",

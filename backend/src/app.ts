@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import { env } from "./config/env";
+import { securityHeaders } from "./middleware/securityHeaders";
 import adminRoutes from "./routes/admin";
 import adminCaseRoutes from "./routes/adminCases";
 import adminDocumentRoutes from "./routes/adminDocuments";
@@ -30,6 +31,7 @@ export function createApp() {
   // Real client IP behind Render/DO — number of hops, never `true`.
   app.set("trust proxy", env.TRUST_PROXY_HOPS);
 
+  app.use(securityHeaders);
   app.use(
     cors({
       origin: env.CORS_ORIGIN,

@@ -107,10 +107,9 @@ export function FilePreviewSheet({ target, onClose, onDownload }: FilePreviewShe
         if (!cancelled) setDownloadUrl(downloadCreatedUrl);
 
         if (pdf) {
-          const pdfjs = await import("pdfjs-dist");
-          pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+          const { openPdfDocument } = await import("../lib/pdfjs");
           const data = await blob.arrayBuffer();
-          const doc = await pdfjs.getDocument({ data }).promise;
+          const doc = await openPdfDocument(data);
           const pages: string[] = [];
           const maxPages = Math.min(doc.numPages, 40);
           for (let i = 1; i <= maxPages; i++) {
