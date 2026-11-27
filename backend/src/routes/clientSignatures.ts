@@ -1,9 +1,15 @@
 import { Router } from "express";
 import path from "path";
-import multer from "multer";
 import { prisma } from "../lib/prisma";
-import { absoluteStoragePath } from "../lib/storage";
+import { sendStoredFile } from "../lib/send-stored-file";
+import { readStoredFile } from "../lib/storage";
 import { requireAuth, requireClient, requirePasswordSettled } from "../middleware/auth";
+import {
+  anyUpload,
+  consumeUploadedFile,
+  discardUploadedFiles,
+} from "../middleware/upload";
+import { uploadConcurrencyLimiter } from "../middleware/uploadConcurrency";
 import {
   getSignatureRequestById,
   isClientVisibleStatus,
@@ -13,11 +19,6 @@ import {
 
 const router = Router();
 router.use(requireAuth, requireClient, requirePasswordSettled);
-
-const multiUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024, files: 20 },
-}).any();
 
 function clientIp(req: {
   headers: Record<string, unknown>;
@@ -75,12 +76,11 @@ router.get("/signature-requests/:id/file", async (req, res) => {
   const wantSigned = String(req.query.signed || "") === "1" || String(req.query.signed || "") === "true";
   const pathToSend =
     wantSigned && row.signedStoragePath ? row.signedStoragePath : row.sourceStoragePath;
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader(
-    "Content-Disposition",
-    `inline; filename="${row.sourceFileName.replace(/"/g, "")}"`
-  );
-  return res.sendFile(absoluteStoragePath(pathToSend));
+  await sendStoredFile(res, pathToSend, {
+    mimeType: "application/pdf",
+    fileName: row.sourceFileName,
+    disposition: "inline",
+  });
 });
 
 router.get("/signature-requests/:id/fields/:fieldId/image", async (req, res) => {
@@ -105,14 +105,17 @@ router.get("/signature-requests/:id/fields/:fieldId/image", async (req, res) => 
       error: { code: "NOT_FOUND", message: "Signed field image not found" },
     });
   }
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Content-Disposition", 'inline; filename="field-signature.png"');
-  return res.sendFile(absoluteStoragePath(field.signedImagePath));
+  await sendStoredFile(res, field.signedImagePath, {
+    mimeType: "image/png",
+    fileName: "field-signature.png",
+    disposition: "inline",
+  });
 });
 
-router.post("/signature-requests/:id/sign", (req, res) => {
-  multiUpload(req, res, async (err) => {
+router.post("/signature-requests/:id/sign", uploadConcurrencyLimiter, (req, res) => {
+  anyUpload(req, res, async (err) => {
     if (err) {
+      await discardUploadedFiles(req.files as Express.Multer.File[]);
       return res.status(400).json({
         success: false,
         error: { code: "VALIDATION_ERROR", message: "Upload failed" },
@@ -127,15 +130,21 @@ router.post("/signature-requests/:id/sign", (req, res) => {
         req.body.useSavedSignature === true;
 
       const files = (req.files || []) as Express.Multer.File[];
+      const uploadedFiles = await Promise.all(
+        files.map(async (file) => ({
+          fieldName: file.fieldname,
+          uploaded: await consumeUploadedFile(file),
+        }))
+      );
       const fieldImages: Record<string, Buffer> = {};
       let fallback: Buffer | null = null;
       const fieldTexts: Record<string, string> = {};
 
-      for (const f of files) {
-        if (f.fieldname.startsWith("field_")) {
-          fieldImages[f.fieldname.slice("field_".length)] = f.buffer;
-        } else if (f.fieldname === "file") {
-          fallback = f.buffer;
+      for (const { fieldName, uploaded } of uploadedFiles) {
+        if (fieldName.startsWith("field_")) {
+          fieldImages[fieldName.slice("field_".length)] = uploaded.buffer;
+        } else if (fieldName === "file") {
+          fallback = uploaded.buffer;
         }
       }
 
@@ -167,8 +176,7 @@ router.post("/signature-requests/:id/sign", (req, res) => {
             error: { code: "VALIDATION_ERROR", message: "No saved signature on profile" },
           });
         }
-        const fs = await import("fs/promises");
-        fallback = await fs.readFile(absoluteStoragePath(relative));
+        fallback = await readStoredFile(relative);
       }
 
       const updated = await signSignatureRequest({
@@ -191,6 +199,7 @@ router.post("/signature-requests/:id/sign", (req, res) => {
         message: complete ? "Document signed" : "Your fields submitted — waiting on others",
       });
     } catch (e) {
+      await discardUploadedFiles(req.files as Express.Multer.File[]);
       return serviceError(e, res);
     }
   });
@@ -226,7 +235,6 @@ router.get("/signature-requests/:id/download/:kind", async (req, res) => {
       error: { code: "NOT_FOUND", message: "File not available yet" },
     });
   }
-  const absolute = absoluteStoragePath(relative);
   const fileName =
     kind === "source"
       ? row.sourceFileName
@@ -235,8 +243,17 @@ router.get("/signature-requests/:id/download/:kind", async (req, res) => {
         : kind === "signature"
           ? "signature.png"
           : "audit.json";
-  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-  return res.sendFile(absolute);
+  const mimeType =
+    kind === "signature"
+      ? "image/png"
+      : kind === "audit"
+        ? "application/json"
+        : "application/pdf";
+  await sendStoredFile(res, relative, {
+    mimeType,
+    fileName,
+    disposition: "attachment",
+  });
 });
 
 export default router;

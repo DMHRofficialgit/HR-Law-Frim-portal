@@ -5,7 +5,7 @@ import {
   SignatureFieldType,
 } from "@prisma/client";
 import { prisma } from "../lib/prisma";
-import { absoluteStoragePath, removeStoredFile, writeStoredFile } from "../lib/storage";
+import { removeStoredFile, writeStoredFile } from "../lib/storage";
 import { validateUpload, type UploadedFileInput } from "./documents";
 
 function parseJourneyRole(raw: unknown): FirmLibraryJourneyRole {
@@ -338,7 +338,7 @@ export async function deleteFirmLibraryDocument(id: string) {
 export async function getFirmLibraryFileAbsolute(id: string) {
   const row = await prisma.firmLibraryDocument.findUnique({ where: { id } });
   if (!row) throw httpError("Library document not found", 404, "NOT_FOUND");
-  return { row, absolutePath: absoluteStoragePath(row.storagePath) };
+  return { row, storagePath: row.storagePath };
 }
 
 export async function getFirmLibraryFieldInkAbsolute(documentId: string, fieldId: string) {
@@ -348,5 +348,5 @@ export async function getFirmLibraryFieldInkAbsolute(documentId: string, fieldId
   if (!field?.signedImagePath) {
     throw httpError("Template ink not found", 404, "NOT_FOUND");
   }
-  return { field, absolutePath: absoluteStoragePath(field.signedImagePath) };
+  return { field, storagePath: field.signedImagePath };
 }

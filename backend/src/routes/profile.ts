@@ -6,10 +6,15 @@ import {
 } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
 import { publicUser } from "../lib/tokens";
+import { sendStoredFile } from "../lib/send-stored-file";
 import { requireAuth, requirePasswordSettled } from "../middleware/auth";
-import { singleUpload } from "../middleware/upload";
 import {
-  absoluteSignaturePath,
+  consumeUploadedFile,
+  discardUploadedFile,
+  singleUpload,
+} from "../middleware/upload";
+import { uploadConcurrencyLimiter } from "../middleware/uploadConcurrency";
+import {
   addProfileSignature,
   clearAllProfileSignatures,
   deleteProfileSignature,
@@ -94,9 +99,11 @@ router.get("/me/signature/image", async (req, res) => {
       error: { code: "NOT_FOUND", message: "No signature saved" },
     });
   }
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Content-Disposition", 'inline; filename="signature.png"');
-  return res.sendFile(absoluteSignaturePath(relative));
+  await sendStoredFile(res, relative, {
+    mimeType: "image/png",
+    fileName: "signature.png",
+    disposition: "inline",
+  });
 });
 
 router.get("/me/signature/:id/image", async (req, res) => {
@@ -107,40 +114,56 @@ router.get("/me/signature/:id/image", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Signature not found" },
     });
   }
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Content-Disposition", 'inline; filename="signature.png"');
-  return res.sendFile(absoluteSignaturePath(relative));
+  await sendStoredFile(res, relative, {
+    mimeType: "image/png",
+    fileName: "signature.png",
+    disposition: "inline",
+  });
 });
 
-router.post("/me/signature", singleUpload, async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
+router.post(
+  "/me/signature",
+  uploadConcurrencyLimiter,
+  singleUpload,
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: "PNG signature file is required" },
+        });
+      }
+      const uploaded = await consumeUploadedFile(req.file);
+      const list = await addProfileSignature({
+        userId: req.auth!.id,
+        buffer: uploaded.buffer,
+        originalName: uploaded.originalName,
+        mimeType: uploaded.mimeType,
+      });
+      const user = await prisma.user.findUnique({ where: { id: req.auth!.id } });
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...list,
+          user: user
+            ? { ...publicUser(user), hasSignature: list.hasSignature }
+            : undefined,
+        },
+        message: "Signature saved",
+      });
+    } catch (err) {
+      await discardUploadedFile(req.file);
+      const e = err as { status?: number; code?: string; message?: string };
+      return res.status(e.status || 500).json({
         success: false,
-        error: { code: "VALIDATION_ERROR", message: "PNG signature file is required" },
+        error: {
+          code: e.code || "SERVER_ERROR",
+          message: e.message || "Unable to save signature",
+        },
       });
     }
-    const list = await addProfileSignature({
-      userId: req.auth!.id,
-      buffer: req.file.buffer,
-      originalName: req.file.originalname,
-      mimeType: req.file.mimetype,
-    });
-    const user = await prisma.user.findUnique({ where: { id: req.auth!.id } });
-    return res.status(200).json({
-      success: true,
-      data: {
-        ...list,
-        user: user
-          ? { ...publicUser(user), hasSignature: list.hasSignature }
-          : undefined,
-      },
-      message: "Signature saved",
-    });
-  } catch (err) {
-    return serviceError(err, res);
   }
-});
+);
 
 router.post("/me/signature/:id/default", async (req, res) => {
   try {

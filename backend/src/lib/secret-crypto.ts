@@ -1,8 +1,9 @@
 import crypto from "crypto";
 
 /**
- * AES-256-GCM helpers for secrets at rest (SMTP #3; documents #2 later).
+ * AES-256-GCM helpers for string secrets at rest (SMTP #3).
  * Wire format: v1:<keyVersion>:<iv_b64>:<tag_b64>:<cipher_b64>
+ * Binary file encryption lives in file-crypto.ts (#2).
  * Cursor must never generate production keys — load from env only.
  */
 

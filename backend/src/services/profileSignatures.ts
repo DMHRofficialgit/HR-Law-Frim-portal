@@ -1,6 +1,6 @@
 import path from "path";
 import { prisma } from "../lib/prisma";
-import { absoluteStoragePath, removeStoredFile, writeStoredFile } from "../lib/storage";
+import { removeStoredFile, writeStoredFile } from "../lib/storage";
 
 export const MAX_PROFILE_SIGNATURES = 5;
 
@@ -178,6 +178,7 @@ export async function clearAllProfileSignatures(userId: string) {
   return listProfileSignatures(userId);
 }
 
-export function absoluteSignaturePath(relative: string) {
-  return absoluteStoragePath(relative);
+/** Relative storage key for a profile signature PNG. */
+export function signatureStoragePath(relative: string) {
+  return relative;
 }

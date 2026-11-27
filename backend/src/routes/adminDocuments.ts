@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
 import { singleUpload } from "../middleware/upload";
+import { uploadConcurrencyLimiter } from "../middleware/uploadConcurrency";
 import {
   handleDelete,
   handleDownload,
@@ -62,32 +63,36 @@ router.get("/organisations/:organisationId/folders/:folderId/documents", async (
   return handleListDocuments(organisationId, folderId, res);
 });
 
-router.post("/organisations/:organisationId/folders/:folderId/documents", (req, res) => {
-  const { organisationId, folderId } = req.params;
-  if (!orgIdSchema.safeParse(organisationId).success) {
-    return res.status(400).json({
-      success: false,
-      error: { code: "VALIDATION_ERROR", message: "Invalid organisation id" },
-    });
-  }
-
-  singleUpload(req, res, async (err) => {
-    if (err) {
+router.post(
+  "/organisations/:organisationId/folders/:folderId/documents",
+  uploadConcurrencyLimiter,
+  (req, res) => {
+    const { organisationId, folderId } = req.params;
+    if (!orgIdSchema.safeParse(organisationId).success) {
       return res.status(400).json({
         success: false,
-        error: { code: "UPLOAD_ERROR", message: err.message || "Upload failed" },
+        error: { code: "VALIDATION_ERROR", message: "Invalid organisation id" },
       });
     }
-    const org = await resolveOrg(organisationId);
-    if (!org) {
-      return res.status(404).json({
-        success: false,
-        error: { code: "NOT_FOUND", message: "Organisation not found" },
-      });
-    }
-    return handleUpload(req, res, organisationId, folderId);
-  });
-});
+
+    singleUpload(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          error: { code: "UPLOAD_ERROR", message: err.message || "Upload failed" },
+        });
+      }
+      const org = await resolveOrg(String(organisationId));
+      if (!org) {
+        return res.status(404).json({
+          success: false,
+          error: { code: "NOT_FOUND", message: "Organisation not found" },
+        });
+      }
+      return handleUpload(req, res, String(organisationId), String(folderId));
+    });
+  }
+);
 
 router.get("/organisations/:organisationId/documents/:documentId/versions", async (req, res) => {
   const { organisationId, documentId } = req.params;

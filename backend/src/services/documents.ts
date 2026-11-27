@@ -77,7 +77,13 @@ export async function validateUpload(file: UploadedFileInput) {
   const settings = await getUploadSettings();
   const ext = extensionOf(file.originalName);
 
-  if (!isProductUploadAllowed({ originalName: file.originalName, mimeType: file.mimeType })) {
+  if (
+    !isProductUploadAllowed({
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      buffer: file.buffer,
+    })
+  ) {
     return {
       ok: false as const,
       message: `File type .${ext || "unknown"} is not allowed — use PDF, Word, or images (e-signature needs PDF)`,

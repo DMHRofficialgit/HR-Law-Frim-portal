@@ -12,6 +12,18 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
   STORAGE_ROOT: z.string().default("./storage"),
+  /** local = disk under STORAGE_ROOT; spaces = S3-compatible (DigitalOcean Spaces). */
+  STORAGE_DRIVER: z.enum(["local", "spaces"]).default("local"),
+  /** Base64 AES-256 key for file encryption at rest (#2). Required in production. */
+  FILE_SECRET_KEY: z.string().optional().default(""),
+  UPLOAD_TEMP_DIR: z.string().optional().default(""),
+  UPLOAD_MAX_CONCURRENT_IP: z.coerce.number().int().min(1).max(50).default(5),
+  SPACES_ENDPOINT: z.string().optional().default(""),
+  SPACES_REGION: z.string().optional().default("us-east-1"),
+  SPACES_BUCKET: z.string().optional().default(""),
+  SPACES_KEY: z.string().optional().default(""),
+  SPACES_SECRET: z.string().optional().default(""),
+  SPACES_PREFIX: z.string().optional().default(""),
   /** Base64 AES-256 key for SMTP mailbox password at rest. Empty in .env.example only. */
   SMTP_SECRET_KEY: z.string().optional().default(""),
   /** Proxy hops in front of Node (Render/DO edge ≈ 1). Never use `true`. */
@@ -43,10 +55,18 @@ if (!parsed.success) {
 }
 
 const rawSmtpKey = parsed.data.SMTP_SECRET_KEY.trim();
+const rawFileKey = parsed.data.FILE_SECRET_KEY.trim();
 
 if (parsed.data.NODE_ENV === "production" && !rawSmtpKey) {
   console.error(
     "Invalid environment variables: SMTP_SECRET_KEY is required in production (openssl rand -base64 32)"
+  );
+  process.exit(1);
+}
+
+if (parsed.data.NODE_ENV === "production" && !rawFileKey) {
+  console.error(
+    "Invalid environment variables: FILE_SECRET_KEY is required in production (openssl rand -base64 32)"
   );
   process.exit(1);
 }
@@ -70,10 +90,24 @@ if (rawSmtpKey) {
   }
 }
 
+let fileSecretKeyBytes: Buffer | null = null;
+if (rawFileKey) {
+  try {
+    fileSecretKeyBytes = decodeAes256Key(rawFileKey, "FILE_SECRET_KEY");
+  } catch (err) {
+    const message =
+      err instanceof SecretCryptoError ? err.message : "FILE_SECRET_KEY is invalid";
+    console.error("Invalid environment variables:", message);
+    process.exit(1);
+  }
+}
+
 export const env = {
   ...parsed.data,
   /** Decoded 32-byte key, or null when unset (non-production only). */
   smtpSecretKeyBytes,
+  /** Decoded 32-byte key for file encryption at rest. */
+  fileSecretKeyBytes,
 };
 
 /** Throws a safe error if the SMTP encryption key is not loaded. */
@@ -84,4 +118,14 @@ export function requireSmtpSecretKey(): Buffer {
     );
   }
   return env.smtpSecretKeyBytes;
+}
+
+/** Throws if file encryption key is missing (required to write/read encrypted objects). */
+export function requireFileSecretKey(): Buffer {
+  if (!env.fileSecretKeyBytes) {
+    throw new SecretCryptoError(
+      "FILE_SECRET_KEY is not configured — set a 32-byte base64 key before storing or reading files"
+    );
+  }
+  return env.fileSecretKeyBytes;
 }

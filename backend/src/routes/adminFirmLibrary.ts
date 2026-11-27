@@ -1,6 +1,12 @@
 import { Router } from "express";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
-import { singleUpload } from "../middleware/upload";
+import { sendStoredFile } from "../lib/send-stored-file";
+import {
+  consumeUploadedFile,
+  discardUploadedFile,
+  singleUpload,
+} from "../middleware/upload";
+import { uploadConcurrencyLimiter } from "../middleware/uploadConcurrency";
 import {
   deleteFirmLibraryDocument,
   getFirmLibraryDocument,
@@ -31,38 +37,45 @@ router.get("/firm-library", async (_req, res) => {
   return res.status(200).json({ success: true, data: { documents } });
 });
 
-router.post("/firm-library", singleUpload, async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: { code: "VALIDATION_ERROR", message: "file is required" },
+router.post(
+  "/firm-library",
+  uploadConcurrencyLimiter,
+  singleUpload,
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: "file is required" },
+        });
+      }
+      const requiresSignature =
+        req.body.requiresSignature === undefined
+          ? true
+          : String(req.body.requiresSignature) === "true" || req.body.requiresSignature === true;
+      const uploaded = await consumeUploadedFile(req.file);
+      const created = await uploadFirmLibraryDocument({
+        title: req.body.title ? String(req.body.title) : undefined,
+        requiresSignature,
+        journeyRole: req.body.journeyRole ? String(req.body.journeyRole) : undefined,
+        file: {
+          originalName: uploaded.originalName,
+          mimeType: uploaded.mimeType,
+          size: uploaded.size,
+          buffer: uploaded.buffer,
+        },
       });
+      return res.status(201).json({
+        success: true,
+        data: { document: created },
+        message: "Added to Firm Library",
+      });
+    } catch (err) {
+      await discardUploadedFile(req.file);
+      return serviceError(err, res);
     }
-    const requiresSignature =
-      req.body.requiresSignature === undefined
-        ? true
-        : String(req.body.requiresSignature) === "true" || req.body.requiresSignature === true;
-    const created = await uploadFirmLibraryDocument({
-      title: req.body.title ? String(req.body.title) : undefined,
-      requiresSignature,
-      journeyRole: req.body.journeyRole ? String(req.body.journeyRole) : undefined,
-      file: {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        buffer: req.file.buffer,
-      },
-    });
-    return res.status(201).json({
-      success: true,
-      data: { document: created },
-      message: "Added to Firm Library",
-    });
-  } catch (err) {
-    return serviceError(err, res);
   }
-});
+);
 
 router.get("/firm-library/:id", async (req, res) => {
   try {
@@ -125,13 +138,12 @@ router.delete("/firm-library/:id", async (req, res) => {
 
 router.get("/firm-library/:id/file", async (req, res) => {
   try {
-    const { row, absolutePath } = await getFirmLibraryFileAbsolute(String(req.params.id));
-    res.setHeader("Content-Type", row.mimeType);
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="${row.fileName.replace(/"/g, "")}"`
-    );
-    return res.sendFile(absolutePath);
+    const { row, storagePath } = await getFirmLibraryFileAbsolute(String(req.params.id));
+    await sendStoredFile(res, storagePath, {
+      mimeType: row.mimeType,
+      fileName: row.fileName,
+      disposition: "inline",
+    });
   } catch (err) {
     return serviceError(err, res);
   }
@@ -139,13 +151,15 @@ router.get("/firm-library/:id/file", async (req, res) => {
 
 router.get("/firm-library/:id/fields/:fieldId/ink", async (req, res) => {
   try {
-    const { absolutePath } = await getFirmLibraryFieldInkAbsolute(
+    const { storagePath } = await getFirmLibraryFieldInkAbsolute(
       String(req.params.id),
       String(req.params.fieldId)
     );
-    res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "private, max-age=60");
-    return res.sendFile(absolutePath);
+    await sendStoredFile(res, storagePath, {
+      mimeType: "image/png",
+      disposition: "inline",
+    });
   } catch (err) {
     return serviceError(err, res);
   }

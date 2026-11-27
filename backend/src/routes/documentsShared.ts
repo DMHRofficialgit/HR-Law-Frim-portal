@@ -1,8 +1,7 @@
 import type { Request, Response } from "express";
-import { createReadStream } from "fs";
 import { z } from "zod";
 import { ensureFoldersForOrganisation } from "../lib/folders";
-import { absoluteStoragePath } from "../lib/storage";
+import { sendStoredFile } from "../lib/send-stored-file";
 import {
   getUploadSettings,
   PRODUCT_UPLOAD_EXTENSIONS,
@@ -17,6 +16,7 @@ import {
   uploadDocument,
 } from "../services/documents";
 import { prisma } from "../lib/prisma";
+import { consumeUploadedFile, discardUploadedFile } from "../middleware/upload";
 
 export async function handleListFolders(organisationId: string, res: Response) {
   await ensureFoldersForOrganisation(prisma, organisationId);
@@ -93,39 +93,45 @@ export async function handleUpload(
     });
   }
 
-  const documentId =
-    typeof req.body?.documentId === "string" && req.body.documentId.length > 0
-      ? req.body.documentId
-      : undefined;
+  try {
+    const uploaded = await consumeUploadedFile(file);
+    const documentId =
+      typeof req.body?.documentId === "string" && req.body.documentId.length > 0
+        ? req.body.documentId
+        : undefined;
 
-  const result = await uploadDocument({
-    organisationId,
-    folderId,
-    userId: req.auth!.id,
-    documentId,
-    file: {
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
-      buffer: file.buffer,
-    },
-  });
-
-  if ("error" in result && result.error) {
-    return res.status(result.error.status).json({
-      success: false,
-      error: { code: result.error.code, message: result.error.message },
+    const result = await uploadDocument({
+      organisationId,
+      folderId,
+      userId: req.auth!.id,
+      documentId,
+      file: {
+        originalName: uploaded.originalName,
+        mimeType: uploaded.mimeType,
+        size: uploaded.size,
+        buffer: uploaded.buffer,
+      },
     });
-  }
 
-  return res.status(201).json({
-    success: true,
-    data: {
-      document: result.document,
-      created: result.created !== false,
-    },
-    message: result.created === false ? "File updated" : "File uploaded",
-  });
+    if ("error" in result && result.error) {
+      return res.status(result.error.status).json({
+        success: false,
+        error: { code: result.error.code, message: result.error.message },
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        document: result.document,
+        created: result.created !== false,
+      },
+      message: result.created === false ? "File updated" : "File uploaded",
+    });
+  } catch (err) {
+    await discardUploadedFile(file);
+    throw err;
+  }
 }
 
 export async function handleVersions(
@@ -191,13 +197,11 @@ export async function handleDownload(
     });
   }
 
-  const absolute = absoluteStoragePath(version.storagePath);
-  res.setHeader("Content-Type", version.mimeType);
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename="${encodeURIComponent(version.fileName)}"`
-  );
-  createReadStream(absolute).pipe(res);
+  await sendStoredFile(res, version.storagePath, {
+    mimeType: version.mimeType,
+    fileName: version.fileName,
+    disposition: "attachment",
+  });
 }
 
 export async function handleDelete(

@@ -3,7 +3,7 @@ import path from "path";
 import { SignatureFieldType, SignatureStatus, UserRole, UserStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { stampSignaturesOnPdf } from "../lib/pdfStamp";
-import { absoluteStoragePath, writeStoredFile } from "../lib/storage";
+import { readStoredFile, writeStoredFile } from "../lib/storage";
 import {
   adminUserIds,
   notifyOrgCcAlert,
@@ -246,7 +246,7 @@ async function copySourceFromDocument(organisationId: string, sourceDocumentId: 
   if (!version.mimeType.includes("pdf") && !version.fileName.toLowerCase().endsWith(".pdf")) {
     throw httpError("E-sign requires a PDF document", 400, "VALIDATION_ERROR");
   }
-  const bytes = await fs.readFile(absoluteStoragePath(version.storagePath));
+  const bytes = await readStoredFile(version.storagePath);
   const safeName = `${Date.now()}_${version.fileName.replace(/[^\w.\-]+/g, "_")}`;
   const sourceStoragePath = await writeStoredFile(
     path.join("signatures", organisationId, "source"),
@@ -865,7 +865,7 @@ export async function signSignatureRequest(params: {
   if (params.saveToProfile && firstSigPath) {
     try {
       const { addProfileSignature } = await import("./profileSignatures");
-      const bytes = await fs.readFile(absoluteStoragePath(firstSigPath));
+      const bytes = await readStoredFile(firstSigPath);
       await addProfileSignature({
         userId: params.signedById,
         buffer: bytes,
@@ -975,7 +975,7 @@ async function publishSignedPdfToDocuments(params: {
   });
   const fileName = `${libraryTitle.replace(/[^\w .\-—–']/g, "_")}.pdf`;
 
-  const bytes = await fs.readFile(absoluteStoragePath(params.request.signedStoragePath));
+  const bytes = await readStoredFile(params.request.signedStoragePath);
   const published = await uploadDocument({
     organisationId: params.request.organisationId,
     folderId,

@@ -19,7 +19,7 @@ import {
   notifyUsers,
 } from "../lib/notifications";
 import { prisma } from "../lib/prisma";
-import { absoluteStoragePath } from "../lib/storage";
+import { readStoredFile } from "../lib/storage";
 import { deleteDocument, uploadDocument } from "./documents";
 import { firmLibraryFieldHasAdminInk } from "./firmLibrary";
 import {
@@ -426,7 +426,7 @@ export async function issuePackFromLibrary(params: {
 
     let uploadedDocId: string | null = null;
     try {
-      const bytes = await fs.readFile(absoluteStoragePath(lib.storagePath));
+      const bytes = await readStoredFile(lib.storagePath);
       const uploaded = await uploadDocument({
         organisationId: run.organisationId,
         folderId: folder.id,
@@ -530,7 +530,7 @@ export async function issuePackFromLibrary(params: {
             usedLiveIds.add(live.id);
 
             if (tpl.signedImagePath) {
-              fieldImages[live.id] = await fs.readFile(absoluteStoragePath(tpl.signedImagePath));
+              fieldImages[live.id] = await readStoredFile(tpl.signedImagePath);
             }
             if (tpl.valueText?.trim()) {
               fieldTexts[live.id] = tpl.valueText.trim();

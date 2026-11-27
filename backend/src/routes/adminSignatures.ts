@@ -1,10 +1,17 @@
 import { Router } from "express";
 import path from "path";
-import multer from "multer";
 import { prisma } from "../lib/prisma";
-import { absoluteStoragePath } from "../lib/storage";
+import { sendStoredFile } from "../lib/send-stored-file";
+import { readStoredFile } from "../lib/storage";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
-import { singleUpload } from "../middleware/upload";
+import {
+  anyUpload,
+  consumeUploadedFile,
+  discardUploadedFile,
+  discardUploadedFiles,
+  singleUpload,
+} from "../middleware/upload";
+import { uploadConcurrencyLimiter } from "../middleware/uploadConcurrency";
 import {
   createDraftFromDocument,
   createSignatureRequest,
@@ -22,11 +29,6 @@ import {
   signSignatureRequest,
   type FieldInput,
 } from "../services/signatures";
-
-const multiUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024, files: 20 },
-}).any();
 
 function clientIp(req: {
   headers: Record<string, unknown>;
@@ -104,43 +106,50 @@ router.post("/signature-requests/from-document", async (req, res) => {
   }
 });
 
-router.post("/signature-requests", singleUpload, async (req, res) => {
-  try {
-    const organisationId = String(req.body.organisationId || "");
-    const title = String(req.body.title || "");
-    const sourceDocumentId = req.body.sourceDocumentId
-      ? String(req.body.sourceDocumentId)
-      : null;
-    if (!organisationId || !title.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: { code: "VALIDATION_ERROR", message: "organisationId and title are required" },
+router.post(
+  "/signature-requests",
+  uploadConcurrencyLimiter,
+  singleUpload,
+  async (req, res) => {
+    try {
+      const uploaded = req.file ? await consumeUploadedFile(req.file) : null;
+      const organisationId = String(req.body.organisationId || "");
+      const title = String(req.body.title || "");
+      const sourceDocumentId = req.body.sourceDocumentId
+        ? String(req.body.sourceDocumentId)
+        : null;
+      if (!organisationId || !title.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: "organisationId and title are required" },
+        });
+      }
+      const file = uploaded
+        ? {
+            buffer: uploaded.buffer,
+            originalname: uploaded.originalName,
+            mimetype: uploaded.mimeType,
+            size: uploaded.size,
+          }
+        : null;
+      const created = await createSignatureRequest({
+        organisationId,
+        title,
+        createdById: req.auth!.id,
+        sourceDocumentId,
+        file,
       });
+      return res.status(201).json({
+        success: true,
+        data: { request: created },
+        message: "E-sign draft created",
+      });
+    } catch (err) {
+      await discardUploadedFile(req.file);
+      return serviceError(err, res);
     }
-    const file = req.file
-      ? {
-          buffer: req.file.buffer,
-          originalname: req.file.originalname,
-          mimetype: req.file.mimetype,
-          size: req.file.size,
-        }
-      : null;
-    const created = await createSignatureRequest({
-      organisationId,
-      title,
-      createdById: req.auth!.id,
-      sourceDocumentId,
-      file,
-    });
-    return res.status(201).json({
-      success: true,
-      data: { request: created },
-      message: "E-sign draft created",
-    });
-  } catch (err) {
-    return serviceError(err, res);
   }
-});
+);
 
 router.put("/signature-requests/:id/fields", async (req, res) => {
   try {
@@ -194,15 +203,23 @@ router.get("/signature-requests/:id/assignees", async (req, res) => {
 });
 
 /** Admin assignee fills their own fields (Part 4.2). */
-router.post("/signature-requests/:id/sign", (req, res) => {
-  multiUpload(req, res, async (err) => {
+router.post("/signature-requests/:id/sign", uploadConcurrencyLimiter, (req, res) => {
+  anyUpload(req, res, async (err) => {
     if (err) {
+      await discardUploadedFiles(req.files as Express.Multer.File[]);
       return res.status(400).json({
         success: false,
         error: { code: "VALIDATION_ERROR", message: "Upload failed" },
       });
     }
     try {
+      const files = (req.files || []) as Express.Multer.File[];
+      const uploadedFiles = await Promise.all(
+        files.map(async (file) => ({
+          fieldName: file.fieldname,
+          uploaded: await consumeUploadedFile(file),
+        }))
+      );
       const row = await getSignatureRequestById(String(req.params.id));
       if (!row) {
         return res.status(404).json({
@@ -218,16 +235,15 @@ router.post("/signature-requests/:id/sign", (req, res) => {
         String(req.body.useSavedSignature || "") === "true" ||
         req.body.useSavedSignature === true;
 
-      const files = (req.files || []) as Express.Multer.File[];
       const fieldImages: Record<string, Buffer> = {};
       let fallback: Buffer | null = null;
       const fieldTexts: Record<string, string> = {};
 
-      for (const f of files) {
-        if (f.fieldname.startsWith("field_")) {
-          fieldImages[f.fieldname.slice("field_".length)] = f.buffer;
-        } else if (f.fieldname === "file") {
-          fallback = f.buffer;
+      for (const { fieldName, uploaded } of uploadedFiles) {
+        if (fieldName.startsWith("field_")) {
+          fieldImages[fieldName.slice("field_".length)] = uploaded.buffer;
+        } else if (fieldName === "file") {
+          fallback = uploaded.buffer;
         }
       }
 
@@ -257,8 +273,7 @@ router.post("/signature-requests/:id/sign", (req, res) => {
             error: { code: "VALIDATION_ERROR", message: "No saved signature on profile" },
           });
         }
-        const fs = await import("fs/promises");
-        fallback = await fs.readFile(absoluteStoragePath(relative));
+        fallback = await readStoredFile(relative);
       }
 
       const updated = await signSignatureRequest({
@@ -281,6 +296,7 @@ router.post("/signature-requests/:id/sign", (req, res) => {
         message: complete ? "Document fully signed" : "Your fields submitted — waiting on others",
       });
     } catch (e) {
+      await discardUploadedFiles(req.files as Express.Multer.File[]);
       return serviceError(e, res);
     }
   });
@@ -360,33 +376,40 @@ router.post("/signature-requests/:id/revision", async (req, res) => {
   }
 });
 
-router.post("/signature-requests/:id/reupload", singleUpload, async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: { code: "VALIDATION_ERROR", message: "file is required" },
+router.post(
+  "/signature-requests/:id/reupload",
+  uploadConcurrencyLimiter,
+  singleUpload,
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: "file is required" },
+        });
+      }
+      const uploaded = await consumeUploadedFile(req.file);
+      const updated = await reuploadSignedCopy({
+        id: String(req.params.id),
+        uploadedById: req.auth!.id,
+        file: {
+          buffer: uploaded.buffer,
+          originalname: uploaded.originalName,
+          mimetype: uploaded.mimeType,
+          size: uploaded.size,
+        },
       });
+      return res.status(200).json({
+        success: true,
+        data: { request: updated },
+        message: "Signed copy uploaded",
+      });
+    } catch (err) {
+      await discardUploadedFile(req.file);
+      return serviceError(err, res);
     }
-    const updated = await reuploadSignedCopy({
-      id: String(req.params.id),
-      uploadedById: req.auth!.id,
-      file: {
-        buffer: req.file.buffer,
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-      },
-    });
-    return res.status(200).json({
-      success: true,
-      data: { request: updated },
-      message: "Signed copy uploaded",
-    });
-  } catch (err) {
-    return serviceError(err, res);
   }
-});
+);
 
 router.get("/signature-requests/:id/file", async (req, res) => {
   const row = await prisma.signatureRequest.findUnique({
@@ -402,12 +425,11 @@ router.get("/signature-requests/:id/file", async (req, res) => {
   const wantSigned = String(req.query.signed || "") === "1" || String(req.query.signed || "") === "true";
   const pathToSend =
     wantSigned && row.signedStoragePath ? row.signedStoragePath : row.sourceStoragePath;
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader(
-    "Content-Disposition",
-    `inline; filename="${row.sourceFileName.replace(/"/g, "")}"`
-  );
-  return res.sendFile(absoluteStoragePath(pathToSend));
+  await sendStoredFile(res, pathToSend, {
+    mimeType: "application/pdf",
+    fileName: row.sourceFileName,
+    disposition: "inline",
+  });
 });
 
 router.get("/signature-requests/:id/fields/:fieldId/image", async (req, res) => {
@@ -423,9 +445,11 @@ router.get("/signature-requests/:id/fields/:fieldId/image", async (req, res) => 
       error: { code: "NOT_FOUND", message: "Signed field image not found" },
     });
   }
-  res.setHeader("Content-Type", "image/png");
-  res.setHeader("Content-Disposition", 'inline; filename="field-signature.png"');
-  return res.sendFile(absoluteStoragePath(field.signedImagePath));
+  await sendStoredFile(res, field.signedImagePath, {
+    mimeType: "image/png",
+    fileName: "field-signature.png",
+    disposition: "inline",
+  });
 });
 
 router.get("/signature-requests/:id/download/:kind", async (req, res) => {
@@ -458,7 +482,6 @@ router.get("/signature-requests/:id/download/:kind", async (req, res) => {
       error: { code: "NOT_FOUND", message: "File not available yet" },
     });
   }
-  const absolute = absoluteStoragePath(relative);
   const fileName =
     kind === "source"
       ? row.sourceFileName
@@ -467,8 +490,17 @@ router.get("/signature-requests/:id/download/:kind", async (req, res) => {
         : kind === "signature"
           ? "signature.png"
           : "audit.json";
-  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-  return res.sendFile(absolute);
+  const mimeType =
+    kind === "signature"
+      ? "image/png"
+      : kind === "audit"
+        ? "application/json"
+        : "application/pdf";
+  await sendStoredFile(res, relative, {
+    mimeType,
+    fileName,
+    disposition: "attachment",
+  });
 });
 
 router.get("/organisations/:orgId/documents-flat", async (req, res) => {

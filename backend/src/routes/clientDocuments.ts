@@ -2,6 +2,7 @@ import { FolderKey, OnboardingStatus } from "@prisma/client";
 import { Router } from "express";
 import { clientOrgId, requireAuth, requireClient, requirePasswordSettled } from "../middleware/auth";
 import { singleUpload } from "../middleware/upload";
+import { uploadConcurrencyLimiter } from "../middleware/uploadConcurrency";
 import { ensureFoldersForOrganisation } from "../lib/folders";
 import { prisma } from "../lib/prisma";
 import { listFolders } from "../services/documents";
@@ -60,7 +61,7 @@ router.get("/folders/:folderId/documents", async (req, res) => {
   return handleListDocuments(clientOrgId(req), req.params.folderId, res);
 });
 
-router.post("/folders/:folderId/documents", (req, res) => {
+router.post("/folders/:folderId/documents", uploadConcurrencyLimiter, (req, res) => {
   singleUpload(req, res, async (err) => {
     if (err) {
       return res.status(400).json({
@@ -68,7 +69,7 @@ router.post("/folders/:folderId/documents", (req, res) => {
         error: { code: "UPLOAD_ERROR", message: err.message || "Upload failed" },
       });
     }
-    return handleUpload(req, res, clientOrgId(req), req.params.folderId);
+    return handleUpload(req, res, clientOrgId(req), String(req.params.folderId));
   });
 });
 

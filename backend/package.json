@@ -12,12 +12,14 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
-    "encrypt:smtp": "tsx src/scripts/encrypt-smtp-password.ts"
+    "encrypt:smtp": "tsx src/scripts/encrypt-smtp-password.ts",
+    "migrate:encrypt-files": "tsx src/scripts/migrate-encrypt-files.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1178.0",
     "@prisma/client": "^6.16.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.19",

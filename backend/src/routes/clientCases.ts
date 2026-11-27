@@ -1,10 +1,14 @@
 import { Router } from "express";
 import { MessageVisibility } from "@prisma/client";
-import { createReadStream } from "fs";
 import { z } from "zod";
-import { absoluteStoragePath } from "../lib/storage";
+import { sendStoredFile } from "../lib/send-stored-file";
 import { clientOrgId, requireAuth, requireClient, requirePasswordSettled } from "../middleware/auth";
-import multer from "multer";
+import {
+  consumeUploadedFile,
+  discardUploadedFiles,
+  multiUpload as makeMultiUpload,
+} from "../middleware/upload";
+import { uploadConcurrencyLimiter } from "../middleware/uploadConcurrency";
 import {
   addCaseMessage,
   createCase,
@@ -21,10 +25,7 @@ import { prisma } from "../lib/prisma";
 const router = Router();
 router.use(requireAuth, requireClient, requirePasswordSettled);
 
-const multiUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024, files: 5 },
-}).array("files", 5);
+const multiUpload = makeMultiUpload("files", 5);
 
 router.get("/case-categories", async (_req, res) => {
   const categories = await prisma.caseCategory.findMany({
@@ -50,7 +51,7 @@ router.get("/cases/:id", async (req, res) => {
   return res.status(200).json({ success: true, data: { case: filterCaseForClient(c) } });
 });
 
-router.post("/cases", (req, res) => {
+router.post("/cases", uploadConcurrencyLimiter, (req, res) => {
   multiUpload(req, res, async (err) => {
     if (err) {
       return res.status(400).json({
@@ -73,6 +74,7 @@ router.post("/cases", (req, res) => {
       .safeParse(req.body);
 
     if (!parsed.success) {
+      await discardUploadedFiles(req.files as Express.Multer.File[]);
       return res.status(400).json({
         success: false,
         error: {
@@ -82,12 +84,8 @@ router.post("/cases", (req, res) => {
       });
     }
 
-    const files = ((req.files as Express.Multer.File[]) || []).map((f) => ({
-      originalName: f.originalname,
-      mimeType: f.mimetype,
-      size: f.size,
-      buffer: f.buffer,
-    }));
+    const rawFiles = (req.files as Express.Multer.File[]) || [];
+    const files = await Promise.all(rawFiles.map((f) => consumeUploadedFile(f)));
 
     const result = await createCase({
       organisationId: clientOrgId(req),
@@ -168,7 +166,7 @@ router.patch("/cases/:id", async (req, res) => {
   });
 });
 
-router.post("/cases/:id/messages", (req, res) => {
+router.post("/cases/:id/messages", uploadConcurrencyLimiter, (req, res) => {
   multiUpload(req, res, async (err) => {
     if (err) {
       return res.status(400).json({
@@ -179,21 +177,18 @@ router.post("/cases/:id/messages", (req, res) => {
 
     const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
     if (!body) {
+      await discardUploadedFiles(req.files as Express.Multer.File[]);
       return res.status(400).json({
         success: false,
         error: { code: "VALIDATION_ERROR", message: "Message body is required" },
       });
     }
 
-    const files = ((req.files as Express.Multer.File[]) || []).map((f) => ({
-      originalName: f.originalname,
-      mimeType: f.mimetype,
-      size: f.size,
-      buffer: f.buffer,
-    }));
+    const rawFiles = (req.files as Express.Multer.File[]) || [];
+    const files = await Promise.all(rawFiles.map((f) => consumeUploadedFile(f)));
 
     const result = await addCaseMessage({
-      caseId: req.params.id,
+      caseId: String(req.params.id),
       organisationId: clientOrgId(req),
       userId: req.auth!.id,
       body,
@@ -232,12 +227,11 @@ router.get("/case-attachments/:id/download", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Attachment not found" },
     });
   }
-  res.setHeader("Content-Type", att.mimeType);
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename="${encodeURIComponent(att.fileName)}"`
-  );
-  createReadStream(absoluteStoragePath(att.storagePath)).pipe(res);
+  await sendStoredFile(res, att.storagePath, {
+    mimeType: att.mimeType,
+    fileName: att.fileName,
+    disposition: "attachment",
+  });
 });
 
 /** Client may delete only their own uploads (wrong-file fix); never private-note files. */

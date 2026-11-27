@@ -1,6 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import fs from "fs/promises";
-import { absoluteStoragePath } from "./storage";
+import { readStoredFile } from "./storage";
 
 export type StampField = {
   page: number;
@@ -26,7 +25,7 @@ export async function stampSignaturesOnPdf(
   sourceRelativePath: string,
   fields: StampField[]
 ): Promise<Buffer> {
-  const sourceBytes = await fs.readFile(absoluteStoragePath(sourceRelativePath));
+  const sourceBytes = await readStoredFile(sourceRelativePath);
   const pdf = await PDFDocument.load(sourceBytes, { ignoreEncryption: true });
   const pages = pdf.getPages();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -52,7 +51,7 @@ export async function stampSignaturesOnPdf(
 
     if (field.imageRelativePath) {
       try {
-        const imgBytes = await fs.readFile(absoluteStoragePath(field.imageRelativePath));
+        const imgBytes = await readStoredFile(field.imageRelativePath);
         const png = await pdf.embedPng(imgBytes);
         page.drawImage(png, { x, y, width: w, height: h });
       } catch (err) {

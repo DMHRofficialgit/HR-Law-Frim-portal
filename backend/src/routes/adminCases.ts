@@ -1,11 +1,15 @@
 import { Router } from "express";
 import { CaseStatus, MessageVisibility } from "@prisma/client";
-import { createReadStream } from "fs";
-import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { absoluteStoragePath } from "../lib/storage";
+import { sendStoredFile } from "../lib/send-stored-file";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
+import {
+  consumeUploadedFile,
+  discardUploadedFiles,
+  multiUpload as makeMultiUpload,
+} from "../middleware/upload";
+import { uploadConcurrencyLimiter } from "../middleware/uploadConcurrency";
 import {
   addCaseMessage,
   archiveCase,
@@ -25,10 +29,7 @@ import { purgeExpiredArchives } from "../services/archive-purge";
 const router = Router();
 router.use(requireAuth, requireAdmin, requirePasswordSettled);
 
-const multiUpload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 100 * 1024 * 1024, files: 5 },
-}).array("files", 5);
+const multiUpload = makeMultiUpload("files", 5);
 
 router.get("/case-categories", async (_req, res) => {
   const categories = await prisma.caseCategory.findMany({ orderBy: { sortOrder: "asc" } });
@@ -145,7 +146,7 @@ router.post("/maintenance/purge-archives", async (_req, res) => {
   }
 });
 
-router.post("/cases", (req, res) => {
+router.post("/cases", uploadConcurrencyLimiter, (req, res) => {
   multiUpload(req, res, async (err) => {
     if (err) {
       return res.status(400).json({
@@ -169,6 +170,7 @@ router.post("/cases", (req, res) => {
       .safeParse(req.body);
 
     if (!parsed.success) {
+      await discardUploadedFiles(req.files as Express.Multer.File[]);
       return res.status(400).json({
         success: false,
         error: {
@@ -178,12 +180,8 @@ router.post("/cases", (req, res) => {
       });
     }
 
-    const files = ((req.files as Express.Multer.File[]) || []).map((f) => ({
-      originalName: f.originalname,
-      mimeType: f.mimetype,
-      size: f.size,
-      buffer: f.buffer,
-    }));
+    const rawFiles = (req.files as Express.Multer.File[]) || [];
+    const files = await Promise.all(rawFiles.map((f) => consumeUploadedFile(f)));
 
     const result = await createCase({
       organisationId: parsed.data.organisationId,
@@ -346,7 +344,7 @@ router.post("/cases/bulk", async (req, res) => {
   });
 });
 
-router.post("/cases/:id/messages", (req, res) => {
+router.post("/cases/:id/messages", uploadConcurrencyLimiter, (req, res) => {
   multiUpload(req, res, async (err) => {
     if (err) {
       return res.status(400).json({
@@ -357,6 +355,7 @@ router.post("/cases/:id/messages", (req, res) => {
 
     const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
     if (!body) {
+      await discardUploadedFiles(req.files as Express.Multer.File[]);
       return res.status(400).json({
         success: false,
         error: { code: "VALIDATION_ERROR", message: "Message body is required" },
@@ -368,15 +367,11 @@ router.post("/cases/:id/messages", (req, res) => {
         ? MessageVisibility.admin_only
         : MessageVisibility.client_visible;
 
-    const files = ((req.files as Express.Multer.File[]) || []).map((f) => ({
-      originalName: f.originalname,
-      mimeType: f.mimetype,
-      size: f.size,
-      buffer: f.buffer,
-    }));
+    const rawFiles = (req.files as Express.Multer.File[]) || [];
+    const files = await Promise.all(rawFiles.map((f) => consumeUploadedFile(f)));
 
     const result = await addCaseMessage({
-      caseId: req.params.id,
+      caseId: String(req.params.id),
       userId: req.auth!.id,
       body,
       visibility,
@@ -406,12 +401,11 @@ router.get("/case-attachments/:id/download", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Attachment not found" },
     });
   }
-  res.setHeader("Content-Type", att.mimeType);
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename="${encodeURIComponent(att.fileName)}"`
-  );
-  createReadStream(absoluteStoragePath(att.storagePath)).pipe(res);
+  await sendStoredFile(res, att.storagePath, {
+    mimeType: att.mimeType,
+    fileName: att.fileName,
+    disposition: "attachment",
+  });
 });
 
 router.delete("/case-attachments/:id", async (req, res) => {

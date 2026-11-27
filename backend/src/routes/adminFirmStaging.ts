@@ -1,8 +1,12 @@
-import { createReadStream } from "fs";
-import fs from "fs/promises";
 import { Router } from "express";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
-import { singleUpload } from "../middleware/upload";
+import { sendStoredFile } from "../lib/send-stored-file";
+import {
+  consumeUploadedFile,
+  discardUploadedFile,
+  singleUpload,
+} from "../middleware/upload";
+import { uploadConcurrencyLimiter } from "../middleware/uploadConcurrency";
 import {
   copyFirmStagingFileToClient,
   copyFirmStagingFilesToClient,
@@ -69,41 +73,49 @@ router.delete("/firm-staging/folders/:id", async (req, res) => {
   }
 });
 
-router.post("/firm-staging/files", singleUpload, async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: { code: "VALIDATION_ERROR", message: "file is required" },
+router.post(
+  "/firm-staging/files",
+  uploadConcurrencyLimiter,
+  singleUpload,
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: "file is required" },
+        });
+      }
+      const folderId = String(req.body.folderId || "");
+      if (!folderId) {
+        await discardUploadedFile(req.file);
+        return res.status(400).json({
+          success: false,
+          error: { code: "VALIDATION_ERROR", message: "folderId is required" },
+        });
+      }
+      const uploaded = await consumeUploadedFile(req.file);
+      const created = await uploadFirmStagingFile({
+        folderId,
+        title: req.body.title ? String(req.body.title) : undefined,
+        userId: req.auth!.id,
+        file: {
+          originalName: uploaded.originalName,
+          mimeType: uploaded.mimeType,
+          size: uploaded.size,
+          buffer: uploaded.buffer,
+        },
       });
-    }
-    const folderId = String(req.body.folderId || "");
-    if (!folderId) {
-      return res.status(400).json({
-        success: false,
-        error: { code: "VALIDATION_ERROR", message: "folderId is required" },
+      return res.status(201).json({
+        success: true,
+        data: { file: created },
+        message: "Added to Firm staging",
       });
+    } catch (err) {
+      await discardUploadedFile(req.file);
+      return serviceError(err, res);
     }
-    const created = await uploadFirmStagingFile({
-      folderId,
-      title: req.body.title ? String(req.body.title) : undefined,
-      userId: req.auth!.id,
-      file: {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        buffer: req.file.buffer,
-      },
-    });
-    return res.status(201).json({
-      success: true,
-      data: { file: created },
-      message: "Added to Firm staging",
-    });
-  } catch (err) {
-    return serviceError(err, res);
   }
-});
+);
 
 router.patch("/firm-staging/files/:id", async (req, res) => {
   try {
@@ -137,32 +149,12 @@ router.delete("/firm-staging/files/:id", async (req, res) => {
 
 router.get("/firm-staging/files/:id/file", async (req, res) => {
   try {
-    const { row, absolutePath } = await getFirmStagingFileAbsolute(String(req.params.id));
-    try {
-      await fs.access(absolutePath);
-    } catch {
-      return res.status(404).json({
-        success: false,
-        error: { code: "NOT_FOUND", message: "File missing on disk" },
-      });
-    }
-    res.setHeader("Content-Type", row.mimeType || "application/octet-stream");
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="${encodeURIComponent(row.fileName)}"`
-    );
-    const stream = createReadStream(absolutePath);
-    stream.on("error", () => {
-      if (!res.headersSent) {
-        res.status(500).json({
-          success: false,
-          error: { code: "SERVER_ERROR", message: "Failed to read file" },
-        });
-      } else {
-        res.destroy();
-      }
+    const { row, storagePath } = await getFirmStagingFileAbsolute(String(req.params.id));
+    await sendStoredFile(res, storagePath, {
+      mimeType: row.mimeType || "application/octet-stream",
+      fileName: row.fileName,
+      disposition: "inline",
     });
-    stream.pipe(res);
   } catch (err) {
     return serviceError(err, res);
   }

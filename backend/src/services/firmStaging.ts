@@ -9,7 +9,7 @@ import {
 import { ensureFoldersForOrganisation } from "../lib/folders";
 import { prisma } from "../lib/prisma";
 import {
-  absoluteStoragePath,
+  readStoredFile,
   removeStoredFile,
   writeStoredFile,
 } from "../lib/storage";
@@ -255,7 +255,7 @@ export async function deleteFirmStagingFile(id: string) {
 export async function getFirmStagingFileAbsolute(id: string) {
   const row = await prisma.firmStagingFile.findUnique({ where: { id } });
   if (!row) throw httpError("Staging file not found", 404, "NOT_FOUND");
-  return { row, absolutePath: absoluteStoragePath(row.storagePath) };
+  return { row, storagePath: row.storagePath };
 }
 
 export async function copyFirmStagingFileToClient(params: {
@@ -295,7 +295,7 @@ export async function copyFirmStagingFileToClient(params: {
   });
   if (!folder) throw httpError("Client folder not found", 404, "NOT_FOUND");
 
-  const bytes = await fs.readFile(absoluteStoragePath(staging.storagePath));
+  const bytes = await readStoredFile(staging.storagePath);
   const result = await uploadDocument({
     organisationId: org.id,
     folderId: folder.id,

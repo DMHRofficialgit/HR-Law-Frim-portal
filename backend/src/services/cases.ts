@@ -117,10 +117,17 @@ async function validateCaseFile(file: {
   originalName: string;
   mimeType: string;
   size: number;
+  buffer?: Buffer;
 }) {
   const settings = await getUploadSettings();
   const ext = extensionOf(file.originalName);
-  if (!isProductUploadAllowed({ originalName: file.originalName, mimeType: file.mimeType })) {
+  if (
+    !isProductUploadAllowed({
+      originalName: file.originalName,
+      mimeType: file.mimeType,
+      buffer: file.buffer,
+    })
+  ) {
     return {
       ok: false as const,
       message: `Case attachments allow PDF, Word, or images — .${ext || "unknown"} is not allowed`,
