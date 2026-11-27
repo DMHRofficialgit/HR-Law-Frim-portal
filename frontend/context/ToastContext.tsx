@@ -9,6 +9,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from "react";
+import { isForcedSignOut } from "../lib/auth";
 
 export type ToastTone = "success" | "error" | "info";
 
@@ -56,6 +57,8 @@ export const ToastProvider = ({ children }: { children: ReactNode }): ReactEleme
       const payload = typeof input === "string" ? { message: input } : input;
       const tone = payload.tone || "info";
       const id = `toast-${Date.now()}-${++toastSeq}`;
+      // Suppress error spam while hard-redirecting to login after a dead session.
+      if (tone === "error" && isForcedSignOut()) return id;
       const item: ToastItem = {
         id,
         tone,

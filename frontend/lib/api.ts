@@ -1,5 +1,6 @@
 import {
   clearSession,
+  forceSignOutToLogin,
   getRefreshToken,
   getToken,
   saveSession,
@@ -70,12 +71,21 @@ const NETWORK_ERROR: ApiError = {
   },
 };
 
+const SESSION_ENDED: ApiError = {
+  success: false,
+  error: {
+    code: "SESSION_ENDED",
+    message: "Session ended — please sign in again",
+  },
+};
+
 const SESSION_ENDED_CODES = new Set([
   "UNAUTHORIZED",
   "TOKEN_REVOKED",
   "SESSION_REVOKED",
   "SESSION_IDLE",
   "SESSION_ABSOLUTE",
+  "SESSION_ENDED",
 ]);
 
 async function parseJson<T>(res: Response): Promise<ApiSuccess<T> | ApiError> {
@@ -147,8 +157,18 @@ export async function refreshAccessSession(): Promise<string | null> {
   return refreshInFlight;
 }
 
-function isAuthFailure(result: ApiError): boolean {
+export function isSessionEndedError(result: ApiError): boolean {
   return SESSION_ENDED_CODES.has(result.error.code);
+}
+
+function isAuthFailure(result: ApiError): boolean {
+  return isSessionEndedError(result);
+}
+
+/** Refresh failed or impossible — sign out once and stop toast spam. */
+function endSessionAndRedirect(): ApiError {
+  forceSignOutToLogin();
+  return SESSION_ENDED;
 }
 
 export async function apiFetch<T>(
@@ -185,8 +205,13 @@ export async function apiFetch<T>(
           ...rest,
           headers: retryHeaders,
         });
-        return parseJson<T>(retryRes);
+        const retryResult = await parseJson<T>(retryRes);
+        if (!retryResult.success && isAuthFailure(retryResult)) {
+          return endSessionAndRedirect();
+        }
+        return retryResult;
       }
+      return endSessionAndRedirect();
     }
 
     return result;
@@ -218,6 +243,11 @@ export async function apiUpload<T>(
           body: formData,
         });
         result = await parseJson<T>(retry);
+        if (!result.success && isAuthFailure(result)) {
+          return endSessionAndRedirect();
+        }
+      } else {
+        return endSessionAndRedirect();
       }
     }
 
@@ -236,10 +266,19 @@ export async function apiDownload(path: string, token: string | null) {
   let res = await run(token);
   if (res.status === 401 && token) {
     const next = await refreshAccessSession();
-    if (next) res = await run(next);
+    if (next) {
+      res = await run(next);
+    } else {
+      forceSignOutToLogin();
+      throw new Error(SESSION_ENDED.error.message);
+    }
   }
 
   if (!res.ok) {
+    if (res.status === 401) {
+      forceSignOutToLogin();
+      throw new Error(SESSION_ENDED.error.message);
+    }
     let message = "Download failed";
     try {
       const body = (await res.json()) as ApiError;

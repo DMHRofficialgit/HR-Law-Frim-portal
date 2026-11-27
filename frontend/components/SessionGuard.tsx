@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactElement } from "react";
-import { useRouter } from "next/navigation";
 import { refreshAccessSession } from "../lib/api";
 import {
   accessTokenExpiresAtMs,
-  clearSession,
+  forceSignOutToLogin,
   getRefreshToken,
   getSessionMeta,
   getToken,
@@ -31,7 +30,6 @@ type SessionGuardProps = {
  * and shows a stay-signed-in warning near idle timeout.
  */
 export const SessionGuard = ({ enabled = true }: SessionGuardProps): ReactElement | null => {
-  const router = useRouter();
   const titleId = useId();
   const descId = useId();
   const [warningOpen, setWarningOpen] = useState(false);
@@ -40,10 +38,9 @@ export const SessionGuard = ({ enabled = true }: SessionGuardProps): ReactElemen
   const endSessionRef = useRef<() => void>(() => undefined);
 
   const endSession = useCallback(() => {
-    clearSession();
     setWarningOpen(false);
-    router.replace("/login");
-  }, [router]);
+    forceSignOutToLogin();
+  }, []);
 
   endSessionRef.current = endSession;
 

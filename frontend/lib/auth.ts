@@ -70,6 +70,29 @@ export function clearSession(): void {
   localStorage.removeItem(SESSION_META_KEY);
 }
 
+let forcedSignOut = false;
+
+/** True while we are sending the user to login after a dead session. */
+export function isForcedSignOut(): boolean {
+  return forcedSignOut;
+}
+
+/**
+ * Clear local session and hard-redirect to login once.
+ * Prevents parallel API failures from stacking “Invalid or expired token” toasts.
+ */
+export function forceSignOutToLogin(): void {
+  if (typeof window === "undefined") return;
+  if (forcedSignOut) return;
+  forcedSignOut = true;
+  clearSession();
+  const path = window.location.pathname || "";
+  if (path === "/login" || path.startsWith("/login/") || path.startsWith("/set-password")) {
+    return;
+  }
+  window.location.replace("/login");
+}
+
 export function homeForUser(user: PublicUser): string {
   if (user.mustChangePassword) return "/change-password";
   if (user.role === "admin") return "/admin";
