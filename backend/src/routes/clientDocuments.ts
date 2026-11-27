@@ -86,7 +86,7 @@ router.patch("/documents/:documentId", async (req, res) => {
 });
 
 router.delete("/documents/:documentId", async (req, res) => {
-  return handleDelete(clientOrgId(req), req.params.documentId, res);
+  return handleDelete(clientOrgId(req), req.params.documentId, req, res);
 });
 
 router.get("/upload-settings", async (_req, res) => {

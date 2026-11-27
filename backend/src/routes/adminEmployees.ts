@@ -13,6 +13,7 @@ import {
   restoreEmployee,
   updateEmployee,
 } from "../services/employees";
+import { recordAuditFromReq } from "../services/audit";
 
 const router = Router();
 router.use(requireAuth, requireAdmin, requirePasswordSettled);
@@ -82,6 +83,13 @@ router.post("/employees/:id/archive", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Employee not found" },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "employee.archive",
+    entityType: "employee",
+    entityId: employee.id,
+    organisationId: employee.organisationId,
+    summary: `Archived employee “${employee.name}”`,
+  });
   return res.status(200).json({
     success: true,
     data: { employee },
@@ -103,6 +111,13 @@ router.post("/employees/:id/restore", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Employee not found" },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "employee.restore",
+    entityType: "employee",
+    entityId: employee.id,
+    organisationId: employee.organisationId,
+    summary: `Restored employee “${employee.name}”`,
+  });
   return res.status(200).json({
     success: true,
     data: { employee },
@@ -155,6 +170,14 @@ router.post("/employees", async (req, res) => {
 
   try {
     const employee = await createEmployee(organisationId, req.auth!.id, parsed.data);
+    void recordAuditFromReq(req, {
+      action: "employee.create",
+      entityType: "employee",
+      entityId: employee.id,
+      organisationId,
+      organisationName: employee.organisation.name,
+      summary: `Created employee “${employee.name}”`,
+    });
     return res
       .status(201)
       .json({ success: true, data: { employee }, message: "Employee created" });
@@ -216,6 +239,14 @@ router.post("/organisations/:organisationId/employees", async (req, res) => {
   }
   try {
     const employee = await createEmployee(organisationId, req.auth!.id, parsed.data);
+    void recordAuditFromReq(req, {
+      action: "employee.create",
+      entityType: "employee",
+      entityId: employee.id,
+      organisationId,
+      organisationName: employee.organisation.name,
+      summary: `Created employee “${employee.name}”`,
+    });
     return res
       .status(201)
       .json({ success: true, data: { employee }, message: "Employee created" });

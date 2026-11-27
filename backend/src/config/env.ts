@@ -45,6 +45,8 @@ const envSchema = z.object({
   SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).max(240).default(30),
   /** Hard max session length from login (hours). */
   SESSION_ABSOLUTE_HOURS: z.coerce.number().int().min(1).max(24).default(8),
+  /** Audit trail retention (~6 years). Only the retention job may delete aged rows. */
+  AUDIT_RETENTION_DAYS: z.coerce.number().int().min(30).max(3650).default(2190),
 });
 
 const parsed = envSchema.safeParse(process.env);

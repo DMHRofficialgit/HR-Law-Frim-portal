@@ -135,7 +135,7 @@ router.delete("/organisations/:organisationId/documents/:documentId", async (req
       error: { code: "VALIDATION_ERROR", message: "Invalid organisation id" },
     });
   }
-  return handleDelete(organisationId, documentId, res);
+  return handleDelete(organisationId, documentId, req, res);
 });
 
 export default router;

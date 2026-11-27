@@ -18,6 +18,7 @@ import {
   renameFirmStagingFile,
   uploadFirmStagingFile,
 } from "../services/firmStaging";
+import { recordAuditFromReq } from "../services/audit";
 
 const router = Router();
 router.use(requireAuth, requireAdmin, requirePasswordSettled);
@@ -105,6 +106,12 @@ router.post(
           buffer: uploaded.buffer,
         },
       });
+      void recordAuditFromReq(req, {
+        action: "firm_staging.upload",
+        entityType: "firm_staging_file",
+        entityId: created.id,
+        summary: `Uploaded “${created.title}” to Firm staging`,
+      });
       return res.status(201).json({
         success: true,
         data: { file: created },
@@ -136,7 +143,13 @@ router.patch("/firm-staging/files/:id", async (req, res) => {
 
 router.delete("/firm-staging/files/:id", async (req, res) => {
   try {
-    await deleteFirmStagingFile(String(req.params.id));
+    const deleted = await deleteFirmStagingFile(String(req.params.id));
+    void recordAuditFromReq(req, {
+      action: "firm_staging.delete",
+      entityType: "firm_staging_file",
+      entityId: deleted.id,
+      summary: `Deleted “${deleted.title}” from Firm staging`,
+    });
     return res.status(200).json({
       success: true,
       data: { ok: true },
@@ -178,6 +191,15 @@ router.post("/firm-staging/files/:id/copy-to-client", async (req, res) => {
       organisationId,
       folderKey,
       userId: req.auth!.id,
+    });
+    void recordAuditFromReq(req, {
+      action: "firm_staging.copy_to_client",
+      entityType: "firm_staging_file",
+      entityId: String(req.params.id),
+      organisationId: result.organisation.id,
+      organisationName: result.organisation.name,
+      summary: `Copied staging file to ${result.organisation.name}`,
+      meta: { folderId: result.folder.id, documentId: result.document?.id },
     });
     return res.status(200).json({
       success: true,
@@ -233,6 +255,14 @@ router.post("/firm-staging/copy-to-client", async (req, res) => {
         : result.copied === 1
           ? `Copied to ${dest}`
           : `Copied ${result.copied} files to ${dest}`;
+    void recordAuditFromReq(req, {
+      action: "firm_staging.copy_to_client",
+      entityType: "firm_staging_file",
+      organisationId: result.organisation?.id,
+      organisationName: result.organisation?.name,
+      summary: `Copied ${result.copied} staging file(s) to ${result.organisation?.name || "client Documents"}`,
+      meta: { copied: result.copied, failed: result.failed, folderId: result.folder?.id },
+    });
     return res.status(200).json({
       success: true,
       data: result,

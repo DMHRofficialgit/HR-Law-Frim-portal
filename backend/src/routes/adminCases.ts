@@ -25,6 +25,7 @@ import {
   updateCaseStatus,
 } from "../services/cases";
 import { purgeExpiredArchives } from "../services/archive-purge";
+import { recordAuditFromReq } from "../services/audit";
 
 const router = Router();
 router.use(requireAuth, requireAdmin, requirePasswordSettled);
@@ -107,6 +108,13 @@ router.post("/cases/:id/archive", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Case not found" },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "case.archive",
+    entityType: "case",
+    entityId: c.id,
+    organisationId: c.organisationId,
+    summary: `Archived case ${c.ref}`,
+  });
   return res.status(200).json({
     success: true,
     data: { case: c },
@@ -122,6 +130,13 @@ router.post("/cases/:id/restore", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Case not found" },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "case.restore",
+    entityType: "case",
+    entityId: c.id,
+    organisationId: c.organisationId,
+    summary: `Restored case ${c.ref}`,
+  });
   return res.status(200).json({
     success: true,
     data: { case: c },
@@ -204,6 +219,15 @@ router.post("/cases", uploadConcurrencyLimiter, (req, res) => {
         error: { code: result.error.code, message: result.error.message },
       });
     }
+
+    void recordAuditFromReq(req, {
+      action: "case.create",
+      entityType: "case",
+      entityId: result.case?.id,
+      organisationId: parsed.data.organisationId,
+      organisationName: result.case?.organisation?.name,
+      summary: `Created case ${result.case?.ref || parsed.data.title}`,
+    });
 
     return res.status(201).json({
       success: true,
@@ -297,6 +321,15 @@ router.patch("/cases/:id/status", async (req, res) => {
       error: { code: result.error.code, message: result.error.message },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "case.status_change",
+    entityType: "case",
+    entityId: result.case?.id,
+    organisationId: result.case?.organisationId,
+    organisationName: result.case?.organisation?.name,
+    summary: `Changed case ${result.case?.ref || req.params.id} status to ${parsed.data.status}`,
+    meta: { status: parsed.data.status },
+  });
   return res.status(200).json({ success: true, data: { case: result.case }, message: "Status updated" });
 });
 
@@ -401,6 +434,13 @@ router.get("/case-attachments/:id/download", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Attachment not found" },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "case.attachment_download",
+    entityType: "case_attachment",
+    entityId: att.id,
+    organisationId: att.case.organisationId,
+    summary: `Downloaded attachment “${att.fileName}” from case ${att.case.ref}`,
+  });
   await sendStoredFile(res, att.storagePath, {
     mimeType: att.mimeType,
     fileName: att.fileName,
@@ -416,6 +456,13 @@ router.delete("/case-attachments/:id", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Attachment not found" },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "case.attachment_delete",
+    entityType: "case_attachment",
+    entityId: deleted.id,
+    organisationId: deleted.case.organisationId,
+    summary: `Deleted attachment “${deleted.fileName}” from case ${deleted.case.ref}`,
+  });
   return res.status(200).json({
     success: true,
     data: { id: deleted.id },

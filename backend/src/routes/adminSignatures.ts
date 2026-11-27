@@ -29,6 +29,7 @@ import {
   signSignatureRequest,
   type FieldInput,
 } from "../services/signatures";
+import { recordAuditFromReq } from "../services/audit";
 
 function clientIp(req: {
   headers: Record<string, unknown>;
@@ -94,6 +95,16 @@ router.post("/signature-requests/from-document", async (req, res) => {
       createdById: req.auth!.id,
       title,
     });
+    if (!reused) {
+      void recordAuditFromReq(req, {
+        action: "signature.create",
+        entityType: "signature_request",
+        entityId: request.id,
+        organisationId: request.organisationId,
+        organisationName: request.organisation?.name,
+        summary: `Created signature request “${request.title}”`,
+      });
+    }
     return res.status(reused ? 200 : 201).json({
       success: true,
       data: { request, reused },
@@ -138,6 +149,14 @@ router.post(
         createdById: req.auth!.id,
         sourceDocumentId,
         file,
+      });
+      void recordAuditFromReq(req, {
+        action: "signature.create",
+        entityType: "signature_request",
+        entityId: created.id,
+        organisationId: created.organisationId,
+        organisationName: created.organisation?.name,
+        summary: `Created signature request “${created.title}”`,
       });
       return res.status(201).json({
         success: true,
@@ -289,6 +308,15 @@ router.post("/signature-requests/:id/sign", uploadConcurrencyLimiter, (req, res)
         fallbackSignaturePng: fallback,
       });
 
+      void recordAuditFromReq(req, {
+        action: "signature.sign",
+        entityType: "signature_request",
+        entityId: updated.id,
+        organisationId: updated.organisationId,
+        organisationName: updated.organisation?.name,
+        summary: `Completed signature fields for “${updated.title}”`,
+      });
+
       const complete = updated?.status === "signed_returned";
       return res.status(200).json({
         success: true,
@@ -305,6 +333,14 @@ router.post("/signature-requests/:id/sign", uploadConcurrencyLimiter, (req, res)
 router.post("/signature-requests/:id/ready", async (req, res) => {
   try {
     const updated = await markReady(String(req.params.id));
+    void recordAuditFromReq(req, {
+      action: "signature.mark_ready",
+      entityType: "signature_request",
+      entityId: updated.id,
+      organisationId: updated.organisationId,
+      organisationName: updated.organisation?.name,
+      summary: `Marked “${updated.title}” ready for signature`,
+    });
     return res.status(200).json({
       success: true,
       data: { request: updated },
@@ -331,6 +367,14 @@ router.post("/signature-requests/:id/reopen", async (req, res) => {
 router.post("/signature-requests/:id/send", async (req, res) => {
   try {
     const updated = await sendForSignature(String(req.params.id));
+    void recordAuditFromReq(req, {
+      action: "signature.send",
+      entityType: "signature_request",
+      entityId: updated.id,
+      organisationId: updated.organisationId,
+      organisationName: updated.organisation?.name,
+      summary: `Sent “${updated.title}” for signature`,
+    });
     return res.status(200).json({
       success: true,
       data: { request: updated },
@@ -346,6 +390,14 @@ router.post("/signature-requests/:id/review", async (req, res) => {
     const result = await reviewSignatureRequest({
       id: String(req.params.id),
       reviewedById: req.auth!.id,
+    });
+    void recordAuditFromReq(req, {
+      action: "signature.review",
+      entityType: "signature_request",
+      entityId: result.request.id,
+      organisationId: result.request.organisationId,
+      organisationName: result.request.organisation?.name,
+      summary: `Reviewed signature request “${result.request.title}”`,
     });
     const fileLabel = result.published?.title
       ? ` Signed file in Documents: “${result.published.title}”.`

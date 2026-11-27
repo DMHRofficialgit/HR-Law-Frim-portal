@@ -17,6 +17,7 @@ import {
   updateFirmLibraryDocument,
   uploadFirmLibraryDocument,
 } from "../services/firmLibrary";
+import { recordAuditFromReq } from "../services/audit";
 
 const router = Router();
 router.use(requireAuth, requireAdmin, requirePasswordSettled);
@@ -64,6 +65,12 @@ router.post(
           size: uploaded.size,
           buffer: uploaded.buffer,
         },
+      });
+      void recordAuditFromReq(req, {
+        action: "firm_library.upload",
+        entityType: "firm_library_document",
+        entityId: created.id,
+        summary: `Uploaded “${created.title}” to Firm Library`,
       });
       return res.status(201).json({
         success: true,
@@ -129,7 +136,13 @@ router.patch("/firm-library/:id", async (req, res) => {
 
 router.delete("/firm-library/:id", async (req, res) => {
   try {
-    await deleteFirmLibraryDocument(String(req.params.id));
+    const deleted = await deleteFirmLibraryDocument(String(req.params.id));
+    void recordAuditFromReq(req, {
+      action: "firm_library.delete",
+      entityType: "firm_library_document",
+      entityId: deleted.id,
+      summary: `Deleted “${deleted.title}” from Firm Library`,
+    });
     return res.status(200).json({ success: true, data: null, message: "Removed from library" });
   } catch (err) {
     return serviceError(err, res);

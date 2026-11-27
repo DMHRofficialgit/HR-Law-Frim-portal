@@ -13,6 +13,7 @@ import {
 import { sendMail } from "../lib/mail";
 import { prisma } from "../lib/prisma";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
+import { recordAuditFromReq } from "../services/audit";
 
 const router = Router();
 router.use(requireAuth, requireAdmin, requirePasswordSettled);
@@ -92,6 +93,12 @@ router.patch("/email-templates/:key", async (req, res) => {
       error: { code: result.code, message: result.message },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "settings.template_update",
+    entityType: "email_template",
+    entityId: result.template.key,
+    summary: `Updated email template “${result.template.name}”`,
+  });
   return res.status(200).json({
     success: true,
     data: { template: result.template },
@@ -107,6 +114,13 @@ router.post("/email-templates/:key/reset", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Template not found" },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "settings.template_update",
+    entityType: "email_template",
+    entityId: template.key,
+    summary: `Reset email template “${template.name}”`,
+    meta: { reset: true },
+  });
   return res.status(200).json({
     success: true,
     data: { template },
@@ -190,6 +204,14 @@ router.post("/email-templates/:key/test", async (req, res) => {
       error: { code: "SMTP_FAILED", message: "SMTP send failed — check settings" },
     });
   }
+
+  void recordAuditFromReq(req, {
+    action: "settings.template_test",
+    entityType: "email_template",
+    entityId: req.params.key,
+    summary: `Sent test for email template “${req.params.key}”`,
+    meta: { to },
+  });
 
   return res.status(200).json({
     success: true,

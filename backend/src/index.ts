@@ -3,6 +3,7 @@ import { env } from "./config/env";
 import { ensureSystemCaseCategories } from "./lib/caseCategories";
 import { ensureEmailTemplatesSeeded } from "./lib/emailTemplates";
 import { purgeExpiredArchives } from "./services/archive-purge";
+import { purgeExpiredAuditEvents } from "./services/audit-purge";
 
 const app = createApp();
 
@@ -43,3 +44,15 @@ const runArchivePurge = () => {
 };
 setTimeout(runArchivePurge, 60_000);
 setInterval(runArchivePurge, DAY_MS);
+
+const runAuditRetention = () => {
+  purgeExpiredAuditEvents()
+    .then((r) => {
+      if (r.deleted > 0) {
+        console.log("Audit retention purge:", JSON.stringify(r));
+      }
+    })
+    .catch((err) => console.error("Audit retention purge failed", err));
+};
+setTimeout(runAuditRetention, 120_000);
+setInterval(runAuditRetention, DAY_MS);

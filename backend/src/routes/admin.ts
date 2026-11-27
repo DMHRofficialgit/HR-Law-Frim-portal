@@ -25,6 +25,7 @@ import {
   restoreOrganisation,
 } from "../services/organisations";
 import { issueInviteForUser } from "../services/access-tokens";
+import { recordAuditFromReq } from "../services/audit";
 
 const router = Router();
 
@@ -286,6 +287,14 @@ router.post("/organisations/bulk", async (req, res) => {
 router.post("/organisations/:id/archive", async (req, res) => {
   try {
     const organisation = await archiveOrganisation(String(req.params.id));
+    void recordAuditFromReq(req, {
+      action: "organisation.archive",
+      entityType: "organisation",
+      entityId: organisation.id,
+      organisationId: organisation.id,
+      organisationName: organisation.name,
+      summary: `Archived organisation “${organisation.name}”`,
+    });
     return res.status(200).json({
       success: true,
       data: { organisation },
@@ -299,6 +308,14 @@ router.post("/organisations/:id/archive", async (req, res) => {
 router.post("/organisations/:id/restore", async (req, res) => {
   try {
     const organisation = await restoreOrganisation(String(req.params.id));
+    void recordAuditFromReq(req, {
+      action: "organisation.restore",
+      entityType: "organisation",
+      entityId: organisation.id,
+      organisationId: organisation.id,
+      organisationName: organisation.name,
+      summary: `Restored organisation “${organisation.name}”`,
+    });
     return res.status(200).json({
       success: true,
       data: { organisation },
@@ -526,6 +543,25 @@ router.post("/organisations", async (req, res) => {
     temporaryPassword,
     loginUrl: `${env.FRONTEND_URL}/login`,
   });
+
+  void recordAuditFromReq(req, {
+    action: "organisation.create",
+    entityType: "organisation",
+    entityId: organisation.id,
+    organisationId: organisation.id,
+    organisationName: organisation.name,
+    summary: `Created organisation “${organisation.name}”`,
+  });
+  if (data.authMode === "invite") {
+    void recordAuditFromReq(req, {
+      action: "user.invite",
+      entityType: "user",
+      entityId: clientUser.id,
+      organisationId: organisation.id,
+      organisationName: organisation.name,
+      summary: `Issued invite for ${clientUser.email}`,
+    });
+  }
 
   return res.status(201).json({
     success: true,

@@ -251,6 +251,30 @@ model LoginAudit {
   @@map("login_audits")
 }
 
+/// Insert-only security audit trail (#10). No FK cascades — survives org/case purge.
+model AuditEvent {
+  id               String   @id @default(uuid())
+  createdAt        DateTime @default(now()) @map("created_at")
+  actorUserId      String?  @map("actor_user_id")
+  actorEmail       String?  @map("actor_email")
+  actorRole        String?  @map("actor_role")
+  ip               String?
+  action           String
+  entityType       String   @map("entity_type")
+  entityId         String?  @map("entity_id")
+  organisationId   String?  @map("organisation_id")
+  organisationName String?  @map("organisation_name")
+  summary          String
+  meta             Json?
+
+  @@index([createdAt])
+  @@index([action])
+  @@index([organisationId])
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+  @@map("audit_events")
+}
+
 model DocumentFolder {
   id             String    @id @default(uuid())
   organisationId String    @map("organisation_id")

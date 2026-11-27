@@ -16,6 +16,7 @@ import {
   listSignatureRequests,
   signSignatureRequest,
 } from "../services/signatures";
+import { recordAuditFromReq } from "../services/audit";
 
 const router = Router();
 router.use(requireAuth, requireClient, requirePasswordSettled);
@@ -190,6 +191,15 @@ router.post("/signature-requests/:id/sign", uploadConcurrencyLimiter, (req, res)
         fieldImages,
         fieldTexts,
         fallbackSignaturePng: fallback,
+      });
+
+      void recordAuditFromReq(req, {
+        action: "signature.sign",
+        entityType: "signature_request",
+        entityId: updated.id,
+        organisationId: updated.organisationId,
+        organisationName: updated.organisation?.name,
+        summary: `Completed signature fields for “${updated.title}”`,
       });
 
       const complete = updated?.status === "signed_returned";

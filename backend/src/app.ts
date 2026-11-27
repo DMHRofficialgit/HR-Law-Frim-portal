@@ -3,6 +3,7 @@ import express from "express";
 import { env } from "./config/env";
 import { securityHeaders } from "./middleware/securityHeaders";
 import adminRoutes from "./routes/admin";
+import adminAuditRoutes from "./routes/adminAudit";
 import adminCaseRoutes from "./routes/adminCases";
 import adminDocumentRoutes from "./routes/adminDocuments";
 import adminEmployeeRoutes from "./routes/adminEmployees";
@@ -53,6 +54,7 @@ export function createApp() {
   app.use(profileRoutes);
   app.use(notificationRoutes);
   app.use("/admin", adminRoutes);
+  app.use("/admin", adminAuditRoutes);
   app.use("/admin", adminUsersRoutes);
   app.use("/admin", adminDocumentRoutes);
   app.use("/admin", adminEmployeeRoutes);

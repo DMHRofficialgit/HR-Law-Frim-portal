@@ -3,6 +3,7 @@ import { UserRole, UserStatus } from "@prisma/client";
 import { z } from "zod";
 import { accessMailMessage } from "../lib/access-mail";
 import { requireAuth, requireClient, requirePasswordSettled } from "../middleware/auth";
+import { recordAuditFromReq } from "../services/audit";
 import {
   createPortalUser,
   listPortalUsers,
@@ -62,6 +63,16 @@ router.post("/users", async (req, res) => {
       createdByRole: UserRole.client,
       createdByOrganisationId: req.auth!.organisationId!,
     });
+    if (result.authMode === "invite") {
+      void recordAuditFromReq(req, {
+        action: "user.invite",
+        entityType: "user",
+        entityId: result.user.id,
+        organisationId: result.user.organisationId,
+        organisationName: result.user.organisation?.name,
+        summary: `Issued invite for ${result.user.email}`,
+      });
+    }
     return res.status(201).json({
       success: true,
       data: result,
@@ -104,6 +115,13 @@ router.post("/users/:id/invite", async (req, res) => {
       userId: String(req.params.id),
       actorRole: UserRole.client,
       actorOrganisationId: req.auth!.organisationId!,
+    });
+    void recordAuditFromReq(req, {
+      action: result.purpose === "reset" ? "user.reset_link" : "user.invite",
+      entityType: "user",
+      entityId: result.user.id,
+      organisationId: result.user.organisationId,
+      summary: `Issued ${result.purpose === "reset" ? "reset link" : "invite"} for ${result.user.email}`,
     });
     return res.status(200).json({
       success: true,

@@ -9,6 +9,7 @@ import {
   listEmployees,
   updateEmployee,
 } from "../services/employees";
+import { recordAuditFromReq } from "../services/audit";
 
 const router = Router();
 router.use(requireAuth, requireClient, requirePasswordSettled);
@@ -83,6 +84,14 @@ router.post("/employees", async (req, res) => {
   }
   try {
     const employee = await createEmployee(clientOrgId(req), req.auth!.id, parsed.data);
+    void recordAuditFromReq(req, {
+      action: "employee.create",
+      entityType: "employee",
+      entityId: employee.id,
+      organisationId: employee.organisationId,
+      organisationName: employee.organisation.name,
+      summary: `Created employee “${employee.name}”`,
+    });
     return res
       .status(201)
       .json({ success: true, data: { employee }, message: "Employee created" });

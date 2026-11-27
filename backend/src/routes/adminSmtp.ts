@@ -10,6 +10,7 @@ import {
 import { prisma } from "../lib/prisma";
 import { encryptSecret, SecretCryptoError } from "../lib/secret-crypto";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
+import { recordAuditFromReq } from "../services/audit";
 
 const router = Router();
 router.use(requireAuth, requireAdmin, requirePasswordSettled);
@@ -115,6 +116,23 @@ router.patch("/smtp-settings", async (req, res) => {
         : {}),
       ...(casesNotifyEmail !== undefined ? { casesNotifyEmail } : {}),
       ...passwordUpdate,
+    },
+  });
+
+  void recordAuditFromReq(req, {
+    action: "settings.smtp_save",
+    entityType: "smtp_settings",
+    entityId: row.id,
+    summary: "Saved SMTP settings",
+    meta: {
+      host: row.host,
+      port: row.port,
+      secure: row.secure,
+      username: row.username,
+      fromAddress: row.fromAddress,
+      fromDisplayName: row.fromDisplayName,
+      casesNotifyEmail: row.casesNotifyEmail,
+      passwordChanged: data.clearPassword === true || Boolean(data.password),
     },
   });
 

@@ -17,6 +17,7 @@ import {
 } from "../services/documents";
 import { prisma } from "../lib/prisma";
 import { consumeUploadedFile, discardUploadedFile } from "../middleware/upload";
+import { recordAuditFromReq } from "../services/audit";
 
 export async function handleListFolders(organisationId: string, res: Response) {
   await ensureFoldersForOrganisation(prisma, organisationId);
@@ -120,6 +121,17 @@ export async function handleUpload(
       });
     }
 
+    if (result.document) {
+      void recordAuditFromReq(req, {
+        action: "document.upload",
+        entityType: "document",
+        entityId: result.document.id,
+        organisationId,
+        summary: `Uploaded document “${result.document.title}”`,
+        meta: { created: result.created !== false },
+      });
+    }
+
     return res.status(201).json({
       success: true,
       data: {
@@ -197,6 +209,15 @@ export async function handleDownload(
     });
   }
 
+  void recordAuditFromReq(req, {
+    action: "document.download",
+    entityType: "document",
+    entityId: document.id,
+    organisationId,
+    summary: `Downloaded “${document.title}” (v${version.versionNumber})`,
+    meta: { fileName: version.fileName, versionNumber: version.versionNumber },
+  });
+
   await sendStoredFile(res, version.storagePath, {
     mimeType: version.mimeType,
     fileName: version.fileName,
@@ -207,8 +228,10 @@ export async function handleDownload(
 export async function handleDelete(
   organisationId: string,
   documentId: string,
+  req: Request,
   res: Response
 ) {
+  const existing = await getDocumentForOrg(organisationId, documentId);
   const deleted = await deleteDocument(organisationId, documentId);
   if (!deleted) {
     return res.status(404).json({
@@ -216,6 +239,14 @@ export async function handleDelete(
       error: { code: "NOT_FOUND", message: "Document not found" },
     });
   }
+
+  void recordAuditFromReq(req, {
+    action: "document.delete",
+    entityType: "document",
+    entityId: deleted.id,
+    organisationId,
+    summary: `Deleted document “${existing?.title || deleted.id}”`,
+  });
 
   return res.status(200).json({
     success: true,
@@ -252,6 +283,16 @@ export async function handleRename(
     return res.status(result.error.status).json({
       success: false,
       error: { code: result.error.code, message: result.error.message },
+    });
+  }
+
+  if (result.document) {
+    void recordAuditFromReq(req, {
+      action: "document.rename",
+      entityType: "document",
+      entityId: result.document.id,
+      organisationId,
+      summary: `Renamed document to “${result.document.title}”`,
     });
   }
 
@@ -299,6 +340,14 @@ export async function handlePatchUploadSettings(req: Request, res: Response) {
         ? { maxUploadBytes: parsed.data.maxUploadBytes }
         : {}),
     },
+  });
+
+  void recordAuditFromReq(req, {
+    action: "settings.upload_save",
+    entityType: "upload_settings",
+    entityId: settings.id,
+    summary: "Saved upload settings",
+    meta: { maxUploadBytes: settings.maxUploadBytes },
   });
 
   return res.status(200).json({

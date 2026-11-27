@@ -250,6 +250,7 @@ export async function deleteFirmStagingFile(id: string) {
 
   await removeStoredFile(existing.storagePath);
   await prisma.firmStagingFile.delete({ where: { id } });
+  return existing;
 }
 
 export async function getFirmStagingFileAbsolute(id: string) {

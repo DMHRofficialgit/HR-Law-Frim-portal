@@ -3,6 +3,7 @@ import { UserRole, UserStatus } from "@prisma/client";
 import { z } from "zod";
 import { accessMailMessage } from "../lib/access-mail";
 import { requireAuth, requireAdmin, requirePasswordSettled } from "../middleware/auth";
+import { recordAuditFromReq } from "../services/audit";
 import {
   bulkResendUserInvites,
   bulkSetUserStatus,
@@ -65,6 +66,16 @@ router.post("/users", async (req, res) => {
       ...parsed.data,
       createdByRole: UserRole.admin,
     });
+    if (result.authMode === "invite") {
+      void recordAuditFromReq(req, {
+        action: "user.invite",
+        entityType: "user",
+        entityId: result.user.id,
+        organisationId: result.user.organisationId,
+        organisationName: result.user.organisation?.name,
+        summary: `Issued invite for ${result.user.email}`,
+      });
+    }
     return res.status(201).json({
       success: true,
       data: result,
@@ -169,6 +180,14 @@ router.post("/users/resend-invites", async (req, res) => {
       onlyPending: parsed.data.onlyPending,
       actorRole: UserRole.admin,
     });
+    for (const issued of result.results.filter((item) => item.status !== "skipped")) {
+      void recordAuditFromReq(req, {
+        action: issued.purpose === "reset" ? "user.reset_link" : "user.invite",
+        entityType: "user",
+        entityId: issued.userId,
+        summary: `Issued ${issued.purpose === "reset" ? "reset link" : "invite"} for ${issued.email}`,
+      });
+    }
     return res.status(200).json({
       success: true,
       data: result,
@@ -184,6 +203,13 @@ router.post("/users/:id/invite", async (req, res) => {
     const result = await resendUserInvite({
       userId: String(req.params.id),
       actorRole: UserRole.admin,
+    });
+    void recordAuditFromReq(req, {
+      action: result.purpose === "reset" ? "user.reset_link" : "user.invite",
+      entityType: "user",
+      entityId: result.user.id,
+      organisationId: result.user.organisationId,
+      summary: `Issued ${result.purpose === "reset" ? "reset link" : "invite"} for ${result.user.email}`,
     });
     return res.status(200).json({
       success: true,

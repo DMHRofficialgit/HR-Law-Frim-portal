@@ -3,6 +3,7 @@ import { purgeEligibleWhere } from "../lib/archive";
 import { deleteCase } from "./cases";
 import { deleteEmployee } from "./employees";
 import { hardDeleteOrganisation } from "./organisations";
+import { recordAudit } from "./audit";
 
 export type PurgeArchivesResult = {
   organisations: { purged: number; failed: number };
@@ -68,6 +69,13 @@ export async function purgeExpiredArchives(): Promise<PurgeArchivesResult> {
       result.cases.failed += 1;
     }
   }
+
+  void recordAudit({
+    action: "ops.archive_purge",
+    entityType: "archive_purge",
+    summary: "Completed archive purge",
+    meta: result,
+  });
 
   return result;
 }

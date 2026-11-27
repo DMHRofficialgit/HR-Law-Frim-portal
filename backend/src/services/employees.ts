@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma";
+import { recordAudit } from "./audit";
 
 export type EmployeeInput = {
   name: string;
@@ -161,12 +162,23 @@ export async function updateEmployee(
 export async function deleteEmployee(organisationId: string, id: string) {
   const existing = await prisma.employee.findFirst({
     where: { id, organisationId },
-    include: { _count: { select: { cases: true } } },
+    include: {
+      organisation: { select: { name: true } },
+      _count: { select: { cases: true } },
+    },
   });
   if (!existing) return { ok: false as const, reason: "not_found" as const };
   if (existing._count.cases > 0) {
     return { ok: false as const, reason: "has_cases" as const, employee: existing };
   }
+  void recordAudit({
+    action: "employee.delete",
+    entityType: "employee",
+    entityId: existing.id,
+    organisationId: existing.organisationId,
+    organisationName: existing.organisation.name,
+    summary: `Deleted employee “${existing.name}”`,
+  });
   await prisma.employee.delete({ where: { id } });
   return { ok: true as const, employee: existing };
 }

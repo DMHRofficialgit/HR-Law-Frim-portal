@@ -1,6 +1,7 @@
 import { UserRole } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { removeStoredFile } from "../lib/storage";
+import { recordAudit } from "./audit";
 
 function httpError(message: string, status: number, code: string) {
   return Object.assign(new Error(message), { status, code });
@@ -185,6 +186,15 @@ export async function hardDeleteOrganisation(input: {
   }
 
   const storagePaths = await collectOrganisationStoragePaths(org.id);
+
+  void recordAudit({
+    action: "organisation.purge",
+    entityType: "organisation",
+    entityId: org.id,
+    organisationId: org.id,
+    organisationName: org.name,
+    summary: `Permanently deleted organisation “${org.name}”`,
+  });
 
   await prisma.$transaction(async (tx) => {
     await tx.user.deleteMany({

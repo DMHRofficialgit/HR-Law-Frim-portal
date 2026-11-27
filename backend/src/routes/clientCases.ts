@@ -21,6 +21,7 @@ import {
   updateCase,
 } from "../services/cases";
 import { prisma } from "../lib/prisma";
+import { recordAuditFromReq } from "../services/audit";
 
 const router = Router();
 router.use(requireAuth, requireClient, requirePasswordSettled);
@@ -108,6 +109,15 @@ router.post("/cases", uploadConcurrencyLimiter, (req, res) => {
         error: { code: result.error.code, message: result.error.message },
       });
     }
+
+    void recordAuditFromReq(req, {
+      action: "case.create",
+      entityType: "case",
+      entityId: result.case?.id,
+      organisationId: clientOrgId(req),
+      organisationName: result.case?.organisation?.name,
+      summary: `Created case ${result.case?.ref || parsed.data.title}`,
+    });
 
     return res.status(201).json({
       success: true,
@@ -227,6 +237,13 @@ router.get("/case-attachments/:id/download", async (req, res) => {
       error: { code: "NOT_FOUND", message: "Attachment not found" },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "case.attachment_download",
+    entityType: "case_attachment",
+    entityId: att.id,
+    organisationId: att.case.organisationId,
+    summary: `Downloaded attachment “${att.fileName}” from case ${att.case.ref}`,
+  });
   await sendStoredFile(res, att.storagePath, {
     mimeType: att.mimeType,
     fileName: att.fileName,
@@ -257,6 +274,13 @@ router.delete("/case-attachments/:id", async (req, res) => {
       },
     });
   }
+  void recordAuditFromReq(req, {
+    action: "case.attachment_delete",
+    entityType: "case_attachment",
+    entityId: deleted.id,
+    organisationId: deleted.case.organisationId,
+    summary: `Deleted attachment “${deleted.fileName}” from case ${deleted.case.ref}`,
+  });
   return res.status(200).json({
     success: true,
     data: { id: deleted.id },

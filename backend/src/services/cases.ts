@@ -16,6 +16,7 @@ import {
   getUploadSettings,
   isProductUploadAllowed,
 } from "../lib/uploadSettings";
+import { recordAudit } from "./audit";
 
 const caseInclude = {
   category: true,
@@ -650,6 +651,7 @@ export async function deleteCaseAttachment(
       ...(opts?.organisationId ? { case: { organisationId: opts.organisationId } } : {}),
       ...(opts?.uploadedById ? { uploadedById: opts.uploadedById } : {}),
     },
+    include: { case: { select: { id: true, organisationId: true, ref: true } } },
   });
   if (!att) return null;
 
@@ -661,6 +663,15 @@ export async function deleteCaseAttachment(
 export async function deleteCase(caseId: string, organisationId?: string) {
   const existing = await getCase(caseId, organisationId);
   if (!existing) return null;
+
+  void recordAudit({
+    action: "case.purge",
+    entityType: "case",
+    entityId: existing.id,
+    organisationId: existing.organisationId,
+    organisationName: existing.organisation?.name,
+    summary: `Permanently deleted case ${existing.ref}`,
+  });
 
   for (const att of existing.attachments) {
     await removeStoredFile(att.storagePath);

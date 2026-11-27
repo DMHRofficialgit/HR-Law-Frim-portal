@@ -15,6 +15,7 @@ import {
   setPasswordTokenLimiter,
 } from "../middleware/rateLimitAuth";
 import { ACCESS_TOKEN_REPLACED_MESSAGE } from "../services/access-tokens";
+import { recordAudit, recordAuditFromReq } from "../services/audit";
 import {
   createAuthBundle,
   isHttpError,
@@ -69,6 +70,14 @@ router.post("/auth/login", loginIpLimiter, loginEmailLimiter, async (req, res) =
     await prisma.loginAudit.create({
       data: { email, success: false, ip, userId: user?.id },
     });
+    void recordAudit({
+      action: "auth.login_failure",
+      entityType: "user",
+      entityId: user?.id || null,
+      actorEmail: email,
+      ip,
+      summary: `Failed login for ${email}`,
+    });
     return res.status(401).json({
       success: false,
       error: { code: "INVALID_CREDENTIALS", message: "Invalid email or password" },
@@ -79,6 +88,16 @@ router.post("/auth/login", loginIpLimiter, loginEmailLimiter, async (req, res) =
   if (!ok) {
     await prisma.loginAudit.create({
       data: { email, success: false, ip, userId: user.id },
+    });
+    void recordAudit({
+      action: "auth.login_failure",
+      entityType: "user",
+      entityId: user.id,
+      actorEmail: email,
+      actorUserId: user.id,
+      actorRole: user.role,
+      ip,
+      summary: `Failed login for ${email}`,
     });
     return res.status(401).json({
       success: false,
@@ -98,6 +117,18 @@ router.post("/auth/login", loginIpLimiter, loginEmailLimiter, async (req, res) =
   });
 
   const bundle = await createAuthBundle(user);
+
+  void recordAudit({
+    action: "auth.login_success",
+    entityType: "user",
+    entityId: user.id,
+    organisationId: user.organisationId,
+    actorUserId: user.id,
+    actorEmail: user.email,
+    actorRole: user.role,
+    ip,
+    summary: `Signed in as ${user.email}`,
+  });
 
   return res.status(200).json({
     success: true,
@@ -185,6 +216,13 @@ router.post("/auth/logout", requireAuth, async (req, res) => {
   if (req.auth?.sessionId) {
     await revokeSessionById(req.auth.sessionId);
   }
+  void recordAuditFromReq(req, {
+    action: "auth.logout",
+    entityType: "user",
+    entityId: req.auth!.id,
+    organisationId: req.auth!.organisationId,
+    summary: `Signed out (${req.auth!.email})`,
+  });
   return res.status(200).json({
     success: true,
     data: null,
@@ -235,6 +273,14 @@ router.post(
     });
 
     const bundle = await rotateAuthAfterCredentialChange(user.id);
+
+    void recordAuditFromReq(req, {
+      action: "auth.password_change",
+      entityType: "user",
+      entityId: user.id,
+      organisationId: user.organisationId,
+      summary: `Password changed for ${user.email}`,
+    });
 
     return res.status(200).json({
       success: true,
@@ -329,6 +375,19 @@ router.post(
     });
 
     const bundle = await createAuthBundle(user);
+
+    void recordAudit({
+      action: "auth.password_set",
+      entityType: "user",
+      entityId: user.id,
+      organisationId: user.organisationId,
+      actorUserId: user.id,
+      actorEmail: user.email,
+      actorRole: user.role,
+      ip: clientIp(req),
+      summary: `Password set via invite/reset for ${user.email}`,
+      meta: { purpose: invite.purpose },
+    });
 
     return res.status(200).json({
       success: true,

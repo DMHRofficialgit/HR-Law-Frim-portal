@@ -10,6 +10,7 @@ import {
 import { prisma } from "../lib/prisma";
 import { publicUser } from "../lib/tokens";
 import { issueAccessToken, issueInviteForUser } from "./access-tokens";
+import { recordAudit } from "./audit";
 
 function httpError(message: string, status: number, code: string) {
   return Object.assign(new Error(message), { status, code });
@@ -183,6 +184,16 @@ export async function setUserStatus(params: {
     where: { id: target.id },
     data: { status: params.status },
     select: userSelect,
+  });
+  void recordAudit({
+    action: params.status === UserStatus.disabled ? "user.disable" : "user.enable",
+    entityType: "user",
+    entityId: user.id,
+    organisationId: user.organisationId,
+    organisationName: user.organisation?.name,
+    actorUserId: params.actorId,
+    actorRole: params.actorRole,
+    summary: `${params.status === UserStatus.disabled ? "Disabled" : "Enabled"} ${user.email}`,
   });
   return user;
 }
