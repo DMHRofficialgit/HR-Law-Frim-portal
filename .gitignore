@@ -51,7 +51,11 @@ Desktop.ini
 
 # DB dumps / backups (never ship to client remotes)
 *.dump
+*.sql
 *.sql.gz
+*.backup
+backups/
+**/backups/
 dmhr_local_to_render.dump
 
 # Accidental nested Desktop clones
